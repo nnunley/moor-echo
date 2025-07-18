@@ -34,6 +34,18 @@ pub mod echo {
             _dot: (),
             property: Box<EchoAst>, // Must be an Identifier
         },
+        
+        // Let statements
+        Let {
+            #[rust_sitter::leaf(text = "let")]
+            _let: (),
+            name: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "=")]
+            _equals: (),
+            value: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ";")]
+            _semicolon: (),
+        },
     }
 }
 
