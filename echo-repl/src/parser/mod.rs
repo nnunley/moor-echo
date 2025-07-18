@@ -40,6 +40,19 @@ pub enum EchoAst {
         right: Box<EchoAst>,
     },
     
+    // Method call: obj:verb(args)
+    MethodCall {
+        object: Box<EchoAst>,
+        verb: String,
+        args: Vec<EchoAst>,
+    },
+    
+    // Property access: obj.prop
+    PropertyAccess {
+        object: Box<EchoAst>,
+        property: String,
+    },
+    
     // Statements
     Let {
         name: String,
@@ -65,6 +78,13 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct VerbSignature {
+    pub dobj: String,
+    pub prep: String,
+    pub iobj: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectMember {
     Property {
         name: String,
@@ -72,6 +92,7 @@ pub enum ObjectMember {
     },
     Verb {
         name: String,
+        signature: VerbSignature,
         code: String,
     },
     Function {
@@ -98,6 +119,18 @@ impl EchoAst {
                         name,
                         value: Box::new(EchoAst::Integer(num)),
                     });
+                } else if value_str.starts_with('"') && value_str.ends_with('"') {
+                    // String literal
+                    return Ok(EchoAst::Let {
+                        name,
+                        value: Box::new(EchoAst::String(value_str[1..value_str.len()-1].to_string())),
+                    });
+                } else {
+                    // Identifier
+                    return Ok(EchoAst::Let {
+                        name,
+                        value: Box::new(EchoAst::Identifier(value_str.to_string())),
+                    });
                 }
             }
         } else if trimmed.starts_with("object ") {
@@ -114,18 +147,53 @@ impl EchoAst {
                     };
                     
                     let mut members = Vec::new();
-                    for line in &lines[1..lines.len()-1] {
-                        let line = line.trim();
+                    let mut i = 1;
+                    while i < lines.len() - 1 {
+                        let line = lines[i].trim();
                         if line.starts_with("property ") {
                             let prop_parts: Vec<&str> = line[9..].split('=').collect();
-                            if !prop_parts.is_empty() {
+                            if prop_parts.len() >= 2 {
                                 let prop_name = prop_parts[0].trim().trim_end_matches(';').to_string();
+                                let prop_value = prop_parts[1].trim().trim_end_matches(';');
+                                
+                                let value_ast = if prop_value.starts_with('"') && prop_value.ends_with('"') {
+                                    EchoAst::String(prop_value[1..prop_value.len()-1].to_string())
+                                } else if let Ok(num) = prop_value.parse::<i64>() {
+                                    EchoAst::Integer(num)
+                                } else {
+                                    EchoAst::String(prop_value.to_string())
+                                };
+                                
                                 members.push(ObjectMember::Property {
                                     name: prop_name,
-                                    value: Some(EchoAst::String("test".to_string())),
+                                    value: Some(value_ast),
+                                });
+                            }
+                        } else if line.starts_with("verb ") {
+                            // Parse verb definition
+                            let verb_line = &line[5..];
+                            if let Some(paren_start) = verb_line.find('(') {
+                                let verb_name = verb_line[..paren_start].trim().trim_matches('"').to_string();
+                                // Find endverb
+                                let mut verb_body = String::new();
+                                i += 1;
+                                while i < lines.len() - 1 && lines[i].trim() != "endverb" {
+                                    verb_body.push_str(lines[i]);
+                                    verb_body.push('\n');
+                                    i += 1;
+                                }
+                                members.push(ObjectMember::Verb {
+                                    name: verb_name,
+                                    signature: VerbSignature {
+                                        dobj: "this".to_string(),
+                                        prep: "none".to_string(),
+                                        iobj: "none".to_string(),
+                                    },
+                                    code: verb_body.trim().to_string(),
                                 });
                             }
                         }
+                        i += 1;
                     }
                     
                     return Ok(EchoAst::ObjectDef { name, parent, members });
@@ -140,6 +208,39 @@ impl EchoAst {
                 left: Box::new(left),
                 right: Box::new(right),
             });
+        } else if let Some(colon_pos) = trimmed.find(':') {
+            // Method call: obj:verb(args)
+            let obj_str = trimmed[..colon_pos].trim();
+            let rest = trimmed[colon_pos + 1..].trim();
+            
+            if let Some(paren_start) = rest.find('(') {
+                if rest.ends_with(')') {
+                    let verb = rest[..paren_start].trim().to_string();
+                    let args_str = &rest[paren_start + 1..rest.len() - 1];
+                    
+                    // Simple arg parsing - just split by comma for now
+                    let args: Vec<EchoAst> = if args_str.trim().is_empty() {
+                        vec![]
+                    } else {
+                        args_str.split(',')
+                            .map(|arg| {
+                                let arg = arg.trim();
+                                if let Ok(num) = arg.parse::<i64>() {
+                                    EchoAst::Integer(num)
+                                } else {
+                                    EchoAst::Identifier(arg.to_string())
+                                }
+                            })
+                            .collect()
+                    };
+                    
+                    return Ok(EchoAst::MethodCall {
+                        object: Box::new(EchoAst::Identifier(obj_str.to_string())),
+                        verb,
+                        args,
+                    });
+                }
+            }
         } else if let Ok(num) = trimmed.parse::<i64>() {
             return Ok(EchoAst::Integer(num));
         } else {

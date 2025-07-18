@@ -58,9 +58,16 @@ pub enum PropertyValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerbDefinition {
     pub name: String,
-    pub args: Vec<String>,
+    pub signature: VerbSignature,
     pub code: String,
     pub permissions: VerbPermissions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerbSignature {
+    pub dobj: String,
+    pub prep: String,
+    pub iobj: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
