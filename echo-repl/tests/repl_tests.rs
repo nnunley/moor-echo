@@ -1,14 +1,17 @@
 use echo_repl::repl::{Repl, ReplCommand};
+use tempfile::TempDir;
 
 #[test]
 fn test_repl_creation() {
-    let repl = Repl::new();
+    let temp_dir = TempDir::new().unwrap();
+    let repl = Repl::with_storage_path(temp_dir.path()).unwrap();
     assert!(repl.is_running());
 }
 
 #[test]
 fn test_repl_parse_command() {
-    let repl = Repl::new();
+    let temp_dir = TempDir::new().unwrap();
+    let repl = Repl::with_storage_path(temp_dir.path()).unwrap();
     
     // Test basic command parsing
     assert_eq!(
@@ -30,7 +33,8 @@ fn test_repl_parse_command() {
 
 #[test]
 fn test_repl_execute_simple_expression() {
-    let mut repl = Repl::new();
+    let temp_dir = TempDir::new().unwrap();
+    let mut repl = Repl::with_storage_path(temp_dir.path()).unwrap();
     
     // Test simple arithmetic
     let result = repl.execute("2 + 2");
@@ -39,7 +43,8 @@ fn test_repl_execute_simple_expression() {
 
 #[test]
 fn test_repl_variable_binding() {
-    let mut repl = Repl::new();
+    let temp_dir = TempDir::new().unwrap();
+    let mut repl = Repl::with_storage_path(temp_dir.path()).unwrap();
     
     // Test variable binding
     repl.execute("let x = 42;").unwrap();
@@ -49,7 +54,8 @@ fn test_repl_variable_binding() {
 
 #[test]
 fn test_repl_object_creation() {
-    let mut repl = Repl::new();
+    let temp_dir = TempDir::new().unwrap();
+    let mut repl = Repl::with_storage_path(temp_dir.path()).unwrap();
     
     // Test simple object creation
     let code = r#"
@@ -59,6 +65,8 @@ fn test_repl_object_creation() {
     "#;
     
     let result = repl.execute(code);
-    assert!(result.is_ok());
-    assert!(result.unwrap().contains("object created"));
+    match &result {
+        Ok(msg) => assert!(msg.contains("object created")),
+        Err(e) => panic!("Object creation failed: {:?}", e),
+    }
 }
