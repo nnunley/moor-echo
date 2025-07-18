@@ -207,6 +207,26 @@ impl Evaluator {
                 Ok(Value::Object(obj_id))
             }
             
+            EchoAst::PropertyAccess { object, property } => {
+                // Evaluate the object expression
+                let obj_val = self.eval_with_player(object, player_id)?;
+                
+                if let Value::Object(obj_id) = obj_val {
+                    // Get the object
+                    let obj = self.storage.objects.get(obj_id)?;
+                    
+                    // Look up the property
+                    if let Some(prop_val) = obj.properties.get(property) {
+                        // Convert PropertyValue to Value
+                        Ok(property_value_to_value(prop_val.clone())?)
+                    } else {
+                        Err(anyhow!("Property '{}' not found on object", property))
+                    }
+                } else {
+                    Err(anyhow!("Property access on non-object"))
+                }
+            }
+            
             EchoAst::MethodCall { object, verb, args } => {
                 // Evaluate the object expression
                 let obj_val = self.eval_with_player(object, player_id)?;
@@ -283,13 +303,39 @@ impl Evaluator {
                                     for part in parts {
                                         if part.starts_with('"') && part.ends_with('"') {
                                             result.push_str(&part[1..part.len()-1]);
+                                        } else if part.contains('.') {
+                                            // Handle property access like "this.name", "caller.name", etc.
+                                            if let Some(dot_pos) = part.find('.') {
+                                                let obj_part = &part[..dot_pos];
+                                                let prop_part = &part[dot_pos + 1..];
+                                                
+                                                let target_obj = match obj_part {
+                                                    "this" => Some(obj_id),
+                                                    "caller" => Some(player_id),
+                                                    _ => None,
+                                                };
+                                                
+                                                if let Some(target_id) = target_obj {
+                                                    if let Ok(target_obj) = self.storage.objects.get(target_id) {
+                                                        if let Some(prop_val) = target_obj.properties.get(prop_part) {
+                                                            match prop_val {
+                                                                PropertyValue::String(s) => result.push_str(s),
+                                                                PropertyValue::Integer(i) => result.push_str(&i.to_string()),
+                                                                PropertyValue::Float(f) => result.push_str(&f.to_string()),
+                                                                PropertyValue::Boolean(b) => result.push_str(&b.to_string()),
+                                                                _ => result.push_str(&format!("{:?}", prop_val)),
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         } else if part == "this.name" {
-                                            // Get property value
+                                            // Get property value (legacy support)
                                             if let Some(PropertyValue::String(s)) = obj.properties.get("name") {
                                                 result.push_str(s);
                                             }
                                         } else if part == "caller.name" {
-                                            // Get caller's name
+                                            // Get caller's name (legacy support)
                                             if let Ok(caller_obj) = self.storage.objects.get(player_id) {
                                                 if let Some(PropertyValue::String(s)) = caller_obj.properties.get("name") {
                                                     result.push_str(s);
@@ -341,6 +387,27 @@ fn value_to_property_value(val: Value) -> Result<PropertyValue> {
                 .map(value_to_property_value)
                 .collect();
             Ok(PropertyValue::List(prop_items?))
+        }
+    }
+}
+
+fn property_value_to_value(prop_val: PropertyValue) -> Result<Value> {
+    match prop_val {
+        PropertyValue::Null => Ok(Value::Null),
+        PropertyValue::Boolean(b) => Ok(Value::Boolean(b)),
+        PropertyValue::Integer(i) => Ok(Value::Integer(i)),
+        PropertyValue::Float(f) => Ok(Value::Float(f)),
+        PropertyValue::String(s) => Ok(Value::String(s)),
+        PropertyValue::Object(id) => Ok(Value::Object(id)),
+        PropertyValue::List(items) => {
+            let val_items: Result<Vec<_>> = items.into_iter()
+                .map(property_value_to_value)
+                .collect();
+            Ok(Value::List(val_items?))
+        }
+        PropertyValue::Map(_) => {
+            // For now, just return null for maps - full implementation would convert to Value::Map
+            Ok(Value::Null)
         }
     }
 }
