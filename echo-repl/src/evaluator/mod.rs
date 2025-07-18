@@ -90,6 +90,7 @@ impl Evaluator {
     pub fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         match ast {
             EchoAst::Number(n) => Ok(Value::Integer(*n)),
+            EchoAst::String(s) => Ok(Value::String(s.clone())),
             EchoAst::Identifier(s) => {
                 // Look up variable in player's environment
                 if let Some(env) = self.environments.get(&player_id) {
@@ -147,6 +148,58 @@ impl Evaluator {
                 });
                 
                 Ok(val)
+            }
+            EchoAst::ObjectDef { name, members, .. } => {
+                // Create new object
+                let obj_id = ObjectId::new();
+                
+                // Extract object name from identifier
+                let obj_name = match name.as_ref() {
+                    EchoAst::Identifier(s) => s,
+                    _ => return Err(anyhow!("Object definition must use identifier for name")),
+                };
+                
+                let mut properties = HashMap::new();
+                let mut verbs = HashMap::new();
+                
+                // Process object members
+                for member in members {
+                    match member {
+                        EchoAst::PropertyDef { name: prop_name, value, .. } => {
+                            let prop_name_str = match prop_name.as_ref() {
+                                EchoAst::Identifier(s) => s,
+                                _ => return Err(anyhow!("Property name must be identifier")),
+                            };
+                            
+                            let val = self.eval_with_player(value, player_id)?;
+                            properties.insert(prop_name_str.clone(), value_to_property_value(val)?);
+                        }
+                        _ => {} // Other members not implemented yet
+                    }
+                }
+                
+                let obj = EchoObject {
+                    id: obj_id,
+                    parent: Some(ObjectId::root()),
+                    name: obj_name.clone(),
+                    properties,
+                    verbs,
+                    queries: HashMap::new(),
+                    event_handlers: vec![],
+                };
+                
+                self.storage.objects.store(obj)?;
+                
+                // Store the object reference by name for easy access
+                self.environments.entry(player_id).and_modify(|env| {
+                    env.variables.insert(obj_name.clone(), Value::Object(obj_id));
+                });
+                
+                Ok(Value::Object(obj_id))
+            }
+            EchoAst::PropertyDef { .. } => {
+                // Property definitions should only appear inside objects
+                Err(anyhow!("Property definition outside of object context"))
             }
             // All current rust-sitter AST variants are handled above
             // Will add more variants as we expand the grammar

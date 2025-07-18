@@ -13,6 +13,7 @@ pub mod echo {
     pub enum EchoAst {
         // Literals
         Number(#[rust_sitter::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())] i64),
+        String(#[rust_sitter::leaf(pattern = r#""[^"]*""#, transform = |v| v[1..v.len()-1].to_string())] String),
         
         // Identifiers
         Identifier(#[rust_sitter::leaf(pattern = r"[a-zA-Z_][a-zA-Z0-9_]*", transform = |v| v.to_string())] String),
@@ -39,6 +40,28 @@ pub mod echo {
         Let {
             #[rust_sitter::leaf(text = "let")]
             _let: (),
+            name: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "=")]
+            _equals: (),
+            value: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ";")]
+            _semicolon: (),
+        },
+        
+        // Object definitions
+        ObjectDef {
+            #[rust_sitter::leaf(text = "object")]
+            _object: (),
+            name: Box<EchoAst>,
+            members: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endobject")]
+            _endobject: (),
+        },
+        
+        // Property definitions within objects
+        PropertyDef {
+            #[rust_sitter::leaf(text = "property")]
+            _property: (),
             name: Box<EchoAst>,
             #[rust_sitter::leaf(text = "=")]
             _equals: (),
