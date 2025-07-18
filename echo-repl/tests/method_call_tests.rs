@@ -25,8 +25,8 @@ endobject"#).unwrap();
     let call_ast = parser.parse("testobj:greet()").unwrap();
     let result = evaluator.eval_with_player(&call_ast, player_id).unwrap();
     
-    // For now, just check that we get a string result
-    assert_eq!(result, Value::String("method executed".to_string()));
+    // Check that we get the expected result from the greet method
+    assert_eq!(result, Value::String("Hello World!".to_string()));
 }
 
 #[test]

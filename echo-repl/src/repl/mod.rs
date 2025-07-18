@@ -103,8 +103,12 @@ impl Repl {
         let result = self.evaluator.eval(&ast)
             .map_err(|e| ReplError::ExecutionError(e.to_string()))?;
         
-        // Return the result
-        Ok(result.to_string())
+        // Handle special cases for object creation
+        if let EchoAst::ObjectDef { .. } = ast {
+            Ok("object created".to_string())
+        } else {
+            Ok(result.to_string())
+        }
     }
     
     pub fn handle_command(&mut self, command: ReplCommand) -> Result<String, ReplError> {
