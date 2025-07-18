@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+      
+    - name: Generate parser
+      run: tree-sitter generate
+      
+    - name: Run tests
+      run: tree-sitter test
+      
+    - name: Run performance benchmark
+      run: |
+        echo "=== Performance Benchmark ===" | tee benchmark-results.txt
+        tree-sitter test --stat total-only | tee -a benchmark-results.txt
+        echo "" | tee -a benchmark-results.txt
+        echo "=== Slow Tests (< 100 bytes/ms) ===" | tee -a benchmark-results.txt
+        tree-sitter test --stat all | grep -E "(bytes/ms|Warning)" | tee -a benchmark-results.txt
+        
+    - name: Check for performance regressions
+      run: |
+        # Fail if any test is slower than 10 bytes/ms
+        if tree-sitter test --stat all | grep -E "Warning.*[0-9]\.[0-9]+ bytes/ms" | grep -E "[0-9]\.([0-9]|[0-9][0-9]) bytes/ms"; then
+          echo "❌ Performance regression detected: tests running slower than 10 bytes/ms"
+          exit 1
+        else
+          echo "✅ All tests performing adequately"
+        fi
+        
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmark-results.txt
+        
+  build-bindings:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install tree-sitter CLI
+      run: npm install -g tree-sitter-cli
+      
+    - name: Generate parser
+      run: tree-sitter generate
+      
+    - name: Test parser compilation
+      run: |
+        # Test that parser compiles for various targets
+        gcc -shared -fPIC -I src src/parser.c -o parser.so
+        echo "✅ Parser compiles successfully"

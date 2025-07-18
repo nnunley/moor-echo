@@ -1,0 +1,43 @@
+// A Generic Room
+// Inherits from the root class and provides the core functionality
+// for a location that can contain players and things.
+
+object $room extends $root_class
+    property description = "You are in a non-descript room.";
+
+    // When a player looks at the room itself
+    verb "look" (this, "none", "none")
+        caller:tell(this.description);
+        caller:tell("Contents:");
+        for item in (this.contents)
+            caller:tell("  ", item.name);
+        endfor
+    endverb
+
+    // A more advanced look verb that can handle looking at things in the room
+    verb "look" (this, "at", dobjstr)
+        // This is a simplified match. A real core would have a robust parser.
+        for item in (this.contents)
+            if (item.name == dobjstr)
+                // Call the look verb on the item itself
+                item:look(item, "at", item);
+                return;
+            endif
+        endfor
+        caller:tell("You don't see that here.");
+    endverb
+
+    // Use an event handler to announce arrivals
+    on PlayerMoved(player, from_room, to_room) where to_room == this
+        this:announce(player.name, " has arrived.");
+    endon
+
+    // A utility function to announce something to everyone in the room
+    function announce(message)
+        for item in (this.contents)
+            if (is_player(item))
+                item:tell(message);
+            endif
+        endfor
+    endfunction
+endobject

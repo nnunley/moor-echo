@@ -1,0 +1,32 @@
+// A Generic Thing
+// Inherits from the root class and provides the basic behaviors
+// for any physical object in the virtual world.
+
+object $thing extends $root_class
+    property description = "It's just a generic thing.";
+
+    // Override the default look verb to be more descriptive
+    verb "look" (this, "at", this)
+        caller:tell(this.description);
+    endverb
+
+    // A verb to take an object
+    verb "take" (this, dobjstr, "none", "none")
+        if (dobjstr == this.name)
+            this:move_to(caller);
+            caller:tell("You take ", this.name, ".");
+        else
+            pass(dobjstr, "none", "none"); // Let the parent handle it
+        endif
+    endverb
+
+    // A verb to drop an object
+    verb "drop" (this, dobjstr, "none", "none")
+        if (dobjstr == this.name)
+            this:move_to(caller.location);
+            caller:tell("You drop ", this.name, ".");
+        else
+            pass(dobjstr, "none", "none");
+        endif
+    endverb
+endobject

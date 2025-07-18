@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+- [treesitter_grammar_dsl.md](mdc:aidocs/treesitter_grammar_dsl.md)
+- [tree-sitter_basic_parsing.md](mdc:aidocs/tree-sitter_basic_parsing.md)
+- [treesitter_writing_the_grammar.md](mdc:aidocs/treesitter_writing_the_grammar.md)
+- [treesitter_writing_tests.md](mdc:aidocs/treesitter_writing_tests.md)
+- Remember - rules starting with _ are not included in the concrete syntax tree used for testing

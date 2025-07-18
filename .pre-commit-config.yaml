@@ -1,0 +1,32 @@
+repos:
+  - repo: local
+    hooks:
+      - id: tree-sitter-generate
+        name: tree-sitter generate
+        entry: tree-sitter generate
+        language: system
+        files: grammar\.js$
+        pass_filenames: false
+        
+      - id: tree-sitter-test
+        name: tree-sitter test
+        entry: tree-sitter test
+        language: system
+        files: ^(grammar\.js|test/corpus/.*\.txt)$
+        pass_filenames: false
+        
+      - id: tree-sitter-benchmark
+        name: tree-sitter benchmark
+        entry: bash -c 'tree-sitter test --stat total-only | tee benchmark-results.txt && echo "=== Performance Results ===" && grep "bytes/ms" benchmark-results.txt | tail -1'
+        language: system
+        files: ^(grammar\.js|test/corpus/.*\.txt)$
+        pass_filenames: false
+        verbose: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: test/corpus/.*\.txt$

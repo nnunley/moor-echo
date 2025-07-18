@@ -1,0 +1,27 @@
+// The Root Class
+// This is the ultimate ancestor of all objects in the system.
+// It provides the most fundamental, universally shared behaviors.
+
+object $root_class
+    property name = "thing";
+    property owner = #1; // In a real system, this would be set by the creator
+    property location = #-1;
+    property contents = {};
+
+    // A basic function for checking if an object is valid.
+    // In ECHO, we prefer built-in functions for this, but this demonstrates
+    // the concept.
+    function is_valid()
+        return valid(this);
+    endfunction
+
+    // A universal verb to look at an object. Provides a default description.
+    verb "look" (this, "at", this)
+        caller:tell("You see ", this.name, ".");
+    endverb
+
+    // The default 'huh' verb, called when no other verb matches.
+    verb "huh" (this, dobjstr, prepstr, iobjstr)
+        caller:tell("I didn't understand that.");
+    endverb
+endobject
