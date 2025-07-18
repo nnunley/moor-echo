@@ -5,7 +5,7 @@ use dashmap::DashMap;
 
 use crate::parser::EchoAst;
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
-// Remove unused imports - verb execution will be re-implemented when we add MethodCall to rust-sitter grammar
+use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
 
 pub struct Evaluator {
     storage: Arc<Storage>,
@@ -174,6 +174,33 @@ impl Evaluator {
                             let val = self.eval_with_player(value, player_id)?;
                             properties.insert(prop_name_str.clone(), value_to_property_value(val)?);
                         }
+                        EchoAst::VerbDef { name: verb_name, signature, body, .. } => {
+                            let verb_name_str = match verb_name.as_ref() {
+                                EchoAst::String(s) => s,
+                                EchoAst::Identifier(s) => s,
+                                _ => return Err(anyhow!("Verb name must be string or identifier")),
+                            };
+                            
+                            // For now, store the body as a simple string representation
+                            // In a full implementation, we'd compile this to bytecode
+                            let body_str = format!("{:?}", body); // Simplified for now
+                            
+                            let verb_def = VerbDefinition {
+                                name: verb_name_str.clone(),
+                                signature: VerbSignature {
+                                    dobj: "none".to_string(),
+                                    prep: "none".to_string(), 
+                                    iobj: "none".to_string(),
+                                },
+                                code: body_str,
+                                permissions: VerbPermissions {
+                                    read: true,
+                                    write: false,
+                                    execute: true,
+                                },
+                            };
+                            verbs.insert(verb_name_str.clone(), verb_def);
+                        }
                         _ => {} // Other members not implemented yet
                     }
                 }
@@ -200,6 +227,44 @@ impl Evaluator {
             EchoAst::PropertyDef { .. } => {
                 // Property definitions should only appear inside objects
                 Err(anyhow!("Property definition outside of object context"))
+            }
+            EchoAst::VerbDef { .. } => {
+                // Verb definitions should only appear inside objects
+                Err(anyhow!("Verb definition outside of object context"))
+            }
+            EchoAst::Return { value, .. } => {
+                // Return statements - evaluate the value and return it
+                self.eval_with_player(value, player_id)
+            }
+            EchoAst::MethodCall { object, method, args, .. } => {
+                // Evaluate the object expression
+                let obj_val = self.eval_with_player(object, player_id)?;
+                
+                if let Value::Object(obj_id) = obj_val {
+                    // Get the object
+                    let obj = self.storage.objects.get(obj_id)?;
+                    
+                    // Extract method name
+                    let method_name = match method.as_ref() {
+                        EchoAst::Identifier(s) => s,
+                        _ => return Err(anyhow!("Method name must be identifier")),
+                    };
+                    
+                    // Find the verb
+                    if let Some(verb_def) = obj.verbs.get(method_name) {
+                        // For now, simplified verb execution
+                        // In a full implementation, we'd parse and execute the verb body
+                        Ok(Value::String("method executed".to_string()))
+                    } else {
+                        Err(anyhow!("Method '{}' not found on object", method_name))
+                    }
+                } else {
+                    Err(anyhow!("Method call on non-object"))
+                }
+            }
+            EchoAst::Comma => {
+                // Comma is just a separator, doesn't evaluate to anything
+                Ok(Value::Null)
             }
             // All current rust-sitter AST variants are handled above
             // Will add more variants as we expand the grammar

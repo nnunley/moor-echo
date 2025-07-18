@@ -69,6 +69,48 @@ pub mod echo {
             #[rust_sitter::leaf(text = ";")]
             _semicolon: (),
         },
+        
+        // Verb definitions within objects
+        VerbDef {
+            #[rust_sitter::leaf(text = "verb")]
+            _verb: (),
+            name: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            signature: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endverb")]
+            _endverb: (),
+        },
+        
+        // Comma separator
+        #[rust_sitter::leaf(text = ",")]
+        Comma,
+        
+        // Return statements
+        Return {
+            #[rust_sitter::leaf(text = "return")]
+            _return: (),
+            value: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ";")]
+            _semicolon: (),
+        },
+        
+        // Method calls
+        #[rust_sitter::prec_left(12)]
+        MethodCall {
+            object: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ":")]
+            _colon: (),
+            method: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            args: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+        },
     }
 }
 
