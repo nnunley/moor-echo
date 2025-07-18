@@ -25,6 +25,12 @@ raft = { version = "0.7", optional = true }
 tonic = { version = "0.10", optional = true }
 prost = { version = "0.12", optional = true }
 
+# Optional dependencies for JIT compilation
+cranelift = { version = "0.111", optional = true }
+cranelift-jit = { version = "0.111", optional = true }
+cranelift-module = { version = "0.111", optional = true }
+cranelift-native = { version = "0.111", optional = true }
+
 [build-dependencies]
 rust-sitter-tool = "0.4"
 
@@ -34,5 +40,7 @@ tokio-test = "0.4"
 tempfile = "3.8"
 
 [features]
-default = []
+default = ["interpreter"]
+interpreter = []
+jit = ["cranelift", "cranelift-jit", "cranelift-module", "cranelift-native"]
 distributed = ["raft", "tonic", "prost"]

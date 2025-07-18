@@ -7,6 +7,21 @@ use crate::parser::EchoAst;
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
 use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
 
+// JIT compiler module  
+#[cfg(feature = "jit")]
+pub mod jit;
+#[cfg(feature = "jit")]
+pub use jit::{JitEvaluator, JitStats};
+
+// Always available trait
+pub trait EvaluatorTrait {
+    fn create_player(&mut self, name: &str) -> Result<ObjectId>;
+    fn switch_player(&mut self, player_id: ObjectId) -> Result<()>;
+    fn current_player(&self) -> Option<ObjectId>;
+    fn eval(&mut self, ast: &EchoAst) -> Result<Value>;
+    fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value>;
+}
+
 pub struct Evaluator {
     storage: Arc<Storage>,
     environments: DashMap<ObjectId, Environment>,
@@ -313,6 +328,61 @@ impl Evaluator {
             // Generic verb execution placeholder
             Ok(Value::String("method executed".to_string()))
         }
+    }
+}
+
+impl EvaluatorTrait for Evaluator {
+    fn create_player(&mut self, name: &str) -> Result<ObjectId> {
+        self.create_player(name)
+    }
+    
+    fn switch_player(&mut self, player_id: ObjectId) -> Result<()> {
+        self.switch_player(player_id)
+    }
+    
+    fn current_player(&self) -> Option<ObjectId> {
+        self.current_player()
+    }
+    
+    fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
+        self.eval(ast)
+    }
+    
+    fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        self.eval_with_player(ast, player_id)
+    }
+}
+
+/// Factory function to create the appropriate evaluator based on features
+pub fn create_evaluator(storage: Arc<Storage>) -> Result<Box<dyn EvaluatorTrait>> {
+    #[cfg(feature = "jit")]
+    {
+        Ok(Box::new(JitEvaluator::new(storage)?))
+    }
+    
+    #[cfg(not(feature = "jit"))]
+    {
+        Ok(Box::new(Evaluator::new(storage)))
+    }
+}
+
+/// Enum to choose evaluator type at runtime
+#[derive(Debug, Clone, Copy)]
+pub enum EvaluatorType {
+    Interpreter,
+    #[cfg(feature = "jit")]
+    Jit,
+}
+
+/// Create a specific evaluator type
+pub fn create_evaluator_of_type(
+    storage: Arc<Storage>,
+    eval_type: EvaluatorType,
+) -> Result<Box<dyn EvaluatorTrait>> {
+    match eval_type {
+        EvaluatorType::Interpreter => Ok(Box::new(Evaluator::new(storage))),
+        #[cfg(feature = "jit")]
+        EvaluatorType::Jit => Ok(Box::new(JitEvaluator::new(storage)?)),
     }
 }
 
