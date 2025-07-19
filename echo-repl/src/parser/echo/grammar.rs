@@ -76,7 +76,29 @@ pub mod echo {
         // Assignment - low precedence for statement-level assignments
         #[rust_sitter::prec_right(2)]
         Assignment {
-            target: Box<EchoAst>, // Must be an Identifier
+            target: Box<EchoAst>, // Must be an Identifier or PropertyAccess
+            #[rust_sitter::leaf(text = "=")]
+            _op: (),
+            value: Box<EchoAst>,
+        },
+        
+        // Let binding - higher precedence than assignment
+        #[rust_sitter::prec_right(3)]
+        LetBinding {
+            #[rust_sitter::leaf(text = "let")]
+            _let: (),
+            pattern: Box<EchoAst>, // Identifier or pattern
+            #[rust_sitter::leaf(text = "=")]
+            _op: (),
+            value: Box<EchoAst>,
+        },
+        
+        // Const binding - higher precedence than assignment
+        #[rust_sitter::prec_right(3)]
+        ConstBinding {
+            #[rust_sitter::leaf(text = "const")]
+            _const: (),
+            pattern: Box<EchoAst>, // Identifier or pattern
             #[rust_sitter::leaf(text = "=")]
             _op: (),
             value: Box<EchoAst>,

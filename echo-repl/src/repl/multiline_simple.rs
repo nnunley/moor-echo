@@ -1,12 +1,9 @@
 // Simple multi-line detection for REPL
-use crate::ast::EchoAst;
 use crate::parser::Parser;
 
 pub struct MultiLineCollector {
     lines: Vec<String>,
     is_collecting: bool,
-    primary_construct: Option<String>,
-    depth: usize,
 }
 
 impl MultiLineCollector {
@@ -14,8 +11,6 @@ impl MultiLineCollector {
         Self {
             lines: Vec::new(),
             is_collecting: false,
-            primary_construct: None,
-            depth: 0,
         }
     }
 
@@ -27,75 +22,66 @@ impl MultiLineCollector {
             return LineProcessResult::Complete(line.to_string());
         }
         
-        // If we're not collecting, check if this starts a multi-line construct
+        // If we're not collecting, start a new potential multi-line input
         if !self.is_collecting {
-            if let Some(construct) = self.get_construct_type(trimmed) {
-                self.lines.clear();
-                self.lines.push(line.to_string());
-                self.is_collecting = true;
-                self.primary_construct = Some(construct);
-                self.depth = 1;
-                return LineProcessResult::NeedMore;
-            } else {
-                // Single line - parse directly
-                return LineProcessResult::Complete(line.to_string());
+            self.lines.clear();
+            self.lines.push(line.to_string());
+            
+            // Try to parse the single line first
+            match parser.parse(line) {
+                Ok(_) => {
+                    // It parsed successfully, so it's complete
+                    return LineProcessResult::Complete(line.to_string());
+                }
+                Err(e) => {
+                    // Check if the error indicates incomplete input
+                    if self.is_incomplete_error(&e) {
+                        self.is_collecting = true;
+                        return LineProcessResult::NeedMore;
+                    } else {
+                        // It's a real parse error, not incomplete input
+                        return LineProcessResult::Complete(line.to_string());
+                    }
+                }
             }
         }
         
         // We're collecting lines
         self.lines.push(line.to_string());
         
-        // Check for nested constructs
-        if let Some(_) = self.get_construct_type(trimmed) {
-            self.depth += 1;
-        }
-        
-        // Check if this ends a construct
-        if let Some(construct) = &self.primary_construct {
-            if self.is_matching_end(construct, trimmed) {
-                self.depth -= 1;
-                if self.depth == 0 {
-                    let complete_code = self.lines.join("\n");
+        // Try to parse the accumulated input
+        let accumulated = self.lines.join("\n");
+        match parser.parse(&accumulated) {
+            Ok(_) => {
+                // It parsed successfully, so we have complete input
+                self.lines.clear();
+                self.is_collecting = false;
+                LineProcessResult::Complete(accumulated)
+            }
+            Err(e) => {
+                // Check if it's still incomplete or a real error
+                if self.is_incomplete_error(&e) {
+                    LineProcessResult::NeedMore
+                } else {
+                    // Real parse error - return what we have
                     self.lines.clear();
                     self.is_collecting = false;
-                    self.primary_construct = None;
-                    return LineProcessResult::Complete(complete_code);
+                    LineProcessResult::Complete(accumulated)
                 }
             }
         }
-        
-        // Don't try to parse control flow early - wait for end markers
-        
-        LineProcessResult::NeedMore
     }
 
-    fn get_construct_type(&self, line: &str) -> Option<String> {
-        if line.starts_with("object ") {
-            Some("object".to_string())
-        } else if line.starts_with("while ") {
-            Some("while".to_string())
-        } else if line.starts_with("for ") {
-            Some("for".to_string())
-        } else if line.starts_with("if ") {
-            Some("if".to_string())
-        } else if line.starts_with("fn ") {
-            Some("fn".to_string())
-        } else if line.contains(" = fn ") && line.contains('{') && !line.contains("endfn") {
-            Some("fn".to_string())
-        } else {
-            None
-        }
-    }
-
-    fn is_matching_end(&self, construct: &str, line: &str) -> bool {
-        match construct {
-            "object" => line == "endobject",
-            "while" => line == "endwhile",
-            "for" => line == "endfor",
-            "if" => line == "endif",
-            "fn" => line == "endfn",
-            _ => false,
-        }
+    fn is_incomplete_error(&self, error: &anyhow::Error) -> bool {
+        let error_str = error.to_string().to_lowercase();
+        
+        // Check for common incomplete input indicators
+        error_str.contains("unexpected end") ||
+        error_str.contains("expected") && error_str.contains("but found end") ||
+        error_str.contains("incomplete") ||
+        error_str.contains("unfinished") ||
+        error_str.contains("unclosed") ||
+        error_str.contains("missing") && (error_str.contains("end") || error_str.contains("closing"))
     }
 
 
@@ -106,8 +92,6 @@ impl MultiLineCollector {
     pub fn reset(&mut self) {
         self.lines.clear();
         self.is_collecting = false;
-        self.primary_construct = None;
-        self.depth = 0;
     }
 
     pub fn get_prompt(&self) -> &'static str {

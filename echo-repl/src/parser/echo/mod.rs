@@ -2,7 +2,7 @@
 pub mod grammar;
 
 use anyhow::{Result, anyhow};
-use crate::ast::{self, LValue, BindingType, BindingPattern};
+use crate::ast::{self, LValue};
 
 // Helper function to extract parameter names from scatter expressions
 fn extract_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<Vec<String>> {
@@ -31,8 +31,8 @@ fn extract_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<Vec<Str
     }
 }
 
-// Helper function to extract parameter names from ParamPattern
-fn extract_params_from_pattern(pattern: grammar::ParamPattern) -> Vec<String> {
+// Helper function to extract parameter names from ParamPattern (simple version for arrow functions)
+fn _extract_simple_params_from_pattern(pattern: grammar::ParamPattern) -> Vec<String> {
     use grammar::{ParamPattern as P, ParamElement as E};
     
     match pattern {
@@ -51,6 +51,32 @@ fn extract_params_from_pattern(pattern: grammar::ParamPattern) -> Vec<String> {
     }
 }
 
+// Helper function to extract full parameter info from ParamPattern
+fn extract_lambda_params_from_pattern(pattern: grammar::ParamPattern) -> Result<Vec<ast::LambdaParam>> {
+    use grammar::{ParamPattern as P, ParamElement as E};
+    
+    match pattern {
+        P::Single(elem) => match elem {
+            E::Simple(ident) => Ok(vec![ast::LambdaParam::Simple(ident.name)]),
+            E::Optional { name, default, .. } => {
+                let default_ast = Box::new(convert_grammar_to_ast(*default)?);
+                Ok(vec![ast::LambdaParam::Optional { name: name.name, default: default_ast }])
+            },
+            E::Rest { name, .. } => Ok(vec![ast::LambdaParam::Rest(name.name)]),
+        },
+        P::Multiple { params, .. } => {
+            params.into_iter().map(|elem| match elem {
+                E::Simple(ident) => Ok(ast::LambdaParam::Simple(ident.name)),
+                E::Optional { name, default, .. } => {
+                    let default_ast = Box::new(convert_grammar_to_ast(*default)?);
+                    Ok(ast::LambdaParam::Optional { name: name.name, default: default_ast })
+                },
+                E::Rest { name, .. } => Ok(ast::LambdaParam::Rest(name.name)),
+            }).collect()
+        },
+    }
+}
+
 pub struct EchoParser {
     inner: grammar::EchoParser,
 }
@@ -63,71 +89,7 @@ impl EchoParser {
     }
     
     pub fn parse(&mut self, input: &str) -> Result<ast::EchoAst> {
-        // Check if this is an assignment statement
-        if let Some(equals_pos) = input.find('=') {
-            // Check if it's not == (equality comparison)
-            if !input[equals_pos..].starts_with("==") {
-                // Try to parse as assignment
-                let target = input[..equals_pos].trim();
-                let value = input[equals_pos + 1..].trim();
-                
-                // Parse the left side to determine the LValue type
-                let lvalue = if let Some(dot_pos) = target.rfind('.') {
-                    // Property assignment: obj.prop = value
-                    let obj_expr = target[..dot_pos].trim();
-                    let prop_name = target[dot_pos + 1..].trim();
-                    
-                    // Validate property name
-                    if prop_name.chars().all(|c| c.is_alphanumeric() || c == '_') &&
-                       prop_name.chars().next().map_or(false, |c| c.is_alphabetic() || c == '_') {
-                        // Parse the object expression
-                        let obj_ast = self.inner.parse(obj_expr)?;
-                        let converted_obj = convert_grammar_to_ast(obj_ast)?;
-                        
-                        LValue::PropertyAccess {
-                            object: Box::new(converted_obj),
-                            property: prop_name.to_string(),
-                        }
-                    } else {
-                        // Invalid property name, fall through to normal parsing
-                        let grammar_ast = self.inner.parse(input)?;
-                        return convert_grammar_to_ast(grammar_ast);
-                    }
-                } else {
-                    // Check for let/const binding or simple assignment
-                    let (binding_type, pattern_str) = if target.starts_with("let ") {
-                        (BindingType::Let, target[4..].trim())
-                    } else if target.starts_with("const ") {
-                        (BindingType::Const, target[6..].trim())
-                    } else {
-                        (BindingType::None, target)
-                    };
-                    
-                    // Parse the pattern
-                    if let Some(pattern) = parse_binding_pattern(pattern_str) {
-                        LValue::Binding {
-                            binding_type,
-                            pattern,
-                        }
-                    } else {
-                        // Not a valid assignment target, fall through to normal parsing
-                        let grammar_ast = self.inner.parse(input)?;
-                        return convert_grammar_to_ast(grammar_ast);
-                    }
-                };
-                
-                // Parse the value expression
-                let value_ast = self.inner.parse(value)?;
-                let converted_value = convert_grammar_to_ast(value_ast)?;
-                
-                return Ok(ast::EchoAst::Assignment {
-                    target: lvalue,
-                    value: Box::new(converted_value),
-                });
-            }
-        }
-        
-        // Otherwise, parse normally
+        // Parse using the grammar
         let grammar_ast = self.inner.parse(input)?;
         
         // Convert grammar AST to unified AST
@@ -141,89 +103,58 @@ impl super::Parser for EchoParser {
     }
     
     fn parse_program(&mut self, source: &str) -> Result<ast::EchoAst> {
-        // Split on statement boundaries, handling multi-line constructs
-        let mut statements = Vec::new();
-        let mut current_statement = String::new();
-        let mut in_multiline = false;
-        let mut multiline_type = "";
-        
-        for line in source.lines() {
-            let trimmed = line.trim();
-            
-            // Skip empty lines and comments
-            if trimmed.is_empty() || trimmed.starts_with("#") {
-                continue;
+        // Parse the entire source as a program
+        match self.inner.parse(source) {
+            Ok(ast) => {
+                // If it's already a program node, convert it directly
+                convert_grammar_to_ast(ast)
             }
-            
-            // Check for start of multi-line constructs
-            if !in_multiline {
-                if trimmed.starts_with("object ") {
-                    in_multiline = true;
-                    multiline_type = "object";
-                } else if trimmed.starts_with("while ") {
-                    in_multiline = true;
-                    multiline_type = "while";
-                } else if trimmed.starts_with("for ") {
-                    in_multiline = true;
-                    multiline_type = "for";
-                } else if trimmed.starts_with("fn ") {
-                    in_multiline = true;
-                    multiline_type = "fn";
-                } else if trimmed.starts_with("if ") {
-                    in_multiline = true;
-                    multiline_type = "if";
-                }
-            }
-            
-            if in_multiline {
-                current_statement.push_str(line);
-                current_statement.push('\n');
+            Err(_) => {
+                // If parsing as a single unit fails, try parsing line by line
+                let mut statements = Vec::new();
+                let mut current_lines = Vec::new();
                 
-                // Check for end of multi-line construct
-                let should_end = match multiline_type {
-                    "object" => trimmed == "endobject",
-                    "fn" => trimmed == "endfn",
-                    "while" | "for" | "if" => {
-                        // For control flow, we collect until we have a complete statement
-                        // Try parsing what we have so far
-                        self.parse(&current_statement).is_ok()
+                for line in source.lines() {
+                    let trimmed = line.trim();
+                    
+                    // Skip empty lines and comments
+                    if trimmed.is_empty() || trimmed.starts_with("#") {
+                        continue;
                     }
-                    _ => false,
-                };
+                    
+                    current_lines.push(line);
+                    let accumulated = current_lines.join("\n");
+                    
+                    // Try to parse accumulated lines
+                    match self.parse(&accumulated) {
+                        Ok(stmt) => {
+                            statements.push(stmt);
+                            current_lines.clear();
+                        }
+                        Err(_) => {
+                            // Need more lines, continue accumulating
+                        }
+                    }
+                }
                 
-                if should_end {
-                    in_multiline = false;
-                    match self.parse(&current_statement) {
+                // If we have leftover lines, try to parse them
+                if !current_lines.is_empty() {
+                    let remaining = current_lines.join("\n");
+                    match self.parse(&remaining) {
                         Ok(stmt) => statements.push(stmt),
                         Err(e) => return Err(e),
                     }
-                    current_statement.clear();
-                    multiline_type = "";
                 }
-            } else {
-                // Single-line statement
-                match self.parse(trimmed) {
-                    Ok(stmt) => statements.push(stmt),
-                    Err(e) => return Err(e),
+                
+                // Return the result
+                if statements.is_empty() {
+                    Ok(ast::EchoAst::Null)
+                } else if statements.len() == 1 {
+                    Ok(statements.into_iter().next().unwrap())
+                } else {
+                    Ok(ast::EchoAst::Program(statements))
                 }
             }
-        }
-        
-        // If we have an incomplete statement, try to parse it
-        if !current_statement.is_empty() {
-            match self.parse(&current_statement) {
-                Ok(stmt) => statements.push(stmt),
-                Err(e) => return Err(e),
-            }
-        }
-        
-        // Return the result
-        if statements.is_empty() {
-            Ok(ast::EchoAst::Null)
-        } else if statements.len() == 1 {
-            Ok(statements.into_iter().next().unwrap())
-        } else {
-            Ok(ast::EchoAst::Program(statements))
         }
     }
     
@@ -275,17 +206,72 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         G::Assignment { target, value, .. } => {
             // Convert to unified AST assignment format
             // We need to handle the target as an LValue
-            match convert_grammar_to_ast(*target)? {
+            let lvalue = match convert_grammar_to_ast(*target)? {
                 ast::EchoAst::Identifier(name) => {
-                    ast::EchoAst::Assignment {
-                        target: ast::LValue::Binding {
-                            binding_type: ast::BindingType::None,
-                            pattern: ast::BindingPattern::Identifier(name),
-                        },
-                        value: Box::new(convert_grammar_to_ast(*value)?),
+                    ast::LValue::Binding {
+                        binding_type: ast::BindingType::None,
+                        pattern: ast::BindingPattern::Identifier(name),
                     }
                 }
-                _ => return Err(anyhow!("Assignment target must be an identifier")),
+                ast::EchoAst::PropertyAccess { object, property } => {
+                    ast::LValue::PropertyAccess { object, property }
+                }
+                _ => return Err(anyhow!("Assignment target must be an identifier or property access")),
+            };
+            
+            ast::EchoAst::Assignment {
+                target: lvalue,
+                value: Box::new(convert_grammar_to_ast(*value)?),
+            }
+        },
+        
+        G::LetBinding { pattern, value, .. } => {
+            let binding_pattern = match convert_grammar_to_ast(*pattern)? {
+                ast::EchoAst::Identifier(name) => ast::BindingPattern::Identifier(name),
+                ast::EchoAst::List { elements } => {
+                    // Convert list elements to binding pattern
+                    let patterns = elements.into_iter().map(|elem| {
+                        match elem {
+                            ast::EchoAst::Identifier(name) => Ok(ast::BindingPattern::Identifier(name)),
+                            _ => Err(anyhow!("Invalid pattern in let binding")),
+                        }
+                    }).collect::<Result<Vec<_>>>()?;
+                    ast::BindingPattern::List(patterns)
+                }
+                _ => return Err(anyhow!("Invalid pattern in let binding")),
+            };
+            
+            ast::EchoAst::Assignment {
+                target: ast::LValue::Binding {
+                    binding_type: ast::BindingType::Let,
+                    pattern: binding_pattern,
+                },
+                value: Box::new(convert_grammar_to_ast(*value)?),
+            }
+        },
+        
+        G::ConstBinding { pattern, value, .. } => {
+            let binding_pattern = match convert_grammar_to_ast(*pattern)? {
+                ast::EchoAst::Identifier(name) => ast::BindingPattern::Identifier(name),
+                ast::EchoAst::List { elements } => {
+                    // Convert list elements to binding pattern
+                    let patterns = elements.into_iter().map(|elem| {
+                        match elem {
+                            ast::EchoAst::Identifier(name) => Ok(ast::BindingPattern::Identifier(name)),
+                            _ => Err(anyhow!("Invalid pattern in const binding")),
+                        }
+                    }).collect::<Result<Vec<_>>>()?;
+                    ast::BindingPattern::List(patterns)
+                }
+                _ => return Err(anyhow!("Invalid pattern in const binding")),
+            };
+            
+            ast::EchoAst::Assignment {
+                target: ast::LValue::Binding {
+                    binding_type: ast::BindingType::Const,
+                    pattern: binding_pattern,
+                },
+                value: Box::new(convert_grammar_to_ast(*value)?),
             }
         },
         
@@ -367,23 +353,35 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         },
         
         G::ArrowFunction { params, body, .. } => {
-            // Extract parameter names from the scatter expression
-            let param_names = extract_params_from_scatter(params)?;
+            // For arrow functions, we need to check if it's a simple identifier or a pattern
+            let lambda_params = match params.as_ref() {
+                // Single identifier like: x => ...
+                G::Identifier(name) => vec![ast::LambdaParam::Simple(name.clone())],
+                // Pattern like: {x, y} => ... or {x, ?y=5} => ...
+                _ => {
+                    // Try to parse as a pattern from the params expression
+                    // For now, just extract simple names until we have better pattern parsing
+                    extract_params_from_scatter(params)?
+                        .into_iter()
+                        .map(ast::LambdaParam::Simple)
+                        .collect()
+                }
+            };
             A::Lambda {
-                params: param_names,
+                params: lambda_params,
                 body: Box::new(convert_grammar_to_ast(*body)?),
             }
         },
         
         G::BlockFunction { params, body, .. } => {
-            // Extract parameter names from the parameter pattern
-            let param_names = extract_params_from_pattern(params);
+            // Extract full parameter info from the parameter pattern
+            let lambda_params = extract_lambda_params_from_pattern(params)?;
             // Convert body to a single expression (Program)
             let body_stmts = body.into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
             A::Lambda {
-                params: param_names,
+                params: lambda_params,
                 body: Box::new(A::Program(body_stmts)),
             }
         },
@@ -515,54 +513,6 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
     })
 }
 
-/// Parse a binding pattern from a string
-fn parse_binding_pattern(input: &str) -> Option<BindingPattern> {
-    let trimmed = input.trim();
-    
-    // Ignore pattern: _
-    if trimmed == "_" {
-        return Some(BindingPattern::Ignore);
-    }
-    
-    // List destructuring: [a, b, c]
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        let inner = &trimmed[1..trimmed.len()-1];
-        let mut patterns = Vec::new();
-        
-        // Simple split by comma for now
-        for part in inner.split(',') {
-            if let Some(pattern) = parse_binding_pattern(part.trim()) {
-                patterns.push(pattern);
-            } else {
-                return None;
-            }
-        }
-        
-        return Some(BindingPattern::List(patterns));
-    }
-    
-    // Rest pattern: ...rest
-    if trimmed.starts_with("...") {
-        let rest_part = &trimmed[3..];
-        if let Some(pattern) = parse_binding_pattern(rest_part) {
-            return Some(BindingPattern::Rest(Box::new(pattern)));
-        }
-    }
-    
-    // Simple identifier
-    if is_valid_identifier(trimmed) {
-        return Some(BindingPattern::Identifier(trimmed.to_string()));
-    }
-    
-    None
-}
-
-/// Check if a string is a valid identifier
-fn is_valid_identifier(s: &str) -> bool {
-    !s.is_empty() &&
-    s.chars().all(|c| c.is_alphanumeric() || c == '_') &&
-    s.chars().next().map_or(false, |c| c.is_alphabetic() || c == '_')
-}
 
 // Re-export for backward compatibility
 pub use grammar::parse_echo;

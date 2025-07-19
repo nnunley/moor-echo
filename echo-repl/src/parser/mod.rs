@@ -7,6 +7,9 @@ pub mod echo;
 // pub mod moo_compat;  // TODO: Implement MOO compatibility parser
 pub mod ast; // Keep old AST for reference during migration
 
+#[cfg(test)]
+mod tests;
+
 /// Trait for all Echo parsers
 pub trait Parser: Send + Sync {
     /// Parse source code into Echo AST
