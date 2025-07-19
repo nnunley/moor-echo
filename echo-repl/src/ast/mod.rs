@@ -96,6 +96,7 @@ pub enum EchoAst {
     PropertyAccess { object: Box<EchoAst>, property: String },
     MethodCall { object: Box<EchoAst>, method: String, args: Vec<EchoAst> },
     FunctionCall { name: String, args: Vec<EchoAst> },
+    Call { func: Box<EchoAst>, args: Vec<EchoAst> }, // For lambda calls
     
     // Index access
     IndexAccess { object: Box<EchoAst>, index: Box<EchoAst> },
@@ -104,6 +105,12 @@ pub enum EchoAst {
     List { elements: Vec<EchoAst> },
     Map { entries: Vec<(String, EchoAst)> },  // Modern Echo only
     
+    // Anonymous functions (Modern Echo only)
+    Lambda {
+        params: Vec<String>,
+        body: Box<EchoAst>,
+    },
+    
     // Control structures
     If { 
         condition: Box<EchoAst>, 
@@ -111,10 +118,12 @@ pub enum EchoAst {
         else_branch: Option<Vec<EchoAst>> 
     },
     While { 
+        label: Option<String>,
         condition: Box<EchoAst>, 
         body: Vec<EchoAst> 
     },
     For { 
+        label: Option<String>,
         variable: String, 
         collection: Box<EchoAst>, 
         body: Vec<EchoAst> 
@@ -122,8 +131,8 @@ pub enum EchoAst {
     
     // Jump statements
     Return { value: Option<Box<EchoAst>> },
-    Break,
-    Continue,
+    Break { label: Option<String> },
+    Continue { label: Option<String> },
     
     // Object definitions
     ObjectDef { 
@@ -255,8 +264,8 @@ impl EchoAst {
             EchoAst::While { .. } |
             EchoAst::For { .. } |
             EchoAst::Return { .. } |
-            EchoAst::Break |
-            EchoAst::Continue |
+            EchoAst::Break { .. } |
+            EchoAst::Continue { .. } |
             EchoAst::Block(_) |
             EchoAst::ExpressionStatement(_)
         )

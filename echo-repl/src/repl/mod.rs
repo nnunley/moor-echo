@@ -9,6 +9,9 @@ use crate::ast::EchoAst;
 use crate::evaluator::{Evaluator, Value};
 use crate::storage::Storage;
 
+mod multiline_simple;
+pub use multiline_simple::{MultiLineCollector, LineProcessResult};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReplCommand {
     Help,
@@ -158,6 +161,10 @@ impl Repl {
         };
         
         Ok((output, elapsed))
+    }
+    
+    pub fn parser_mut(&mut self) -> &mut dyn Parser {
+        &mut *self.parser
     }
     
     pub fn handle_command(&mut self, command: ReplCommand) -> Result<String, ReplError> {

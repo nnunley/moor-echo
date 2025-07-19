@@ -1,0 +1,146 @@
+// Lambda Test Cases for Echo Language
+// Testing MOO-style anonymous functions
+
+// ==========================================
+// ARROW FUNCTIONS (scatterassign => expr)
+// ==========================================
+
+// Test 1: Simple arrow function with single parameter
+.eval
+let inc = x => x + 1
+inc(5)
+.
+
+// Test 2: Arrow function with multiple parameters
+.eval
+let add = {x, y} => x + y
+add(3, 4)
+.
+
+// Test 3: Arrow function with closure
+.eval
+let x = 10
+let addX = y => x + y
+addX(5)
+.
+
+// Test 4: Nested arrow functions
+.eval
+let makeAdder = x => y => x + y
+let add5 = makeAdder(5)
+add5(3)
+.
+
+// Test 5: Arrow function as parameter
+.eval
+let apply = {f, x} => f(x)
+let double = x => x * 2
+apply(double, 7)
+.
+
+// ==========================================
+// BLOCK FUNCTIONS (fn scatter ... endfn)
+// ==========================================
+
+// Test 6: Simple block function
+.eval
+let mul = fn {x, y}
+  x * y
+endfn
+mul(3, 4)
+.
+
+// Test 7: Block function with statements
+.eval
+let factorial = fn {n}
+  if (n <= 1)
+    1
+  else
+    n * factorial(n - 1)
+  endif
+endfn
+factorial(5)
+.
+
+// Test 8: Block function with empty parameters
+.eval
+let getConstant = fn {}
+  42
+endfn
+getConstant()
+.
+
+// Test 9: Block function with closure
+.eval
+let counter = 0
+let increment = fn {}
+  counter = counter + 1
+  counter
+endfn
+increment()
+increment()
+.
+
+// Test 10: Block function with local variables
+.eval
+let complex = fn {x, y}
+  let sum = x + y
+  let prod = x * y
+  sum + prod
+endfn
+complex(3, 4)
+.
+
+// ==========================================
+// ADVANCED PARAMETER PATTERNS (Future)
+// ==========================================
+
+// Test 11: Optional parameters (not yet implemented)
+// let greet = fn {name, ?greeting="Hello"}
+//   greeting + ", " + name + "!"
+// endfn
+// greet("World")
+// greet("World", "Hi")
+
+// Test 12: Rest parameters (not yet implemented)
+// let sum = fn {@args}
+//   // would sum all arguments
+// endfn
+// sum(1, 2, 3, 4, 5)
+
+// Test 13: Mixed parameter types (not yet implemented)
+// let process = fn {first, ?optional=10, @rest}
+//   // would handle mixed parameter patterns
+// endfn
+
+// ==========================================
+// EDGE CASES AND ERROR CONDITIONS
+// ==========================================
+
+// Test 14: Arrow function returning arrow function
+.eval
+let curry = f => x => y => f(x, y)
+let curriedAdd = curry({x, y} => x + y)
+let add10 = curriedAdd(10)
+add10(5)
+.
+
+// Test 15: Immediate invocation
+.eval
+(x => x * 2)(21)
+.
+
+// Test 16: Lambda stored in list
+.eval
+let funcs = {x => x + 1, x => x * 2, x => x - 1}
+funcs[1](10)
+.
+
+// Test 17: Lambda as object property (when objects are implemented)
+// let obj = object math
+//   property add = {x, y} => x + y
+//   property mul = {x, y} => x * y
+// endobject
+// obj.add(3, 4)
+
+.quit

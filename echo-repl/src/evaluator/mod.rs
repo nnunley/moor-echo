@@ -53,6 +53,11 @@ pub enum Value {
     String(String),
     Object(ObjectId),
     List(Vec<Value>),
+    Lambda {
+        params: Vec<String>,
+        body: crate::ast::EchoAst,
+        captured_env: HashMap<String, Value>,
+    },
 }
 
 /// Represents a call frame in the execution stack for error handling and debugging
@@ -301,10 +306,85 @@ impl Evaluator {
                 
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean(*l as f64 == *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l == *r as f64)),
                     (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l == r)),
                     (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l == r)),
                     (Value::Object(l), Value::Object(r)) => Ok(Value::Boolean(l == r)),
                     _ => Ok(Value::Boolean(false)),
+                }
+            }
+            
+            EchoAst::NotEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean(*l as f64 != *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l != *r as f64)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Object(l), Value::Object(r)) => Ok(Value::Boolean(l != r)),
+                    _ => Ok(Value::Boolean(true)),
+                }
+            }
+            
+            EchoAst::LessThan { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l < r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l < r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((*l as f64) < *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l < (*r as f64))),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l < r)),
+                    _ => Err(anyhow!("Type error in comparison")),
+                }
+            }
+            
+            EchoAst::LessEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l <= r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((*l as f64) <= *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l <= (*r as f64))),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l <= r)),
+                    _ => Err(anyhow!("Type error in comparison")),
+                }
+            }
+            
+            EchoAst::GreaterThan { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l > r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l > r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((*l as f64) > *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l > (*r as f64))),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l > r)),
+                    _ => Err(anyhow!("Type error in comparison")),
+                }
+            }
+            
+            EchoAst::GreaterEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l >= r)),
+                    (Value::Integer(l), Value::Float(r)) => Ok(Value::Boolean((*l as f64) >= *r)),
+                    (Value::Float(l), Value::Integer(r)) => Ok(Value::Boolean(*l >= (*r as f64))),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l >= r)),
+                    _ => Err(anyhow!("Type error in comparison")),
                 }
             }
             EchoAst::List { elements } => {
@@ -314,6 +394,71 @@ impl Evaluator {
                     list_values.push(val);
                 }
                 Ok(Value::List(list_values))
+            }
+            
+            EchoAst::Lambda { params, body } => {
+                // Capture the current environment
+                let mut captured_env = HashMap::new();
+                if let Some(env) = self.environments.get(&player_id) {
+                    captured_env = env.variables.clone();
+                }
+                
+                Ok(Value::Lambda {
+                    params: params.clone(),
+                    body: body.as_ref().clone(),
+                    captured_env,
+                })
+            }
+            
+            EchoAst::Call { func, args } => {
+                // Evaluate the function expression
+                let func_val = self.eval_with_player(func, player_id)?;
+                
+                // Evaluate the arguments
+                let mut arg_values = Vec::new();
+                for arg in args {
+                    arg_values.push(self.eval_with_player(arg, player_id)?);
+                }
+                
+                // Call the function
+                match func_val {
+                    Value::Lambda { params, body, captured_env } => {
+                        // Check arity
+                        if params.len() != arg_values.len() {
+                            return Err(anyhow!("Function expects {} arguments, got {}", 
+                                params.len(), arg_values.len()));
+                        }
+                        
+                        // Create a new environment with the captured environment
+                        let mut lambda_env = Environment {
+                            player_id,
+                            variables: captured_env,
+                            const_bindings: HashSet::new(),
+                        };
+                        
+                        // Bind the parameters
+                        for (param, arg_val) in params.iter().zip(arg_values.iter()) {
+                            lambda_env.variables.insert(param.clone(), arg_val.clone());
+                        }
+                        
+                        // Save the current environment
+                        let saved_env = self.environments.get(&player_id).map(|e| e.clone());
+                        
+                        // Set the lambda environment
+                        self.environments.insert(player_id, lambda_env);
+                        
+                        // Evaluate the body
+                        let result = self.eval_with_player(&body, player_id);
+                        
+                        // Restore the original environment
+                        if let Some(env) = saved_env {
+                            self.environments.insert(player_id, env);
+                        }
+                        
+                        result
+                    }
+                    _ => Err(anyhow!("Cannot call non-function value")),
+                }
             }
             EchoAst::Subtract { left, right } => {
                 let left_val = self.eval_with_player(left, player_id)?;
@@ -448,6 +593,137 @@ impl Evaluator {
                     }
                 }
             }
+            EchoAst::And { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                
+                // Short-circuit evaluation
+                match left_val {
+                    Value::Boolean(false) => Ok(Value::Boolean(false)),
+                    Value::Boolean(true) => {
+                        let right_val = self.eval_with_player(right, player_id)?;
+                        match right_val {
+                            Value::Boolean(b) => Ok(Value::Boolean(b)),
+                            _ => Err(anyhow!("Type error: && requires boolean operands")),
+                        }
+                    }
+                    _ => Err(anyhow!("Type error: && requires boolean operands")),
+                }
+            }
+            
+            EchoAst::Or { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                
+                // Short-circuit evaluation
+                match left_val {
+                    Value::Boolean(true) => Ok(Value::Boolean(true)),
+                    Value::Boolean(false) => {
+                        let right_val = self.eval_with_player(right, player_id)?;
+                        match right_val {
+                            Value::Boolean(b) => Ok(Value::Boolean(b)),
+                            _ => Err(anyhow!("Type error: || requires boolean operands")),
+                        }
+                    }
+                    _ => Err(anyhow!("Type error: || requires boolean operands")),
+                }
+            }
+            
+            EchoAst::Not { operand } => {
+                let val = self.eval_with_player(operand, player_id)?;
+                match val {
+                    Value::Boolean(b) => Ok(Value::Boolean(!b)),
+                    _ => Err(anyhow!("Type error: ! requires boolean operand")),
+                }
+            }
+            
+            // Control flow
+            EchoAst::If { condition, then_branch, else_branch } => {
+                let cond_val = self.eval_with_player(condition, player_id)?;
+                
+                match cond_val {
+                    Value::Boolean(true) => {
+                        // Execute then branch
+                        let mut last_val = Value::Null;
+                        for stmt in then_branch {
+                            last_val = self.eval_with_player(stmt, player_id)?;
+                        }
+                        Ok(last_val)
+                    }
+                    Value::Boolean(false) => {
+                        // Execute else branch if present
+                        if let Some(else_stmts) = else_branch {
+                            let mut last_val = Value::Null;
+                            for stmt in else_stmts {
+                                last_val = self.eval_with_player(stmt, player_id)?;
+                            }
+                            Ok(last_val)
+                        } else {
+                            Ok(Value::Null)
+                        }
+                    }
+                    _ => Err(anyhow!("Type error: if condition must be boolean")),
+                }
+            }
+            
+            EchoAst::While { condition, body, .. } => {
+                loop {
+                    let cond_val = self.eval_with_player(condition, player_id)?;
+                    
+                    match cond_val {
+                        Value::Boolean(false) => break,
+                        Value::Boolean(true) => {
+                            for stmt in body {
+                                self.eval_with_player(stmt, player_id)?;
+                            }
+                        }
+                        _ => return Err(anyhow!("Type error: while condition must be boolean")),
+                    }
+                }
+                Ok(Value::Null)
+            }
+            
+            EchoAst::For { variable, collection, body, .. } => {
+                let coll_val = self.eval_with_player(collection, player_id)?;
+                
+                match coll_val {
+                    Value::List(items) => {
+                        for item in items {
+                            // Bind the loop variable
+                            self.environments.entry(player_id).and_modify(|env| {
+                                env.variables.insert(variable.clone(), item.clone());
+                                // Remove from const set if it was there
+                                env.const_bindings.remove(variable);
+                            });
+                            
+                            // Execute loop body
+                            for stmt in body {
+                                self.eval_with_player(stmt, player_id)?;
+                            }
+                        }
+                        Ok(Value::Null)
+                    }
+                    _ => Err(anyhow!("Type error: for loop requires list")),
+                }
+            }
+            
+            
+            EchoAst::Break { label } => {
+                // For now, just return an error - proper break/continue needs loop context
+                if let Some(label_name) = label {
+                    Err(anyhow!("Break with label '{}' not yet implemented", label_name))
+                } else {
+                    Err(anyhow!("Break statement not yet implemented"))
+                }
+            }
+            
+            EchoAst::Continue { label } => {
+                // For now, just return an error - proper break/continue needs loop context
+                if let Some(label_name) = label {
+                    Err(anyhow!("Continue with label '{}' not yet implemented", label_name))
+                } else {
+                    Err(anyhow!("Continue statement not yet implemented"))
+                }
+            }
+            
             _ => Err(anyhow!("AST node not yet implemented: {:?}", ast))
         }
     }
@@ -628,6 +904,10 @@ fn value_to_property_value(val: Value) -> Result<PropertyValue> {
                 .collect();
             Ok(PropertyValue::List(prop_items?))
         }
+        Value::Lambda { .. } => {
+            // For now, we can't store lambdas as properties
+            Err(anyhow!("Cannot store lambda functions as properties"))
+        }
     }
 }
 
@@ -670,6 +950,9 @@ impl std::fmt::Display for Value {
                     write!(f, "{}", item)?;
                 }
                 write!(f, "]")
+            }
+            Value::Lambda { params, .. } => {
+                write!(f, "fn({})", params.join(", "))
             }
         }
     }

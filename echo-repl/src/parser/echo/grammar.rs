@@ -73,23 +73,87 @@ pub mod echo {
             right: Box<EchoAst>,
         },
         
-        // Assignment - temporarily commented out due to grammar conflict
-        // Will need to be handled at statement level, not expression level
-        // #[rust_sitter::prec_right(2)]
-        // Assignment {
-        //     target: Box<EchoAst>, // Must be an Identifier
-        //     #[rust_sitter::leaf(text = "=", add_conflict = true)]
-        //     _op: (),
-        //     value: Box<EchoAst>,
-        // },
+        // Assignment - low precedence for statement-level assignments
+        #[rust_sitter::prec_right(2)]
+        Assignment {
+            target: Box<EchoAst>, // Must be an Identifier
+            #[rust_sitter::leaf(text = "=")]
+            _op: (),
+            value: Box<EchoAst>,
+        },
         
-        // Comparison operators
+        // Comparison operators (precedence 4)
         #[rust_sitter::prec_left(4)]
         Equal {
             left: Box<EchoAst>,
             #[rust_sitter::leaf(text = "==")]
             _op: (),
             right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(4)]
+        NotEqual {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "!=")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(5)]
+        LessThan {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "<")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(5)]
+        LessEqual {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "<=")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(5)]
+        GreaterThan {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ">")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(5)]
+        GreaterEqual {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ">=")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        // Logical operators (precedence 2 for &&, 1 for ||)
+        #[rust_sitter::prec_left(2)]
+        And {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "&&")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        #[rust_sitter::prec_left(1)]
+        Or {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "||")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
+        
+        // Unary not (high precedence)
+        #[rust_sitter::prec_right(10)]
+        Not {
+            #[rust_sitter::leaf(text = "!")]
+            _op: (),
+            operand: Box<EchoAst>,
         },
         
         // Property access (high precedence 11)
@@ -108,9 +172,25 @@ pub mod echo {
             object: Box<EchoAst>,
             #[rust_sitter::leaf(text = ":")]
             _colon: (),
-            method: Box<EchoAst>,
+            method: Identifier,
             #[rust_sitter::leaf(text = "(")]
             _lparen: (),
+            args: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+        },
+        
+        // Function call (for lambdas and function values)
+        #[rust_sitter::prec_left(10)]
+        Call {
+            func: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "(", add_conflict = true)]
+            _lparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            #[rust_sitter::delimited(
+                #[rust_sitter::leaf(text = ",")]
+                ()
+            )]
             args: Vec<EchoAst>,
             #[rust_sitter::leaf(text = ")")]
             _rparen: (),
@@ -145,9 +225,29 @@ pub mod echo {
             _rbrace: (),
         },
         
+        // Arrow function: params => expr
+        #[rust_sitter::prec_right(3)]
+        ArrowFunction {
+            params: Box<EchoAst>, // Can be identifier, list pattern, etc.
+            #[rust_sitter::leaf(text = "=>")]
+            _arrow: (),
+            body: Box<EchoAst>,
+        },
+        
+        // Block function: fn params ... endfn
+        BlockFunction {
+            #[rust_sitter::leaf(text = "fn")]
+            _fn: (),
+            params: ParamPattern,
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endfn")]
+            _endfn: (),
+        },
+        
         // Parenthesized expression
         Paren {
-            #[rust_sitter::leaf(text = "(")]
+            #[rust_sitter::leaf(text = "(", add_conflict = true)]
             _lparen: (),
             expr: Box<EchoAst>,
             #[rust_sitter::leaf(text = ")")]
@@ -157,22 +257,156 @@ pub mod echo {
         // Comma separator (needed for argument lists)
         #[rust_sitter::leaf(text = ",")]
         Comma,
+        
+        // Control flow - If with MOO syntax: if (condition) ... [else ...] endif
+        If {
+            #[rust_sitter::leaf(text = "if")]
+            _if: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            condition: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            then_body: Vec<EchoAst>,
+            else_clause: Option<ElseClause>,
+            #[rust_sitter::leaf(text = "endif")]
+            _endif: (),
+        },
+        
+        // While loop with MOO syntax: while (condition) ... endwhile
+        While {
+            #[rust_sitter::leaf(text = "while")]
+            _while: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            condition: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endwhile")]
+            _endwhile: (),
+        },
+        
+        // For loop with MOO syntax: for var in (collection) ... endfor
+        For {
+            #[rust_sitter::leaf(text = "for")]
+            _for: (),
+            variable: Box<EchoAst>, // Must be an Identifier
+            #[rust_sitter::leaf(text = "in")]
+            _in: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            collection: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endfor")]
+            _endfor: (),
+        },
+        
+        // Break statement with optional label
+        #[rust_sitter::prec_right(9)]
+        Break {
+            #[rust_sitter::leaf(text = "break")]
+            _break: (),
+            label: Option<Box<EchoAst>>, // Optional label
+        },
+        
+        // Continue statement with optional label  
+        #[rust_sitter::prec_right(9)]
+        Continue {
+            #[rust_sitter::leaf(text = "continue")]
+            _continue: (),
+            label: Option<Box<EchoAst>>, // Optional label
+        },
+        
+        // // Block statement - commented out due to conflict with List
+        // // In MOO, blocks don't exist as a syntax construct
+        // Block {
+        //     #[rust_sitter::leaf(text = "{")]
+        //     _lbrace: (),
+        //     #[rust_sitter::repeat(non_empty = false)]
+        //     #[rust_sitter::delimited(
+        //         #[rust_sitter::leaf(text = ";")]
+        //         ()
+        //     )]
+        //     statements: Vec<EchoAst>,
+        //     #[rust_sitter::leaf(text = "}")]
+        //     _rbrace: (),
+        // },
     }
     
+    #[derive(Debug, PartialEq)]
+    pub struct Identifier {
+        #[rust_sitter::leaf(pattern = r"[a-zA-Z_][a-zA-Z0-9_]*", transform = |v| v.to_string())]
+        pub name: String,
+    }
+
     #[derive(Debug, PartialEq)]
     pub enum ObjectMember {
         PropertyDef {
             #[rust_sitter::leaf(text = "property")]
             _property: (),
-            name: Box<EchoAst>,
+            name: Identifier,
             #[rust_sitter::leaf(text = "=", add_conflict = true)]
             _equals: (),
             value: Box<EchoAst>,
         },
     }
+    
+    #[derive(Debug, PartialEq)]
+    pub enum ParamElement {
+        // Simple identifier: x
+        Simple(Identifier),
+        // Optional with default: ?name=value
+        Optional {
+            #[rust_sitter::leaf(text = "?")]
+            _question: (),
+            name: Identifier,
+            #[rust_sitter::leaf(text = "=")]
+            _equals: (),
+            default: Box<EchoAst>,
+        },
+        // Rest parameter: @rest
+        Rest {
+            #[rust_sitter::leaf(text = "@")]
+            _at: (),
+            name: Identifier,
+        },
+    }
+    
+    #[derive(Debug, PartialEq)]
+    pub enum ParamPattern {
+        // Single parameter (could be simple, optional, or rest)
+        Single(ParamElement),
+        // Multiple parameters in braces (including empty {})
+        Multiple {
+            #[rust_sitter::leaf(text = "{")]
+            _lbrace: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            #[rust_sitter::delimited(
+                #[rust_sitter::leaf(text = ",")]
+                ()
+            )]
+            params: Vec<ParamElement>,
+            #[rust_sitter::leaf(text = "}")]
+            _rbrace: (),
+        },
+    }
+    
+    #[derive(Debug, PartialEq)]
+    pub struct ElseClause {
+        #[rust_sitter::leaf(text = "else")]
+        pub _else: (),
+        #[rust_sitter::repeat(non_empty = false)]
+        pub body: Vec<EchoAst>,
+    }
 }
 
-pub use echo::{EchoAst, ObjectMember};
+pub use echo::{EchoAst, ObjectMember, ElseClause, Identifier, ParamPattern, ParamElement};
 pub use echo::parse as parse_echo;
 
 // Compatibility wrapper for existing API
