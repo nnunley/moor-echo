@@ -33,6 +33,12 @@ pub enum EchoAst {
         property: String,
     },
     
+    // Assignment: var = value or obj.prop = value
+    Assignment {
+        target: Box<EchoAst>,
+        value: Box<EchoAst>,
+    },
+    
     // Statements
     Let {
         name: String,
@@ -111,6 +117,51 @@ impl EchoAst {
                         name,
                         value: Box::new(EchoAst::Identifier(value_str.to_string())),
                     });
+                }
+            }
+        } else if trimmed.contains('=') && trimmed.contains('.') {
+            // Check for property assignment: obj.prop = value
+            let parts: Vec<&str> = trimmed.split('=').collect();
+            if parts.len() == 2 {
+                let left = parts[0].trim();
+                let right = parts[1].trim().trim_end_matches(';');
+                
+                if left.contains('.') {
+                    let dot_parts: Vec<&str> = left.split('.').collect();
+                    if dot_parts.len() == 2 {
+                        let obj_name = dot_parts[0].trim();
+                        let prop_name = dot_parts[1].trim();
+                        
+                        // Parse the object identifier (including special $system handling)
+                        let object_ast = if obj_name == "$system" {
+                            EchoAst::Identifier("$system".to_string())
+                        } else {
+                            EchoAst::Identifier(obj_name.to_string())
+                        };
+                        
+                        // Parse the value
+                        let value_ast = if right.starts_with('"') && right.ends_with('"') {
+                            EchoAst::String(right[1..right.len()-1].to_string())
+                        } else if let Ok(num) = right.parse::<i64>() {
+                            EchoAst::Integer(num)
+                        } else if right == "true" {
+                            EchoAst::Boolean(true)
+                        } else if right == "false" {
+                            EchoAst::Boolean(false)
+                        } else if right == "null" {
+                            EchoAst::Null
+                        } else {
+                            EchoAst::Identifier(right.to_string())
+                        };
+                        
+                        return Ok(EchoAst::Assignment {
+                            target: Box::new(EchoAst::PropertyAccess {
+                                object: Box::new(object_ast),
+                                property: prop_name.to_string(),
+                            }),
+                            value: Box::new(value_ast),
+                        });
+                    }
                 }
             }
         } else if trimmed.starts_with("object ") {

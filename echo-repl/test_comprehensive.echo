@@ -1,0 +1,31 @@
+# System properties and object references
+$system
+$root
+#0
+#1
+#0.system
+#1.name
+
+# Basic expressions
+42
+"hello world"
+true
+false
+
+# Arithmetic
+1 + 2
+10 + 20
+
+# Comparison
+1 == 1
+1 == 2
+"hello" == "hello"
+#0 == #0
+
+# Lists
+{1, 2, 3}
+{"hello", "world"}
+
+# Parentheses
+(1 + 2)
+((1 + 2) + 3)

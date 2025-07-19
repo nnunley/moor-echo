@@ -4,6 +4,7 @@ use sled::Db;
 use std::collections::HashMap;
 use std::path::Path;
 use uuid::Uuid;
+use crate::evaluator::meta_object::MetaObject;
 
 /// Object ID type - similar to MOO's object numbers but using UUIDs for distribution
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -40,7 +41,7 @@ pub struct EchoObject {
     pub properties: HashMap<String, PropertyValue>,
     pub verbs: HashMap<String, VerbDefinition>,
     pub queries: HashMap<String, String>,
-    pub event_handlers: Vec<EventHandler>,
+    pub meta: crate::evaluator::meta_object::MetaObject,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,14 +114,18 @@ impl ObjectStore {
         // Create system object #0 if it doesn't exist
         let system_id = ObjectId::system();
         if self.get(system_id).is_err() {
+            let mut system_properties = HashMap::new();
+            // Initialize #0.system to point to #0 itself
+            system_properties.insert("system".to_string(), PropertyValue::Object(system_id));
+            
             let system_obj = EchoObject {
                 id: system_id,
                 parent: None,
                 name: "$system".to_string(),
-                properties: HashMap::new(),
+                properties: system_properties,
                 verbs: HashMap::new(),
                 queries: HashMap::new(),
-                event_handlers: vec![],
+                meta: MetaObject::new(system_id),
             };
             self.store(system_obj)?;
         }
@@ -135,7 +140,7 @@ impl ObjectStore {
                 properties: HashMap::new(),
                 verbs: HashMap::new(),
                 queries: HashMap::new(),
-                event_handlers: vec![],
+                meta: MetaObject::new(root_id),
             };
             self.store(root_obj)?;
         }

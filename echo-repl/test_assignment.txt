@@ -1,0 +1,20 @@
+x = 42
+.env
+y = x + 10
+.env
+let z = 100
+const pi = 3.14159
+.env
+.scope
+pi = 3.14
+.eval
+object math
+property e = 2.71828;
+property phi = 1.618
+endobject
+.
+.scope
+math.e
+math.phi = 1.61803
+.scope
+.quit

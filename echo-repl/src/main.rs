@@ -2,6 +2,7 @@ use anyhow::Result;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
 use echo_repl::repl::{Repl, ReplCommand};
+use std::io::{self, IsTerminal};
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -20,29 +21,91 @@ fn main() -> Result<()> {
     }
     println!();
     
+    let is_interactive = io::stdin().is_terminal();
+    let mut in_eval_mode = false;
+    let mut eval_buffer = String::new();
+    
     while repl.is_running() {
-        let prompt = "echo> ";
+        let prompt = if in_eval_mode { "eval> " } else { "echo> " };
         
         match rl.readline(prompt) {
             Ok(line) => {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                
-                rl.add_history_entry(&line)?;
-                
-                match repl.parse_input(&line) {
-                    Ok(command) => {
-                        match repl.handle_command(command) {
-                            Ok(output) => println!("{}", output),
+                if in_eval_mode {
+                    // We're in eval mode, accumulate until we see a single '.'
+                    if line.trim() == "." {
+                        // End of eval mode, execute the accumulated code
+                        rl.add_history_entry(&eval_buffer)?;
+                        
+                        // Echo input in non-interactive mode
+                        if !is_interactive {
+                            println!(">> .eval");
+                            for eval_line in eval_buffer.lines() {
+                                println!(">> {}", eval_line);
+                            }
+                            println!(">> .");
+                        }
+                        
+                        // Execute the eval buffer as a program
+                        match repl.execute_program(&eval_buffer) {
+                            Ok((output, duration)) => {
+                                println!("=> {} [{:.3}ms]", output, duration.as_secs_f64() * 1000.0);
+                            }
                             Err(e) => eprintln!("Error: {}", e),
                         }
+                        
+                        eval_buffer.clear();
+                        in_eval_mode = false;
+                    } else {
+                        // Add line to eval buffer
+                        if !eval_buffer.is_empty() {
+                            eval_buffer.push('\n');
+                        }
+                        eval_buffer.push_str(&line);
                     }
-                    Err(e) => eprintln!("Error: {}", e),
+                } else {
+                    // Normal single-line mode
+                    let trimmed = line.trim();
+                    
+                    // Handle empty input
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    
+                    // Check if it's the .eval command
+                    if trimmed == ".eval" {
+                        in_eval_mode = true;
+                        println!("Entering eval mode. End with '.' on a line by itself.");
+                        continue;
+                    }
+                    
+                    // Normal command processing
+                    rl.add_history_entry(&line)?;
+                    
+                    // Echo input in non-interactive mode
+                    if !is_interactive && !trimmed.starts_with('.') {
+                        println!(">> {}", trimmed);
+                    }
+                    
+                    match repl.parse_input(&trimmed) {
+                        Ok(command) => {
+                            match repl.handle_command(command) {
+                                Ok(output) => println!("{}", output),
+                                Err(e) => eprintln!("Error: {}", e),
+                            }
+                        }
+                        Err(e) => eprintln!("Error: {}", e),
+                    }
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                println!("Use .quit to exit");
+                if in_eval_mode {
+                    // Cancel eval mode
+                    println!("^C");
+                    eval_buffer.clear();
+                    in_eval_mode = false;
+                } else {
+                    println!("Use .quit to exit");
+                }
             }
             Err(ReadlineError::Eof) => {
                 println!("Goodbye!");

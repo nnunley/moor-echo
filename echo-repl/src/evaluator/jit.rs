@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use dashmap::DashMap;
 
-use crate::parser::EchoAst;
+use crate::ast::EchoAst;
 use crate::storage::{Storage, ObjectId};
 use super::{Value, Environment, EvaluatorTrait};
 
@@ -199,7 +199,7 @@ impl JitEvaluator {
                     Err(anyhow!("No environment for player"))
                 }
             }
-            EchoAst::Add { left, right, .. } => {
+            EchoAst::Add { left, right } => {
                 let left_val = self.eval_with_player(left, player_id)?;
                 let right_val = self.eval_with_player(right, player_id)?;
                 
@@ -271,7 +271,7 @@ impl JitEvaluator {
                 let imm = builder.ins().iconst(types::I64, *n);
                 Ok(CraneliftValue::new(imm))
             }
-            EchoAst::Add { left, right, .. } => {
+            EchoAst::Add { left, right } => {
                 let left_val = Self::compile_ast_node(left, builder)?;
                 let right_val = Self::compile_ast_node(right, builder)?;
                 let result = builder.ins().iadd(left_val.inner(), right_val.inner());
@@ -302,6 +302,10 @@ impl EvaluatorTrait for JitEvaluator {
     
     fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         self.eval_with_player(ast, player_id)
+    }
+    
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

@@ -1,0 +1,8 @@
+# First, test that objects are stored as variables
+# Note: object definitions need to be on one line for piped input
+object person property name = "Alice" endobject
+# Now reference the object
+person
+# Test that we can access its properties
+person.name
+.quit

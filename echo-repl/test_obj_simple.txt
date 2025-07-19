@@ -1,0 +1,6 @@
+.eval
+object hello
+endobject
+.
+hello
+.quit

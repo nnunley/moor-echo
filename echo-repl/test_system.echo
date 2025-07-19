@@ -1,0 +1,12 @@
+# Test system properties and object references
+$system
+#0
+#1
+#0.system
+$root
+1 + 2
+"hello"
+true
+false
+{1, 2, 3}
+(1 + 2)

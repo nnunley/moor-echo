@@ -1,0 +1,14 @@
+.eval
+object calculator
+property pi = 3.14159;
+property e = 2.71828
+endobject
+object circle
+property radius = 10.0;
+property area = calculator.pi * radius * radius
+endobject
+circle.radius
+circle.area
+calculator.pi
+.
+.quit

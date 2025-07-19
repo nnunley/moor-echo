@@ -1,0 +1,4 @@
+object hello
+  property greeting = "Hello"
+endobject
+.quit

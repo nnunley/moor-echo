@@ -1,0 +1,8 @@
+.eval
+object hello
+property greeting = "Hello"
+endobject
+.
+hello
+hello.greeting
+.quit

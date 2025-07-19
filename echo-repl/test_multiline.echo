@@ -1,0 +1,5 @@
+# Test multi-line input
+object person
+  property name = "Alice"
+  property age = 25
+endobject

@@ -1,0 +1,10 @@
+.eval
+object hello
+property greeting = "Hello";
+property name = "World"
+endobject
+.
+hello
+hello.greeting
+hello.name
+.quit
