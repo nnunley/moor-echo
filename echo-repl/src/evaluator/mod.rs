@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use dashmap::DashMap;
 
-use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, LambdaParam};
+use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam, QueryArg};
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
 // TODO: Re-enable when VerbDef is added back to grammar
 // use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
@@ -11,6 +11,7 @@ use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
 // Core evaluator modules
 pub mod meta_object;
 pub mod events;
+pub mod event_system;
 
 // JIT compiler module  
 #[cfg(feature = "jit")]
@@ -28,6 +29,24 @@ mod tests;
 #[cfg(test)]
 mod lambda_tests;
 
+#[cfg(test)]
+mod player_tests;
+
+#[cfg(test)]
+mod mop_source_tests;
+
+#[cfg(test)]
+mod verb_tests;
+
+#[cfg(test)]
+mod object_ref_tests;
+
+#[cfg(test)]
+mod sanity_tests;
+
+#[cfg(test)]
+mod event_tests;
+
 // Always available trait
 pub trait EvaluatorTrait {
     fn create_player(&mut self, name: &str) -> Result<ObjectId>;
@@ -41,6 +60,7 @@ pub struct Evaluator {
     storage: Arc<Storage>,
     environments: DashMap<ObjectId, Environment>,
     current_player: Option<ObjectId>,
+    event_system: Arc<event_system::EventSystem>,
 }
 
 #[derive(Clone)]
@@ -66,12 +86,13 @@ pub enum Value {
     },
 }
 
-/// Control flow result for handling break/continue
+/// Control flow result for handling break/continue/return
 #[derive(Debug, Clone, PartialEq)]
 pub enum ControlFlow {
     None(Value),
     Break(Option<String>),
     Continue(Option<String>),
+    Return(Value),
 }
 
 /// Arithmetic operation types
@@ -113,6 +134,9 @@ impl ControlFlow {
                     Err(anyhow!("Unexpected continue outside of loop"))
                 }
             }
+            ControlFlow::Return(_v) => {
+                Err(anyhow!("Unexpected return outside of function"))
+            }
         }
     }
 }
@@ -132,6 +156,7 @@ impl Evaluator {
             storage,
             environments: DashMap::new(),
             current_player: None,
+            event_system: Arc::new(event_system::EventSystem::new()),
         }
     }
     
@@ -157,15 +182,26 @@ impl Evaluator {
     }
     
     pub fn create_player(&mut self, name: &str) -> Result<ObjectId> {
+        // Check if a player with this name already exists in the registry
+        let system_obj = self.storage.objects.get(ObjectId::system())?;
+        if let Some(PropertyValue::Map(player_registry)) = system_obj.properties.get("player_registry") {
+            if player_registry.contains_key(name) {
+                return Err(anyhow!("A player with the name '{}' already exists", name));
+            }
+        }
+        
         // Create a new player object extending from $player (or $root for now)
         let player_id = ObjectId::new();
         let player = EchoObject {
             id: player_id,
             parent: Some(ObjectId::root()),
-            name: format!("player_{}", name),
+            // Don't bind the player to #0 - they're anonymous objects
+            name: format!("player_{}", &player_id.0.to_string()[..8]),
             properties: {
                 let mut props = HashMap::new();
-                props.insert("name".to_string(), PropertyValue::String(name.to_string()));
+                // Store the display name as a property that can be changed
+                props.insert("display_name".to_string(), PropertyValue::String(name.to_string()));
+                props.insert("username".to_string(), PropertyValue::String(name.to_string()));
                 props.insert("location".to_string(), PropertyValue::Object(ObjectId::root()));
                 props
             },
@@ -175,6 +211,9 @@ impl Evaluator {
         };
         
         self.storage.objects.store(player)?;
+        
+        // Add the player to the player registry on #0
+        self.register_player(name, player_id)?;
         
         // Create environment for the player
         let env = Environment {
@@ -194,6 +233,69 @@ impl Evaluator {
         Ok(())
     }
     
+    /// Register a player in the system player registry
+    fn register_player(&self, username: &str, player_id: ObjectId) -> Result<()> {
+        let mut system_obj = self.storage.objects.get(ObjectId::system())?;
+        
+        // Ensure player_registry exists
+        if !system_obj.properties.contains_key("player_registry") {
+            system_obj.properties.insert("player_registry".to_string(), PropertyValue::Map(HashMap::new()));
+        }
+        
+        // Add the player to the registry
+        if let Some(PropertyValue::Map(registry)) = system_obj.properties.get_mut("player_registry") {
+            registry.insert(username.to_string(), PropertyValue::Object(player_id));
+        }
+        
+        self.storage.objects.store(system_obj)?;
+        Ok(())
+    }
+    
+    /// Find a player by username in the registry
+    pub fn find_player_by_username(&self, username: &str) -> Result<Option<ObjectId>> {
+        let system_obj = self.storage.objects.get(ObjectId::system())?;
+        
+        if let Some(PropertyValue::Map(registry)) = system_obj.properties.get("player_registry") {
+            if let Some(PropertyValue::Object(player_id)) = registry.get(username) {
+                return Ok(Some(*player_id));
+            }
+        }
+        
+        Ok(None)
+    }
+    
+    /// Change a player's username (ensuring uniqueness)
+    pub fn change_player_username(&self, player_id: ObjectId, new_username: &str) -> Result<()> {
+        // First check if the new username is already taken
+        if let Some(existing_player) = self.find_player_by_username(new_username)? {
+            if existing_player != player_id {
+                return Err(anyhow!("Username '{}' is already taken", new_username));
+            }
+        }
+        
+        let mut player = self.storage.objects.get(player_id)?;
+        let old_username = match player.properties.get("username") {
+            Some(PropertyValue::String(name)) => name.clone(),
+            _ => return Err(anyhow!("Player has no username property")),
+        };
+        
+        // Update the player's username property
+        player.properties.insert("username".to_string(), PropertyValue::String(new_username.to_string()));
+        self.storage.objects.store(player)?;
+        
+        // Update the registry
+        let mut system_obj = self.storage.objects.get(ObjectId::system())?;
+        if let Some(PropertyValue::Map(registry)) = system_obj.properties.get_mut("player_registry") {
+            // Remove old username mapping
+            registry.remove(&old_username);
+            // Add new username mapping
+            registry.insert(new_username.to_string(), PropertyValue::Object(player_id));
+        }
+        self.storage.objects.store(system_obj)?;
+        
+        Ok(())
+    }
+    
     pub fn current_player(&self) -> Option<ObjectId> {
         self.current_player
     }
@@ -203,6 +305,38 @@ impl Evaluator {
             .ok_or_else(|| anyhow!("No player selected"))?;
             
         self.eval_with_player(ast, player_id)
+    }
+    
+    /// Create a new environment for an event handler
+    pub fn create_handler_environment(&self, owner: ObjectId) -> Environment {
+        Environment {
+            player_id: owner,
+            variables: HashMap::new(),
+            const_bindings: HashSet::new(),
+        }
+    }
+    
+    /// Set a variable in a specific environment
+    pub fn set_variable_in_env(&mut self, env: &Environment, name: &str, value: Value) -> Result<()> {
+        // Get or create the environment for this player
+        let mut env_entry = self.environments.entry(env.player_id).or_insert_with(|| env.clone());
+        env_entry.variables.insert(name.to_string(), value);
+        Ok(())
+    }
+    
+    /// Push a new environment onto the environment stack
+    pub fn push_environment(&mut self, env: Environment) -> Option<Environment> {
+        let player_id = env.player_id;
+        let old_env = self.environments.get(&player_id).map(|e| e.clone());
+        self.environments.insert(player_id, env);
+        old_env
+    }
+    
+    /// Pop an environment from the stack
+    pub fn pop_environment(&mut self, prev_env: Option<Environment>) {
+        if let Some(env) = prev_env {
+            self.environments.insert(env.player_id, env);
+        }
     }
     
     /// Evaluate program - a sequence of statements
@@ -285,6 +419,41 @@ impl Evaluator {
         match ast {
             EchoAst::Break { label } => Ok(ControlFlow::Break(label.clone())),
             EchoAst::Continue { label } => Ok(ControlFlow::Continue(label.clone())),
+            EchoAst::Return { value } => {
+                let ret_val = if let Some(val) = value {
+                    self.eval_with_player(val, player_id)?
+                } else {
+                    Value::Null
+                };
+                Ok(ControlFlow::Return(ret_val))
+            }
+            EchoAst::Emit { event_name, args } => {
+                // Evaluate all arguments
+                let arg_values: Result<Vec<_>> = args.iter()
+                    .map(|arg| self.eval_with_player(arg, player_id))
+                    .collect();
+                let arg_values = arg_values?;
+                
+                // Create and emit the event
+                let event = event_system::Event {
+                    name: event_name.clone(),
+                    args: arg_values,
+                    emitter: player_id,
+                    bubbles: false, // Default for now
+                    cancelable: false, // Default for now
+                };
+                
+                // Clone the Arc to avoid borrow issues
+                let event_system = Arc::clone(&self.event_system);
+                
+                // Emit the event through the event system
+                let result = event_system.emit(self, event)?;
+                
+                println!("EMIT EVENT: {} - Result: {:?}", event_name, result);
+                
+                // Emit returns null (like a void function)
+                Ok(ControlFlow::None(Value::Null))
+            }
             _ => {
                 let value = self.eval_with_player_impl(ast, player_id)?;
                 Ok(ControlFlow::None(value))
@@ -378,7 +547,10 @@ impl Evaluator {
             }
             ArithmeticOp::Divide => {
                 match (&left_val, &right_val) {
-                    (_, Value::Integer(0)) | (_, Value::Float(f)) if *f == 0.0 => {
+                    (_, Value::Integer(0)) => {
+                        Err(anyhow!("Division by zero"))
+                    }
+                    (_, Value::Float(f)) if *f == 0.0 => {
                         Err(anyhow!("Division by zero"))
                     }
                     _ => self.eval_numeric_binop(&left_val, &right_val, 
@@ -690,6 +862,9 @@ impl Evaluator {
                                     break;
                                 }
                             }
+                            ControlFlow::Return(_val) => {
+                                return Err(anyhow!("Unexpected return outside of function"));
+                            }
                         }
                     }
                 }
@@ -735,6 +910,9 @@ impl Evaluator {
                                     return Ok(Value::Null);
                                 }
                             }
+                            ControlFlow::Return(_val) => {
+                                return Err(anyhow!("Unexpected return outside of function"));
+                            }
                         }
                     }
                 }
@@ -767,7 +945,7 @@ impl Evaluator {
         let obj_id = ObjectId::new();
         
         let mut properties = HashMap::new();
-        let verbs = HashMap::new();
+        let mut verbs = HashMap::new();
         
         // Process object members
         for member in members {
@@ -776,7 +954,102 @@ impl Evaluator {
                     let val = self.eval_with_player(value, player_id)?;
                     properties.insert(prop_name.clone(), value_to_property_value(val)?);
                 }
-                // TODO: Add VerbDef when it's added to ObjectMember enum
+                ObjectMember::Verb { name: verb_name, args, body, permissions } => {
+                    // Generate source code from AST for display
+                    use crate::ast::ToSource;
+                    let source_code = format!("verb {}({}) {}\nendverb", 
+                        verb_name,
+                        args.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
+                        body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
+                    );
+                    
+                    let verb_def = crate::storage::object_store::VerbDefinition {
+                        name: verb_name.clone(),
+                        signature: crate::storage::object_store::VerbSignature {
+                            dobj: String::new(),  // TODO: Add dobj/prep/iobj support
+                            prep: String::new(),
+                            iobj: String::new(),
+                        },
+                        code: source_code,
+                        ast: body.clone(),  // Store the AST for execution
+                        params: args.clone(),  // Store the parameters
+                        permissions: permissions.as_ref().map(|p| crate::storage::object_store::VerbPermissions {
+                            read: p.read == "anyone",
+                            write: p.write == "anyone",
+                            execute: p.execute == "anyone",
+                        }).unwrap_or(crate::storage::object_store::VerbPermissions {
+                            read: true,
+                            write: true,
+                            execute: true,
+                        }),
+                    };
+                    
+                    verbs.insert(verb_name.clone(), verb_def);
+                }
+                ObjectMember::Event { name: event_name, params, body } => {
+                    // TODO: Register event handler
+                    // For now, we'll store it as a special property
+                    use crate::ast::ToSource;
+                    let event_source = format!("event {}({}) {}\nendevent", 
+                        event_name,
+                        params.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
+                        body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
+                    );
+                    
+                    // Register event handler with the event system
+                    self.event_system.register_handler(
+                        obj_id,
+                        event_name.clone(),
+                        params.iter().map(|p| p.name.clone()).collect(),
+                        body.clone(),
+                        None, // Default priority
+                    );
+                    
+                    // Also store event handler metadata as a property for introspection
+                    properties.insert(
+                        format!("__event_{}", event_name), 
+                        PropertyValue::String(event_source)
+                    );
+                    
+                    // TODO: Actually register with event system when implemented
+                    println!("Registered event handler '{}' on object", event_name);
+                }
+                ObjectMember::Query { name: query_name, params, clauses } => {
+                    // TODO: Register query with Datalog engine
+                    // For now, we'll store it as a special property
+                    use crate::ast::ToSource;
+                    let mut query_source = format!("query {}", query_name);
+                    if !params.is_empty() {
+                        query_source.push_str(&format!("({})", params.join(", ")));
+                    }
+                    query_source.push_str(" :- ");
+                    
+                    let clauses_str = clauses.iter()
+                        .map(|c| {
+                            let args_str = c.args.iter()
+                                .map(|arg| match arg {
+                                    QueryArg::Variable(v) => v.clone(),
+                                    QueryArg::Constant(c) => c.to_source(),
+                                    QueryArg::Wildcard => "_".to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            format!("{}({})", c.predicate, args_str)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    query_source.push_str(&clauses_str);
+                    query_source.push('.');
+                    
+                    // Store query metadata as a property for now
+                    properties.insert(
+                        format!("__query_{}", query_name), 
+                        PropertyValue::String(query_source)
+                    );
+                    
+                    // TODO: Actually register with Datalog engine when implemented
+                    println!("Registered query '{}' on object", query_name);
+                }
                 _ => {}
             }
         }
@@ -832,17 +1105,47 @@ impl Evaluator {
     }
 
     /// Evaluate object reference
-    fn eval_object_ref(&self, n: &i64) -> Result<Value> {
+    fn eval_object_ref(&mut self, n: &i64) -> Result<Value> {
         // Object reference like #0 or #1
-        let obj_id = if *n == 0 {
-            ObjectId::system()
+        if *n == 0 {
+            return Ok(Value::Object(ObjectId::system()));
         } else if *n == 1 {
-            ObjectId::root()
-        } else {
-            // For now, just return an error for other object references
-            return Err(anyhow!("Object reference #{} not implemented", n));
-        };
-        Ok(Value::Object(obj_id))
+            return Ok(Value::Object(ObjectId::root()));
+        }
+        
+        // Check if there's an object_map property on the system object
+        let system_obj = self.storage.objects.get(ObjectId::system())?;
+        
+        // First check if object_map is a verb/method
+        if system_obj.verbs.contains_key("object_map") {
+            // Call the object_map method with the numeric ID as argument
+            let args = vec![EchoAst::Number(*n)];
+            let player_id = self.current_player.unwrap_or(ObjectId::system());
+            match self.execute_verb(ObjectId::system(), "object_map", &args, player_id) {
+                Ok(Value::Object(obj_id)) => return Ok(Value::Object(obj_id)),
+                Ok(Value::Null) => {
+                    // Method returned null, meaning no mapping exists
+                }
+                Ok(other) => {
+                    return Err(anyhow!("object_map method must return an object or null, got {}", other.type_name()));
+                }
+                Err(_) => {
+                    // Method failed, fall through to other checks
+                }
+            }
+        }
+        
+        // Then check if it's a Map property
+        if let Some(PropertyValue::Map(object_map)) = system_obj.properties.get("object_map") {
+            // Look up the numeric ID in the map
+            let key = n.to_string();
+            if let Some(PropertyValue::Object(obj_id)) = object_map.get(&key) {
+                return Ok(Value::Object(*obj_id));
+            }
+        }
+        
+        // If no mapping found, return a helpful error
+        Err(anyhow!("Object reference #{} not found. In Echo, objects are typically referenced by name. To use numeric references, either:\n1. Define #0:object_map(n) to return the object for numeric ID n\n2. Set #0.object_map as a map with numeric ID mappings", n))
     }
 
     /// Evaluate list literal
@@ -1006,7 +1309,7 @@ impl Evaluator {
                 
                 result
             }
-            _ => Err(anyhow!("Cannot call non-function value: expected lambda but got {}", value.type_name())),
+            _ => Err(anyhow!("Cannot call non-function value: expected lambda but got {}", func_val.type_name())),
         }
     }
 
@@ -1066,50 +1369,99 @@ impl Evaluator {
         }
     }
     
-    fn execute_verb(&mut self, obj_id: ObjectId, method_name: &str, _args: &[EchoAst], player_id: ObjectId) -> Result<Value> {
-        // For the test case, we need to execute: return this.greeting + " " + this.name + "!";
-        // This is a simplified implementation that handles the specific test case
-        
+    fn execute_verb(&mut self, obj_id: ObjectId, method_name: &str, args: &[EchoAst], player_id: ObjectId) -> Result<Value> {
+        // Get the object
         let obj = self.storage.objects.get(obj_id)?;
         
-        // Create a temporary environment for verb execution
-        let mut verb_env = Environment {
-            player_id,
-            variables: HashMap::new(),
-            const_bindings: HashSet::new(),
-        };
+        // Get the verb definition
+        let verb_def = obj.verbs.get(method_name)
+            .ok_or_else(|| anyhow!("Verb '{}' not found on object", method_name))?;
         
-        // Set up built-in variables according to LambdaMOO semantics
-        verb_env.variables.insert("this".to_string(), Value::Object(obj_id));
-        verb_env.variables.insert("caller".to_string(), Value::Object(player_id));
-        verb_env.variables.insert("player".to_string(), Value::Object(player_id));
-        verb_env.variables.insert("verb".to_string(), Value::String(method_name.to_string()));
-        
-        // For the specific test case, we know the verb is "greet" and it should return
-        // this.greeting + " " + this.name + "!"
-        if method_name == "greet" {
-            // Get the properties from the object
-            let greeting = obj.properties.get("greeting")
-                .and_then(|p| match p {
-                    PropertyValue::String(s) => Some(s.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| "Hello".to_string());
-                
-            let name = obj.properties.get("name")
-                .and_then(|p| match p {
-                    PropertyValue::String(s) => Some(s.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| "World".to_string());
-                
-            // Execute the expression: this.greeting + " " + this.name + "!"
-            let result = format!("{} {}!", greeting, name);
-            Ok(Value::String(result))
-        } else {
-            // Generic verb execution placeholder
-            Ok(Value::String("method executed".to_string()))
+        // Check permissions
+        if !verb_def.permissions.execute {
+            return Err(anyhow!("Permission denied: cannot execute verb '{}'", method_name));
         }
+        
+        // Evaluate the arguments
+        let mut arg_values = Vec::new();
+        for arg in args {
+            arg_values.push(self.eval_with_player(arg, player_id)?);
+        }
+        
+        // Create a new environment for the verb execution
+        let verb_env = self.environments.entry(player_id).or_insert_with(|| {
+            Environment {
+                player_id,
+                variables: HashMap::new(),
+                const_bindings: HashSet::new(),
+            }
+        }).clone();
+        
+        // Bind parameters to arguments
+        let mut verb_variables = verb_env.variables.clone();
+        
+        // Bind 'this' to the current object
+        verb_variables.insert("this".to_string(), Value::Object(obj_id));
+        
+        // Bind 'caller' to the calling player
+        verb_variables.insert("caller".to_string(), Value::Object(player_id));
+        
+        // Bind the parameters
+        for (i, param) in verb_def.params.iter().enumerate() {
+            if i < arg_values.len() {
+                verb_variables.insert(param.name.clone(), arg_values[i].clone());
+            } else if let Some(ref default) = param.default_value {
+                // Evaluate default value
+                let default_val = self.eval_with_player(default, player_id)?;
+                verb_variables.insert(param.name.clone(), default_val);
+            } else {
+                return Err(anyhow!("Missing required argument '{}'", param.name));
+            }
+        }
+        
+        // Save current environment and set up verb environment
+        let saved_env = self.environments.get(&player_id).map(|env| env.clone());
+        self.environments.insert(player_id, Environment {
+            player_id,
+            variables: verb_variables,
+            const_bindings: HashSet::new(),
+        });
+        
+        // Execute the verb body
+        let mut result = Value::Null;
+        for stmt in &verb_def.ast {
+            match self.eval_with_control_flow(stmt, player_id)? {
+                ControlFlow::None(val) => result = val,
+                ControlFlow::Return(val) => {
+                    // Restore environment and return
+                    if let Some(env) = saved_env {
+                        self.environments.insert(player_id, env);
+                    }
+                    return Ok(val);
+                }
+                ControlFlow::Break(_) => {
+                    // Restore environment
+                    if let Some(env) = saved_env {
+                        self.environments.insert(player_id, env);
+                    }
+                    return Err(anyhow!("Break outside of loop in verb"));
+                }
+                ControlFlow::Continue(_) => {
+                    // Restore environment
+                    if let Some(env) = saved_env {
+                        self.environments.insert(player_id, env);
+                    }
+                    return Err(anyhow!("Continue outside of loop in verb"));
+                }
+            }
+        }
+        
+        // Restore environment
+        if let Some(env) = saved_env {
+            self.environments.insert(player_id, env);
+        }
+        
+        Ok(result)
     }
     
     fn handle_binding(&mut self, binding_type: &BindingType, pattern: &BindingPattern, value: Value, player_id: ObjectId) -> Result<()> {
@@ -1149,8 +1501,14 @@ impl Evaluator {
                         return Err(anyhow!("Pattern length mismatch: expected {}, got {}", patterns.len(), values.len()));
                     }
                     
-                    for (pattern, val) in patterns.iter().zip(values.iter()) {
-                        self.handle_binding(binding_type, pattern, val.clone(), player_id)?;
+                    for (pattern_elem, val) in patterns.iter().zip(values.iter()) {
+                        // Convert BindingPatternElement to BindingPattern
+                        let pattern = match pattern_elem {
+                            BindingPatternElement::Simple(name) => BindingPattern::Identifier(name.clone()),
+                            BindingPatternElement::Optional { name, .. } => BindingPattern::Identifier(name.clone()),
+                            BindingPatternElement::Rest(name) => BindingPattern::Rest(Box::new(BindingPattern::Identifier(name.clone()))),
+                        };
+                        self.handle_binding(binding_type, &pattern, val.clone(), player_id)?;
                     }
                     Ok(())
                 } else {
@@ -1323,6 +1681,21 @@ impl Value {
             Value::Object(_) => "object",
             Value::List(_) => "list",
             Value::Lambda { .. } => "lambda",
+        }
+    }
+    
+    /// Get the source code representation of this value (for lambdas and functions)
+    pub fn to_source(&self) -> Option<String> {
+        match self {
+            Value::Lambda { params, body, .. } => {
+                use crate::ast::ToSource;
+                let params_str = params.iter()
+                    .map(|p| p.to_source())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Some(format!("fn {{{}}} {} endfn", params_str, body.to_source()))
+            }
+            _ => None, // Other value types don't have source representations
         }
     }
 }

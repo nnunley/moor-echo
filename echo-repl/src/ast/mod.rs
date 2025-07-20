@@ -1,10 +1,17 @@
 // Unified AST for Echo language
 // This AST is targeted by both MOO compatibility parser and modern Echo parser
 
+pub mod source_gen;
+pub use source_gen::ToSource;
+
+#[cfg(test)]
+mod source_gen_tests;
+
 use std::fmt;
+use serde::{Serialize, Deserialize};
 
 /// Binding type for variables
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BindingType {
     /// let x = ... (mutable binding)
     Let,
@@ -15,12 +22,12 @@ pub enum BindingType {
 }
 
 /// Pattern for destructuring/scatter assignment
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BindingPattern {
     /// Simple identifier: x
     Identifier(String),
-    /// List destructuring: [a, b, c]
-    List(Vec<BindingPattern>),
+    /// List destructuring: {a, b, c}
+    List(Vec<BindingPatternElement>),
     /// Object destructuring: {x, y: renamed}
     Object(Vec<(String, BindingPattern)>),
     /// Rest pattern: ...rest
@@ -29,8 +36,16 @@ pub enum BindingPattern {
     Ignore,
 }
 
+/// Elements within a BindingPattern (for list/object destructuring)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BindingPatternElement {
+    Simple(String),
+    Optional { name: String, default: Box<EchoAst> },
+    Rest(String),
+}
+
 /// Represents a value that can appear on the left side of an assignment
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LValue {
     /// Variable binding with optional type: let x, const y, or just z
     Binding {
@@ -49,7 +64,7 @@ pub enum LValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EchoAst {
     // Literals
     Number(i64),
@@ -78,6 +93,7 @@ pub enum EchoAst {
     LessEqual { left: Box<EchoAst>, right: Box<EchoAst> },
     GreaterThan { left: Box<EchoAst>, right: Box<EchoAst> },
     GreaterEqual { left: Box<EchoAst>, right: Box<EchoAst> },
+    In { left: Box<EchoAst>, right: Box<EchoAst> },
     
     // Logical operations
     And { left: Box<EchoAst>, right: Box<EchoAst> },
@@ -90,7 +106,8 @@ pub enum EchoAst {
     
     // Variable operations
     Assignment { target: LValue, value: Box<EchoAst> },
-    LetBinding { name: String, value: Box<EchoAst> },  // Modern Echo only
+    LocalAssignment { target: BindingPattern, value: Box<EchoAst> },
+    ConstAssignment { target: BindingPattern, value: Box<EchoAst> },
     
     // Property and method access
     PropertyAccess { object: Box<EchoAst>, property: String },
@@ -107,7 +124,7 @@ pub enum EchoAst {
     
     // Anonymous functions (Modern Echo only)
     Lambda {
-        params: Vec<String>,
+        params: Vec<LambdaParam>,
         body: Box<EchoAst>,
     },
     
@@ -133,6 +150,9 @@ pub enum EchoAst {
     Return { value: Option<Box<EchoAst>> },
     Break { label: Option<String> },
     Continue { label: Option<String> },
+    
+    // Event emission
+    Emit { event_name: String, args: Vec<EchoAst> },
     
     // Object definitions
     ObjectDef { 
@@ -180,7 +200,7 @@ pub enum EchoAst {
     Program(Vec<EchoAst>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ObjectMember {
     Property { 
         name: String, 
@@ -200,29 +220,46 @@ pub enum ObjectMember {
         return_type: Option<TypeExpression>,
         body: Vec<EchoAst> 
     },
+    Event {
+        name: String,
+        params: Vec<Parameter>,
+        body: Vec<EchoAst>,
+    },
+    Query {
+        name: String,
+        params: Vec<String>,  // Query parameter names
+        clauses: Vec<QueryClause>,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Parameter {
     pub name: String,
     pub type_annotation: Option<TypeExpression>,
     pub default_value: Option<EchoAst>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LambdaParam {
+    Simple(String),
+    Optional { name: String, default: Box<EchoAst> },
+    Rest(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatchClause {
     pub error_var: Option<String>,
     pub body: Vec<EchoAst>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatchArm {
     pub pattern: Pattern,
     pub guard: Option<Box<EchoAst>>,
     pub body: Box<EchoAst>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Pattern {
     Wildcard,
     Identifier(String),
@@ -231,7 +268,7 @@ pub enum Pattern {
     Constructor { name: String, args: Vec<Pattern> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TypeExpression {
     Named(String),
     Array(Box<TypeExpression>),
@@ -239,17 +276,30 @@ pub enum TypeExpression {
     Function { params: Vec<TypeExpression>, return_type: Box<TypeExpression> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PropertyPermissions {
     pub read: String,   // e.g., "owner", "anyone"
     pub write: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VerbPermissions {
     pub read: String,
     pub write: String,
     pub execute: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QueryClause {
+    pub predicate: String,
+    pub args: Vec<QueryArg>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum QueryArg {
+    Variable(String),
+    Constant(EchoAst),
+    Wildcard,
 }
 
 // Helper methods
@@ -257,7 +307,8 @@ impl EchoAst {
     /// Check if this AST node is an expression (vs statement)
     pub fn is_expression(&self) -> bool {
         !matches!(self, 
-            EchoAst::LetBinding { .. } |
+            EchoAst::LocalAssignment { .. } |
+            EchoAst::ConstAssignment { .. } |
             EchoAst::ObjectDef { .. } |
             EchoAst::Event { .. } |
             EchoAst::If { .. } |
@@ -274,7 +325,8 @@ impl EchoAst {
     /// Check if this is a MOO-compatible construct
     pub fn is_moo_compatible(&self) -> bool {
         !matches!(self,
-            EchoAst::LetBinding { .. } |
+            EchoAst::LocalAssignment { .. } |
+            EchoAst::ConstAssignment { .. } |
             EchoAst::Map { .. } |
             EchoAst::Event { .. } |
             EchoAst::Spawn { .. } |

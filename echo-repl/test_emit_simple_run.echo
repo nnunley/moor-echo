@@ -1,0 +1,8 @@
+print("Testing emit statement");
+emit startup;
+print("Emitted startup event");
+emit player_moved("north");
+print("Emitted player_moved event with arg");
+emit damage_taken(25, "goblin");
+print("Emitted damage_taken event with 2 args");
+print("Test complete");

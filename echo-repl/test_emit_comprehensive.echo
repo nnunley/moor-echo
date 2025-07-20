@@ -1,0 +1,45 @@
+// Comprehensive test of emit with arguments
+print("=== Testing Emit Statement with Arguments ===");
+
+// Basic emit without arguments
+print("\n1. Emit without arguments:");
+emit startup;
+
+// Emit with single argument
+print("\n2. Emit with single argument:");
+emit player_moved("north");
+
+// Emit with multiple arguments
+print("\n3. Emit with multiple arguments:");
+emit damage_taken(25, "goblin", true);
+
+// Emit with variable arguments
+print("\n4. Emit with variables:");
+let damage = 15;
+let attacker = "orc";
+let critical = false;
+emit damage_taken(damage, attacker, critical);
+
+// Emit with expressions
+print("\n5. Emit with expressions:");
+emit calculation_result(10 + 5, "sum");
+emit comparison_result(10 > 5, "greater than");
+
+// Emit with list argument
+print("\n6. Emit with complex data:");
+emit inventory_update({item: "sword", count: 1, equipped: true});
+
+// Emit in conditional
+print("\n7. Emit in conditional:");
+let health = 25;
+if (health < 30)
+    emit low_health_warning(health)
+endif
+
+// Emit in loop
+print("\n8. Emit in loop:");
+for i in ({1, 2, 3})
+    emit loop_iteration(i)
+endfor
+
+print("\n=== All emit tests completed! ===");

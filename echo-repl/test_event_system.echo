@@ -1,0 +1,40 @@
+// Test the complete event system implementation
+print("=== Testing Event System ===");
+
+// Create an object with event handlers
+object GamePlayer {
+    property health = 100;
+    property name = "Hero";
+    
+    event damage_taken(amount, source) {
+        print("Event handler called: damage_taken");
+        print("  Amount: " + amount);
+        print("  Source: " + source);
+        this.health = this.health - amount;
+        print("  New health: " + this.health);
+    }
+    
+    event player_moved(direction) {
+        print("Event handler called: player_moved");
+        print("  Direction: " + direction);
+    }
+}
+
+// Create instance
+let player = GamePlayer;
+print("\nPlayer created with health: " + player.health);
+
+// Test event emission
+print("\n1. Testing damage event:");
+emit damage_taken(25, "goblin");
+
+print("\n2. Testing movement event:");
+emit player_moved("north");
+
+print("\n3. Testing multiple damage events:");
+emit damage_taken(10, "trap");
+emit damage_taken(15, "arrow");
+
+print("\n4. Final player health: " + player.health);
+
+print("\n=== Event System Test Complete ===");

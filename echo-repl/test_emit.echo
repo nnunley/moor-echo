@@ -1,0 +1,40 @@
+# Test emit statement functionality
+
+# Simple emit without arguments
+emit player_joined
+
+# Emit with a single argument
+let player_name = "Alice"
+emit player_logged_in(player_name)
+
+# Emit with multiple arguments
+let x = 100
+let y = 200
+emit position_changed(player_name, x, y)
+
+# Emit in a function context
+object EventTest
+    property active = true
+    
+    verb trigger_event()
+        if (this.active)
+            emit event_triggered(this)
+            return "Event emitted!"
+        else
+            return "Inactive - no event"
+        endif
+    endverb
+endobject
+
+# Test the verb
+EventTest:trigger_event()
+
+# Emit in control flow
+for i in ({1, 2, 3})
+    emit loop_iteration(i)
+endfor
+
+# Emit with expressions as arguments
+emit calculation_complete(5 + 3, "result")
+
+print("All emit tests completed!")

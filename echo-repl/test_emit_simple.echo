@@ -1,0 +1,7 @@
+print("Testing emit with arguments")
+emit startup
+emit player_moved("north")
+emit damage_taken(25, "goblin")
+let damage = 15
+emit damage_taken(damage, "orc")
+print("Done testing")

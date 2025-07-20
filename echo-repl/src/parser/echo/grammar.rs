@@ -8,7 +8,77 @@ pub mod echo {
         _whitespace: (),
     }
 
-    #[derive(Debug, PartialEq)]
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    // BindingPattern for let/const declarations
+    #[derive(Debug, PartialEq, Clone)]
+    pub enum BindingPattern {
+        Identifier(Identifier),
+        List {
+            #[rust_sitter::leaf(text = "{")]
+            _lbrace: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            #[rust_sitter::delimited(
+                #[rust_sitter::leaf(text = ",")]
+                ()
+            )]
+            elements: Vec<BindingPatternElement>,
+            #[rust_sitter::leaf(text = "}")]
+            _rbrace: (),
+        },
+        Rest {
+            #[rust_sitter::leaf(pattern = r"\.\.\.")]
+            _dots: (),
+            name: Identifier,
+        },
+        #[rust_sitter::leaf(text = "_")]
+        Ignore,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub enum BindingPatternElement {
+        Simple(Identifier),
+        Optional {
+            #[rust_sitter::leaf(text = "?")]
+            _question: (),
+            name: Identifier,
+            #[rust_sitter::leaf(text = "=")]
+            _equals: (),
+            default: Box<EchoAst>,
+        },
+        Rest {
+            #[rust_sitter::leaf(text = "@")]
+            _at: (),
+            name: Identifier,
+        },
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
     #[rust_sitter::language]
     pub enum EchoAst {
         // Literals
@@ -72,37 +142,48 @@ pub mod echo {
             _op: (),
             right: Box<EchoAst>,
         },
+
+        // Power operator (precedence 9, right associative like MOO)
+        #[rust_sitter::prec_right(9)]
+        Power {
+            left: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "^")]
+            _op: (),
+            right: Box<EchoAst>,
+        },
         
-        // Assignment - low precedence for statement-level assignments
+        // Assignment Expression - can appear in expression contexts
         #[rust_sitter::prec_right(2)]
-        Assignment {
-            target: Box<EchoAst>, // Must be an Identifier or PropertyAccess
+        AssignmentExpr {
+            left: Box<EchoAst>, // This will be validated as LValue during conversion
             #[rust_sitter::leaf(text = "=")]
             _op: (),
-            value: Box<EchoAst>,
+            right: Box<EchoAst>,
         },
-        
-        // Let binding - higher precedence than assignment
-        #[rust_sitter::prec_right(3)]
-        LetBinding {
+
+        // Local variable declaration statement
+        #[rust_sitter::prec(12)]
+        LocalAssignment {
             #[rust_sitter::leaf(text = "let")]
-            _let: (),
-            pattern: Box<EchoAst>, // Identifier or pattern
+            _let_keyword: (),
+            target: Box<BindingPattern>,
             #[rust_sitter::leaf(text = "=")]
             _op: (),
             value: Box<EchoAst>,
         },
-        
-        // Const binding - higher precedence than assignment
-        #[rust_sitter::prec_right(3)]
-        ConstBinding {
+
+        // Constant declaration statement
+        #[rust_sitter::prec(12)]
+        ConstAssignment {
             #[rust_sitter::leaf(text = "const")]
-            _const: (),
-            pattern: Box<EchoAst>, // Identifier or pattern
+            _const_keyword: (),
+            target: Box<BindingPattern>,
             #[rust_sitter::leaf(text = "=")]
             _op: (),
             value: Box<EchoAst>,
         },
+
+        
         
         // Comparison operators (precedence 4)
         #[rust_sitter::prec_left(4)]
@@ -152,6 +233,15 @@ pub mod echo {
             _op: (),
             right: Box<EchoAst>,
         },
+
+        // TODO: In operator conflicts with for loop 'in' keyword
+        // #[rust_sitter::prec_left(5)]
+        // In {
+        //     left: Box<EchoAst>,
+        //     #[rust_sitter::leaf(text = "in")]
+        //     _op: (),
+        //     right: Box<EchoAst>,
+        // },
         
         // Logical operators (precedence 2 for &&, 1 for ||)
         #[rust_sitter::prec_left(2)]
@@ -184,9 +274,19 @@ pub mod echo {
             object: Box<EchoAst>,
             #[rust_sitter::leaf(text = ".")]
             _dot: (),
-            property: Box<EchoAst>, // Must be an Identifier
+            property: Identifier,
         },
         
+        // Index access (high precedence 11)
+        #[rust_sitter::prec_left(11)]
+        IndexAccess {
+            object: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "[")]
+            _lbracket: (),
+            index: Box<EchoAst>,
+            #[rust_sitter::leaf(text = "]")]
+            _rbracket: (),
+        },
         
         // Method calls
         #[rust_sitter::prec_left(11)]
@@ -345,6 +445,23 @@ pub mod echo {
             label: Option<Box<EchoAst>>, // Optional label
         },
         
+        // Return statement with optional value
+        #[rust_sitter::prec_right(9)]
+        Return {
+            #[rust_sitter::leaf(text = "return")]
+            _return: (),
+            value: Option<Box<EchoAst>>, // Optional return value
+        },
+        
+        // Emit statement for event emission with optional arguments
+        #[rust_sitter::prec_right(9)]
+        Emit {
+            #[rust_sitter::leaf(text = "emit")]
+            _emit: (),
+            event_name: Identifier,
+            args: Option<EmitArgs>,
+        },
+        
         // // Block statement - commented out due to conflict with List
         // // In MOO, blocks don't exist as a syntax construct
         // Block {
@@ -361,13 +478,70 @@ pub mod echo {
         // },
     }
     
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct Identifier {
         #[rust_sitter::leaf(pattern = r"[a-zA-Z_][a-zA-Z0-9_]*", transform = |v| v.to_string())]
         pub name: String,
     }
+    
+    // Structure for emit statement arguments
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct EmitArgs {
+        #[rust_sitter::leaf(text = "(")]
+        pub _lparen: (),
+        #[rust_sitter::repeat(non_empty = false)]
+        #[rust_sitter::delimited(
+            #[rust_sitter::leaf(text = ",")]
+            ()
+        )]
+        pub args: Vec<EchoAst>,
+        #[rust_sitter::leaf(text = ")")]
+        pub _rparen: (),
+    }
+    
+    // Query-related structures for Datalog-style queries
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct QueryParams {
+        #[rust_sitter::leaf(text = "(")]
+        pub _lparen: (),
+        #[rust_sitter::repeat(non_empty = false)]
+        #[rust_sitter::delimited(
+            #[rust_sitter::leaf(text = ",")]
+            ()
+        )]
+        pub params: Vec<QueryParam>,
+        #[rust_sitter::leaf(text = ")")]
+        pub _rparen: (),
+    }
+    
+    #[derive(Debug, PartialEq, Clone)]
+    pub enum QueryParam {
+        // All query parameters will be parsed as identifiers or literals
+        Identifier(Identifier),
+        Number(#[rust_sitter::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())] i64),
+        String(#[rust_sitter::leaf(pattern = r#""[^"]*""#, transform = |v| v[1..v.len()-1].to_string())] String),
+        Wildcard {
+            #[rust_sitter::leaf(text = "_")]
+            _underscore: (),
+        },
+    }
+    
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct QueryClause {
+        pub predicate: Identifier,
+        #[rust_sitter::leaf(text = "(")]
+        pub _lparen: (),
+        #[rust_sitter::repeat(non_empty = false)]
+        #[rust_sitter::delimited(
+            #[rust_sitter::leaf(text = ",")]
+            ()
+        )]
+        pub args: Vec<QueryParam>,
+        #[rust_sitter::leaf(text = ")")]
+        pub _rparen: (),
+    }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum ObjectMember {
         PropertyDef {
             #[rust_sitter::leaf(text = "property")]
@@ -377,9 +551,45 @@ pub mod echo {
             _equals: (),
             value: Box<EchoAst>,
         },
+        VerbDef {
+            #[rust_sitter::leaf(text = "verb")]
+            _verb: (),
+            name: Identifier,
+            params: ParamPattern,
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endverb")]
+            _endverb: (),
+        },
+        EventDef {
+            #[rust_sitter::leaf(text = "event")]
+            _event: (),
+            name: Identifier,
+            params: ParamPattern,
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endevent")]
+            _endevent: (),
+        },
+        QueryDef {
+            #[rust_sitter::leaf(text = "query")]
+            _query: (),
+            name: Identifier,
+            params: Option<QueryParams>,
+            #[rust_sitter::leaf(text = ":-")]
+            _horn: (),
+            #[rust_sitter::repeat(non_empty = true)]
+            #[rust_sitter::delimited(
+                #[rust_sitter::leaf(text = ",")]
+                ()
+            )]
+            clauses: Vec<QueryClause>,
+            #[rust_sitter::leaf(text = ".")]
+            _dot: (),
+        },
     }
     
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum ParamElement {
         // Simple identifier: x
         Simple(Identifier),
@@ -400,7 +610,7 @@ pub mod echo {
         },
     }
     
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum ParamPattern {
         // Single parameter (could be simple, optional, or rest)
         Single(ParamElement),
@@ -419,7 +629,7 @@ pub mod echo {
         },
     }
     
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct ElseClause {
         #[rust_sitter::leaf(text = "else")]
         pub _else: (),
@@ -428,7 +638,7 @@ pub mod echo {
     }
 }
 
-pub use echo::{EchoAst, ObjectMember, ElseClause, Identifier, ParamPattern, ParamElement};
+pub use echo::{EchoAst, ObjectMember, ElseClause, Identifier, ParamPattern, ParamElement, BindingPattern, BindingPatternElement, EmitArgs, QueryParams, QueryParam, QueryClause};
 pub use echo::parse as parse_echo;
 
 // Compatibility wrapper for existing API
