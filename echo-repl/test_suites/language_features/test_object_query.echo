@@ -1,0 +1,27 @@
+object Player
+    property name = "Alice"
+    property location = #123
+    property level = 5
+    
+    // Simple query - check if player can see another player
+    query can_see(other_player) :-
+        same_location(this, other_player),
+        not(hidden(other_player)).
+    
+    // Query without parameters - find accessible exits
+    query accessible_exits :-
+        exit_from(this.location, Exit),
+        has_capability(this, UseExit(Exit)).
+    
+    // Complex query with multiple clauses
+    query find_nearby_items(max_distance) :-
+        at_location(this, Location),
+        item_at(Item, ItemLocation),
+        distance(Location, ItemLocation, Distance),
+        less_than(Distance, max_distance).
+    
+    verb test_queries
+        print("Testing query definitions")
+        return true
+    endverb
+endobject

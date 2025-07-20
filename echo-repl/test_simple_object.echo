@@ -1,0 +1,3 @@
+object SimpleObject {
+    property count = 0
+}

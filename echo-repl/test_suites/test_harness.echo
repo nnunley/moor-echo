@@ -1,0 +1,72 @@
+// Echo Test Harness
+// Provides testing utilities for Echo programs
+
+// Test tracking
+let test_count = 0
+let failed_tests = []
+let current_test = ""
+
+// Assertion functions
+object test_harness
+    verb assert {condition, message}
+        if !condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb assert_equal {actual, expected, ?message = ""}
+        if actual != expected
+            let msg = message
+            if msg == ""
+                msg = "Expected " + expected + " but got " + actual
+            endif
+            failed_tests = failed_tests + [current_test + ": " + msg]
+        endif
+    endverb
+    
+    verb assert_true {condition, ?message = "Assertion failed"}
+        if !condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb assert_false {condition, ?message = "Expected false"}
+        if condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb describe {test_name}
+        current_test = test_name
+        test_count = test_count + 1
+        return null
+    endverb
+    
+    verb report {}
+        let passed = test_count - failed_tests.length
+        let result = "Tests: " + test_count + ", Passed: " + passed + ", Failed: " + failed_tests.length
+        
+        if failed_tests.length > 0
+            result = result + "\n\nFailed tests:"
+            for failure in failed_tests
+                result = result + "\n  - " + failure
+            endfor
+        endif
+        
+        return result
+    endverb
+    
+    verb all_passed {}
+        return failed_tests.length == 0
+    endverb
+endobject
+
+// Convenience shortcuts
+let describe = fn {name} #0.test_harness:describe(name) endfn
+let assert = fn {cond, msg} #0.test_harness:assert(cond, msg) endfn
+let assert_equal = fn {a, e, ?m = ""} #0.test_harness:assert_equal(a, e, m) endfn
+let assert_true = fn {c, ?m = "Assertion failed"} #0.test_harness:assert_true(c, m) endfn
+let assert_false = fn {c, ?m = "Expected false"} #0.test_harness:assert_false(c, m) endfn
+
+// Export the test harness
+#0.test_harness

@@ -44,7 +44,7 @@ pub struct EchoObject {
     pub meta: crate::evaluator::meta_object::MetaObject,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PropertyValue {
     Null,
     Boolean(bool),
@@ -60,7 +60,9 @@ pub enum PropertyValue {
 pub struct VerbDefinition {
     pub name: String,
     pub signature: VerbSignature,
-    pub code: String,
+    pub code: String,  // Source code for display
+    pub ast: Vec<crate::ast::EchoAst>,  // The actual AST to execute
+    pub params: Vec<crate::ast::Parameter>,  // Parameters for the verb
     pub permissions: VerbPermissions,
 }
 
@@ -202,5 +204,10 @@ impl ObjectStore {
             ids.push(ObjectId(id));
         }
         Ok(ids)
+    }
+    
+    pub fn estimated_size(&self) -> Result<u64> {
+        // Return the estimated size of the database
+        Ok(self.db.size_on_disk()?)
     }
 }

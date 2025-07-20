@@ -1,8 +1,14 @@
-use echo_repl::parser::grammar::parse_echo;
+use echo_repl::parser::create_parser;
 use echo_repl::evaluator::{create_evaluator, Value};
 use echo_repl::storage::Storage;
 use std::sync::Arc;
 use tempfile::tempdir;
+
+// Helper function to parse Echo code
+fn parse_echo(code: &str) -> anyhow::Result<echo_repl::ast::EchoAst> {
+    let mut parser = create_parser("echo")?;
+    parser.parse(code)
+}
 
 #[test]
 fn test_simple_for_loop() {
@@ -16,7 +22,8 @@ fn test_simple_for_loop() {
     
     // Test for loop: for (item in [1, 2, 3]) return item; endfor
     // This should return the last item (3)
-    let ast = parse_echo("for (item in [1, 2, 3]) return item; endfor").expect("Failed to parse");
+    let mut parser = create_parser("echo").expect("Failed to create parser");
+    let ast = parser.parse("for (item in [1, 2, 3]) return item; endfor").expect("Failed to parse");
     let result = evaluator.eval(&ast).expect("Failed to evaluate");
     
     assert_eq!(result, Value::Integer(3));

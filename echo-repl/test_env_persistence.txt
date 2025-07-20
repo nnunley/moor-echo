@@ -1,5 +1,0 @@
-object person
-property name = "Alice"
-endobject
-person
-.quit

@@ -1,4 +1,11 @@
-use echo_repl::parser::grammar::{parse_echo, EchoAst};
+use echo_repl::parser::{create_parser, Parser};
+use echo_repl::ast::EchoAst;
+
+// Helper function to parse echo code
+fn parse_echo(code: &str) -> anyhow::Result<EchoAst> {
+    let mut parser = create_parser("echo")?;
+    parser.parse(code)
+}
 
 // Basic literals
 #[test]
@@ -77,7 +84,7 @@ fn test_rust_sitter_addition() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::Add {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -88,7 +95,7 @@ fn test_rust_sitter_addition_with_spaces() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::Add {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -99,7 +106,7 @@ fn test_rust_sitter_string_concatenation() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::Add {
         left: Box::new(EchoAst::String("hello".to_string())),
-        _op: (),
+        
         right: Box::new(EchoAst::String(" world".to_string()))
     });
 }
@@ -112,10 +119,10 @@ fn test_rust_sitter_nested_addition() {
     assert_eq!(result.unwrap(), EchoAst::Add {
         left: Box::new(EchoAst::Add {
             left: Box::new(EchoAst::Number(1)),
-            _op: (),
+            
             right: Box::new(EchoAst::Number(2))
         }),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(3))
     });
 }
@@ -184,7 +191,7 @@ fn test_rust_sitter_let_with_expression() {
         _equals: (),
         value: Box::new(EchoAst::Add {
             left: Box::new(EchoAst::Number(1)),
-            _op: (),
+            
             right: Box::new(EchoAst::Number(2))
         }),
         _semicolon: (),
@@ -326,7 +333,7 @@ fn test_rust_sitter_equal_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::Equal {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -337,7 +344,7 @@ fn test_rust_sitter_not_equal_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::NotEqual {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -348,7 +355,7 @@ fn test_rust_sitter_less_than_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::LessThan {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -359,7 +366,7 @@ fn test_rust_sitter_greater_than_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::GreaterThan {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -370,7 +377,7 @@ fn test_rust_sitter_less_equal_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::LessEqual {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }
@@ -381,7 +388,7 @@ fn test_rust_sitter_greater_equal_comparison() {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), EchoAst::GreaterEqual {
         left: Box::new(EchoAst::Number(1)),
-        _op: (),
+        
         right: Box::new(EchoAst::Number(2))
     });
 }

@@ -1,0 +1,8 @@
+object foo
+    verb greet {}
+        return "Hello!"
+    endverb
+endobject
+
+let f = foo
+f:greet()

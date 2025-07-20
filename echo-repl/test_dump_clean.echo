@@ -1,0 +1,14 @@
+let x = 42
+let y = "hello"
+const PI = 3.14159
+
+.dump
+
+.quiet
+let z = x + 58
+z
+
+.quiet
+z
+
+.dump

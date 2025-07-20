@@ -40,7 +40,7 @@ fn test_verb_execution() {
     // Call the verb
     let result = repl.execute("g:greet()");
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "Hello from Bob!");
+    assert_eq!(result.unwrap().0, "Hello from Bob!");
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn test_verb_with_arguments() {
     // Call verb with arguments
     let result = repl.execute("calc:add(5, 3)");
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "8");
+    assert_eq!(result.unwrap().0, "8");
 }
 
 #[test]
@@ -85,6 +85,6 @@ fn test_verb_accessing_caller() {
     let result = repl.execute("booth:whoami()");
     assert!(result.is_ok());
     // Should contain the player name
-    let output = result.unwrap();
+    let (output, _duration) = result.unwrap();
     assert!(output.contains("guest") || output.contains("default"));
 }

@@ -1,0 +1,22 @@
+// Test the .load command
+
+// Show initial state
+"=== Initial State ==="
+.env
+
+// Load the file
+"=== Loading file ==="
+.load test_file_to_load.echo
+
+// Check what was loaded
+"=== After Loading ==="
+.env
+
+// Use the loaded function
+"=== Using loaded function ==="
+increment()
+increment()
+
+// Access loaded variables
+"loaded_var contains: " + loaded_var
+"counter is: " + counter

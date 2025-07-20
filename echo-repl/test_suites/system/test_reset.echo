@@ -1,0 +1,20 @@
+// Test .reset command
+
+// Create some variables
+let x = 42
+let y = "hello"
+const PI = 3.14159
+
+// Show environment
+"=== Before Reset ==="
+.env
+
+// Reset
+.reset
+
+// Check environment is empty
+"=== After Reset ==="
+.env
+
+// Try to access old variables (should fail)
+x

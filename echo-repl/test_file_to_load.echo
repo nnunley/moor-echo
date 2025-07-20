@@ -1,0 +1,19 @@
+// File to be loaded by .load command
+
+// Create some variables
+let loaded_var = "I was loaded from a file"
+let counter = 0
+
+// Define a function
+let increment = fn {}
+  counter = counter + 1
+  "Counter is now: " + counter
+endfn
+
+// Create some test results  
+let test_result = 100 + 23
+
+// Show what was loaded
+"File loaded successfully!"
+"loaded_var = " + loaded_var
+"test_result = " + test_result

@@ -1,0 +1,281 @@
+// Echo Language Sanity Test Suite using Test Harness
+// Tests all major language features with proper assertions
+let test_count = 0
+let failed_tests = []
+let current_test = ""
+
+object test_harness
+    verb assert {condition, message}
+        if !condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb assert_equal {actual, expected, ?message = ""}
+        if actual != expected
+            let msg = message
+            if msg == ""
+                msg = "Expected " + expected + " but got " + actual
+            endif
+            failed_tests = failed_tests + [current_test + ": " + msg]
+        endif
+    endverb
+    
+    verb assert_true {condition, ?message = "Assertion failed"}
+        if !condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb assert_false {condition, ?message = "Expected false"}
+        if condition
+            failed_tests = failed_tests + [current_test + ": " + message]
+        endif
+    endverb
+    
+    verb describe {test_name}
+        current_test = test_name
+        test_count = test_count + 1
+        return null
+    endverb
+    
+    verb report {}
+        // Count failures
+        let failed_count = 0
+        for failure in failed_tests
+            failed_count = failed_count + 1
+        endfor
+        
+        let passed = test_count - failed_count
+        let result = "Tests: " + test_count + ", Passed: " + passed + ", Failed: " + failed_count
+        
+        if failed_count > 0
+            result = result + "\n\nFailed tests:"
+            for failure in failed_tests
+                result = result + "\n  - " + failure
+            endfor
+        endif
+        
+        return result
+    endverb
+    
+    verb all_passed {}
+        // Check if no failures
+        for failure in failed_tests
+            return false
+        endfor
+        return true
+    endverb
+endobject
+
+// Convenience shortcuts
+let describe = fn {name} #0.test_harness:describe(name) endfn
+let assert_equal = fn {a, e, ?m = ""} #0.test_harness:assert_equal(a, e, m) endfn
+let assert_true = fn {c, ?m = "Assertion failed"} #0.test_harness:assert_true(c, m) endfn
+let assert_false = fn {c, ?m = "Expected false"} #0.test_harness:assert_false(c, m) endfn
+
+// Begin tests
+
+describe("Basic arithmetic")
+let x = 10
+let y = 20
+assert_equal(x + y, 30)
+assert_equal(x - y, -10)
+assert_equal(x * y, 200)
+assert_equal(y / x, 2)
+assert_equal(17 % 5, 2)
+
+describe("String operations")
+let greeting = "Hello"
+let name = "Echo"
+assert_equal(greeting + ", " + name + "!", "Hello, Echo!")
+
+describe("Object creation and properties")
+object test_obj
+    property count = 0
+    property name = "Test Object"
+    
+    verb increment {}
+        this.count = this.count + 1
+        return this.count
+    endverb
+    
+    verb get_info {}
+        return this.name + " (count: " + this.count + ")"
+    endverb
+endobject
+
+assert_equal(#0.test_obj.name, "Test Object")
+assert_equal(#0.test_obj.count, 0)
+
+describe("Verb execution")
+assert_equal(#0.test_obj:increment(), 1)
+assert_equal(#0.test_obj:increment(), 2)
+assert_equal(#0.test_obj.count, 2)
+
+describe("Verb with parameters")
+object calculator
+    verb add {a, b}
+        return a + b
+    endverb
+    
+    verb multiply {x, y, ?times = 1}
+        let result = x * y
+        let i = 1
+        while i < times
+            result = result * y
+            i = i + 1
+        endwhile
+        return result
+    endverb
+endobject
+
+assert_equal(#0.calculator:add(5, 3), 8)
+assert_equal(#0.calculator:multiply(3, 4), 12)
+assert_equal(#0.calculator:multiply(2, 3, 2), 18)
+
+describe("Lambda functions")
+let adder = fn {x, y} x + y endfn
+assert_equal(adder(7, 8), 15)
+
+let with_default = fn {x, ?y = 10} x + y endfn
+assert_equal(with_default(5), 15)
+assert_equal(with_default(5, 3), 8)
+
+describe("If/else control flow")
+let test_value = 42
+let result = null
+if test_value < 40
+    result = "less"
+else
+    result = "more"
+endif
+assert_equal(result, "more")
+
+describe("For loops")
+let loop_sum = 0
+for i in [1, 2, 3, 4, 5]
+    loop_sum = loop_sum + i
+endfor
+assert_equal(loop_sum, 15)
+
+describe("While loops")
+let while_count = 0
+while while_count < 5
+    while_count = while_count + 1
+endwhile
+assert_equal(while_count, 5)
+
+describe("List operations")
+let numbers = [10, 20, 30]
+assert_equal(numbers[0], 10)
+assert_equal(numbers[1], 20)
+assert_equal(numbers[2], 30)
+
+describe("Object reference mapping")
+#0.object_map = {"100": #0.test_obj, "200": #0.calculator}
+assert_equal(#100.name, "Test Object")
+assert_equal(#200:add(1, 1), 2)
+
+describe("System properties")
+$test_global = "Global Value"
+assert_equal($test_global, "Global Value")
+assert_equal($test_global, #0.test_global)
+
+describe("Const variables")
+const PI = 3.14159
+assert_equal(PI, 3.14159)
+
+describe("Nested property access")
+object outer
+    property inner = #0.test_obj
+endobject
+assert_equal(#0.outer.inner.name, "Test Object")
+
+describe("Complex expressions")
+assert_equal((10 + 5) * 2 - 3, 27)
+assert_equal(2 + 3 * 4, 14)
+
+describe("Boolean logic")
+assert_true(true && true)
+assert_false(true && false)
+assert_true(true || false)
+assert_false(false || false)
+assert_true(!false)
+assert_false(!true)
+
+describe("Comparison operators")
+assert_true(5 < 10)
+assert_true(10 <= 10)
+assert_true(15 > 10)
+assert_true(20 >= 20)
+assert_true(5 == 5)
+assert_true(5 != 6)
+
+describe("Break statement")
+let break_test = 0
+for i in [1, 2, 3, 4, 5]
+    if i == 3
+        break
+    endif
+    break_test = break_test + i
+endfor
+assert_equal(break_test, 3)
+
+describe("Continue statement")
+let continue_test = 0
+for i in [1, 2, 3, 4, 5]
+    if i == 3
+        continue
+    endif
+    continue_test = continue_test + i
+endfor
+assert_equal(continue_test, 12)
+
+describe("Verb calling verb")
+object chain_test
+    verb first {}
+        return this:second(5)
+    endverb
+    
+    verb second {n}
+        return n * 2
+    endverb
+endobject
+assert_equal(#0.chain_test:first(), 10)
+
+describe("Early return in verb")
+object return_test
+    verb early_return {n}
+        if n < 0
+            return "negative"
+        endif
+        if n == 0
+            return "zero"
+        endif
+        return "positive"
+    endverb
+endobject
+
+assert_equal(#0.return_test:early_return(-5), "negative")
+assert_equal(#0.return_test:early_return(0), "zero")
+assert_equal(#0.return_test:early_return(10), "positive")
+
+describe("Property scoping in verbs")
+object scope_test
+    property name = "Object Property"
+    
+    verb test_param {name}
+        return name
+    endverb
+    
+    verb test_this {}
+        return this.name
+    endverb
+endobject
+
+assert_equal(#0.scope_test:test_param("Parameter Value"), "Parameter Value")
+assert_equal(#0.scope_test:test_this(), "Object Property")
+
+// Generate test report
+#0.test_harness:report()

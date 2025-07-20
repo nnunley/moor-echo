@@ -1,0 +1,63 @@
+.eval
+// Test .dump and .quiet commands
+
+// Set up some test data
+let pass = 0
+let fail = 0
+const PI = 3.14159
+
+let test = fn {name, result}
+  if result
+    pass = pass + 1
+    "✓ " + name
+  else
+    fail = fail + 1
+    "✗ " + name
+  endif
+endfn
+
+// Test 1: Create variables to dump
+let x = 42
+let y = "hello"
+let z = [1, 2, 3]
+let add = fn {a, b} a + b endfn
+
+"Test 1: Variables created"
+.
+
+// Test 2: Dump environment to check JSON output
+.dump
+
+// Test 3: Toggle quiet mode
+.quiet
+.eval
+"This should not print a result"
+let silent_test = 100
+.
+.quiet
+
+// Test 4: Verify quiet mode toggled off
+.eval
+"This should print a result"
+.
+
+// Test 5: More complex environment
+.eval
+let complex = {
+  numbers: [1, 2, 3, 4, 5],
+  text: "complex data",
+  nested: fn {x} x * 2 endfn
+}
+.
+
+// Final dump to see all variables
+.dump
+
+// Summary
+.eval
+"\n=== Test Summary ==="
+"Passed: " + pass
+"Failed: " + fail
+.
+
+.quit

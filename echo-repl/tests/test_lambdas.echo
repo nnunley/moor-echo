@@ -1,0 +1,100 @@
+// Lambda Function Tests
+
+run_tests("Lambda Functions")
+
+// Test 1: Simple parameters
+test("Simple lambda parameters", fn {}
+  let add = fn {x, y} x + y endfn
+  assert_eq(add(5, 3), 8, "5 + 3 should equal 8")
+endfn)
+
+// Test 2: Optional parameters
+test("Optional parameters", fn {}
+  let greet = fn {name, ?greeting="Hello"} greeting + " " + name endfn
+  assert_eq(greet("World"), "Hello World", "Should use default greeting")
+  assert_eq(greet("Echo", "Hi"), "Hi Echo", "Should use provided greeting")
+endfn)
+
+// Test 3: Rest parameters
+test("Rest parameters", fn {}
+  let sum_rest = fn {first, @rest} 
+    let total = first
+    for x in rest
+      total = total + x
+    endfor
+    total
+  endfn
+  assert_eq(sum_rest(1, 2, 3, 4), 10, "Should sum all arguments")
+  assert_eq(sum_rest(5), 5, "Should work with just one argument")
+endfn)
+
+// Test 4: Arrow functions
+test("Arrow function syntax", fn {}
+  let double = x => x * 2
+  assert_eq(double(21), 42, "Arrow function should double the value")
+  
+  let add = {x, y} => x + y
+  assert_eq(add(30, 12), 42, "Multi-param arrow function should work")
+endfn)
+
+// Test 5: Closures
+test("Lambda closures", fn {}
+  let multiplier = 10
+  let scale = fn {x} x * multiplier endfn
+  assert_eq(scale(5), 50, "Lambda should capture outer variable")
+  
+  // Test closure with modification
+  let counter = 0
+  let increment = fn {} counter = counter + 1; counter endfn
+  assert_eq(increment(), 1, "First call should return 1")
+  assert_eq(increment(), 2, "Second call should return 2")
+  assert_eq(counter, 2, "Outer variable should be modified")
+endfn)
+
+// Test 6: Higher-order functions
+test("Higher-order functions", fn {}
+  let apply_twice = fn {f, x} f(f(x)) endfn
+  let inc = x => x + 1
+  assert_eq(apply_twice(inc, 5), 7, "Should apply function twice")
+  
+  let compose = fn {f, g} {x} => f(g(x)) endfn
+  let add1 = x => x + 1
+  let times2 = x => x * 2
+  let f = compose(add1, times2)
+  assert_eq(f(5), 11, "Composition: (5 * 2) + 1 = 11")
+endfn)
+
+// Test 7: Mixed parameters
+test("Mixed parameter types", fn {}
+  let flexible = fn {x, ?y=10, @rest}
+    if rest == []
+      x + y
+    else
+      let sum = x + y
+      for r in rest
+        sum = sum + r
+      endfor
+      sum
+    endif
+  endfn
+  
+  assert_eq(flexible(5), 15, "x=5, y=10 (default)")
+  assert_eq(flexible(5, 3), 8, "x=5, y=3")
+  assert_eq(flexible(1, 2, 3, 4), 10, "1+2+3+4 = 10")
+endfn)
+
+// Test 8: Recursive lambdas
+test("Recursive lambdas", fn {}
+  let fact = fn {n}
+    if n <= 1
+      1
+    else
+      n * fact(n - 1)
+    endif
+  endfn
+  
+  assert_eq(fact(5), 120, "5! = 120")
+  assert_eq(fact(0), 1, "0! = 1")
+endfn)
+
+test_summary()

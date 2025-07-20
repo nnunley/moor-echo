@@ -1,0 +1,75 @@
+// Echo Test Framework
+// A simple testing framework written in Echo
+
+// Test result tracking
+let test_count = 0
+let pass_count = 0
+let fail_count = 0
+let current_test = ""
+
+// ANSI color codes for output
+let RED = "\033[31m"
+let GREEN = "\033[32m"
+let YELLOW = "\033[33m"
+let RESET = "\033[0m"
+
+// Test assertion functions
+let assert_eq = fn {actual, expected, ?message=""} 
+  if actual == expected
+    pass_count = pass_count + 1
+    GREEN + "✓" + RESET + " " + current_test + " - " + message
+  else
+    fail_count = fail_count + 1
+    RED + "✗" + RESET + " " + current_test + " - " + message + "\n" +
+    "  Expected: " + expected + "\n" +
+    "  Actual: " + actual
+  endif
+endfn
+
+let assert_true = fn {condition, ?message=""}
+  assert_eq(condition, true, message)
+endfn
+
+let assert_false = fn {condition, ?message=""}
+  assert_eq(condition, false, message)
+endfn
+
+// Test runner
+let test = fn {name, test_fn}
+  test_count = test_count + 1
+  current_test = name
+  "Running: " + name
+  test_fn()
+endfn
+
+// Test suite runner
+let run_tests = fn {suite_name}
+  "\n" + YELLOW + "=== " + suite_name + " ===" + RESET + "\n"
+endfn
+
+// Summary reporter
+let test_summary = fn {}
+  "\n" + "Test Summary:"
+  GREEN + "  Passed: " + pass_count + RESET
+  if fail_count > 0
+    RED + "  Failed: " + fail_count + RESET
+  else
+    ""
+  endif
+  "  Total: " + test_count
+  if fail_count == 0
+    "\n" + GREEN + "All tests passed!" + RESET
+  else
+    "\n" + RED + "Some tests failed!" + RESET
+  endif
+endfn
+
+// Export test framework functions
+#0.assert_eq = assert_eq
+#0.assert_true = assert_true
+#0.assert_false = assert_false
+#0.test = test
+#0.run_tests = run_tests
+#0.test_summary = test_summary
+
+"Echo Test Framework loaded"

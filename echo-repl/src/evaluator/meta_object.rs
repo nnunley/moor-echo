@@ -37,6 +37,7 @@ pub struct PropertyMetadata {
     pub readable: bool,
     pub writable: bool,
     pub inheritable: bool,
+    pub source_code: Option<String>, // For properties containing lambdas
 }
 
 /// Metadata about an object verb  
@@ -45,6 +46,7 @@ pub struct VerbMetadata {
     pub name: String,
     pub callable: bool,
     pub inheritable: bool,
+    pub source_code: Option<String>,
 }
 
 /// Metadata about an object event
@@ -53,6 +55,7 @@ pub struct EventMetadata {
     pub name: String,
     pub emittable: bool,
     pub inheritable: bool,
+    pub source_code: Option<String>,
 }
 
 /// Metadata about an object query
@@ -61,6 +64,7 @@ pub struct QueryMetadata {
     pub name: String,
     pub executable: bool,
     pub inheritable: bool,
+    pub source_code: Option<String>,
 }
 
 impl MetaObject {
@@ -88,5 +92,16 @@ impl MetaObject {
     /// Remove a task from this object's active tasks
     pub fn remove_active_task(&mut self, task_id: &GreenThreadId) {
         self.active_tasks.retain(|id| id != task_id);
+    }
+    
+    /// Get source code for a named element (property, verb, event, or query)
+    pub fn get_source_code(&self, element_type: &str, name: &str) -> Option<String> {
+        match element_type {
+            "property" => self.properties_meta.get(name).and_then(|m| m.source_code.clone()),
+            "verb" => self.verbs_meta.get(name).and_then(|m| m.source_code.clone()),
+            "event" => self.events_meta.get(name).and_then(|m| m.source_code.clone()),
+            "query" => self.queries_meta.get(name).and_then(|m| m.source_code.clone()),
+            _ => None,
+        }
     }
 }

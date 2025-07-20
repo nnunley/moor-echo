@@ -1,0 +1,10 @@
+.eval
+let count = 0
+while true
+  count = count + 1
+  if count == 3
+    break
+  endif
+endwhile
+count
+.

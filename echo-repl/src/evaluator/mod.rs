@@ -1,9 +1,12 @@
+#![allow(dead_code)]  // Many methods are kept for future use and API completeness
+
 use anyhow::{Result, anyhow};
+use errors::EvaluatorError;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use dashmap::DashMap;
 
-use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam, QueryArg};
+use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam};
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
 // TODO: Re-enable when VerbDef is added back to grammar
 // use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
@@ -12,6 +15,7 @@ use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
 pub mod meta_object;
 pub mod events;
 pub mod event_system;
+pub mod errors;
 
 // JIT compiler module  
 #[cfg(feature = "jit")]
@@ -79,6 +83,7 @@ pub enum Value {
     String(String),
     Object(ObjectId),
     List(Vec<Value>),
+    Map(HashMap<String, Value>),
     Lambda {
         params: Vec<LambdaParam>,
         body: crate::ast::EchoAst,
@@ -300,6 +305,19 @@ impl Evaluator {
         self.current_player
     }
     
+    pub fn current_player_name(&self) -> Option<String> {
+        self.current_player.and_then(|id| {
+            self.storage.objects.get(id).ok().map(|obj| {
+                // Try to get display_name property first, fallback to object name
+                if let Some(PropertyValue::String(name)) = obj.properties.get("display_name") {
+                    name.clone()
+                } else {
+                    obj.name.clone()
+                }
+            })
+        })
+    }
+    
     pub fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
         let player_id = self.current_player
             .ok_or_else(|| anyhow!("No player selected"))?;
@@ -362,8 +380,10 @@ impl Evaluator {
                 (Value::Integer(l), Value::Float(r)) => (*l as f64) < *r,
                 (Value::Float(l), Value::Integer(r)) => *l < (*r as f64),
                 (Value::String(l), Value::String(r)) => l < r,
-                _ => return Err(anyhow!("Type error in comparison: cannot compare {} and {}", 
-                                       left_val.type_name(), right_val.type_name())),
+                _ => return Err(EvaluatorError::binary_type_error(
+                    "less than comparison", 
+                    &left_val.type_name(), 
+                    &right_val.type_name()).into()),
             },
             ComparisonOp::LessEqual => match (&left_val, &right_val) {
                 (Value::Integer(l), Value::Integer(r)) => l <= r,
@@ -371,8 +391,10 @@ impl Evaluator {
                 (Value::Integer(l), Value::Float(r)) => (*l as f64) <= *r,
                 (Value::Float(l), Value::Integer(r)) => *l <= (*r as f64),
                 (Value::String(l), Value::String(r)) => l <= r,
-                _ => return Err(anyhow!("Type error in comparison: cannot compare {} and {}", 
-                                       left_val.type_name(), right_val.type_name())),
+                _ => return Err(EvaluatorError::binary_type_error(
+                    "less than or equal comparison", 
+                    &left_val.type_name(), 
+                    &right_val.type_name()).into()),
             },
             ComparisonOp::GreaterThan => match (&left_val, &right_val) {
                 (Value::Integer(l), Value::Integer(r)) => l > r,
@@ -380,8 +402,10 @@ impl Evaluator {
                 (Value::Integer(l), Value::Float(r)) => (*l as f64) > *r,
                 (Value::Float(l), Value::Integer(r)) => *l > (*r as f64),
                 (Value::String(l), Value::String(r)) => l > r,
-                _ => return Err(anyhow!("Type error in comparison: cannot compare {} and {}", 
-                                       left_val.type_name(), right_val.type_name())),
+                _ => return Err(EvaluatorError::binary_type_error(
+                    "greater than comparison", 
+                    &left_val.type_name(), 
+                    &right_val.type_name()).into()),
             },
             ComparisonOp::GreaterEqual => match (&left_val, &right_val) {
                 (Value::Integer(l), Value::Integer(r)) => l >= r,
@@ -389,8 +413,10 @@ impl Evaluator {
                 (Value::Integer(l), Value::Float(r)) => (*l as f64) >= *r,
                 (Value::Float(l), Value::Integer(r)) => *l >= (*r as f64),
                 (Value::String(l), Value::String(r)) => l >= r,
-                _ => return Err(anyhow!("Type error in comparison: cannot compare {} and {}", 
-                                       left_val.type_name(), right_val.type_name())),
+                _ => return Err(EvaluatorError::binary_type_error(
+                    "greater than or equal comparison", 
+                    &left_val.type_name(), 
+                    &right_val.type_name()).into()),
             },
         };
         
@@ -489,10 +515,10 @@ impl Evaluator {
             if let Some(value) = env.variables.get(name) {
                 Ok(value.clone())
             } else {
-                Err(anyhow!("Undefined variable: {}", name))
+                Err(EvaluatorError::variable_not_found(name).into())
             }
         } else {
-            Err(anyhow!("No environment for player"))
+            Err(EvaluatorError::Runtime("No environment for player".to_string()).into())
         }
     }
 
@@ -503,7 +529,9 @@ impl Evaluator {
         if let Some(prop_val) = system_obj.properties.get(prop_name) {
             Ok(property_value_to_value(prop_val.clone())?)
         } else {
-            Err(anyhow!("System property '{}' not found", prop_name))
+            Err(EvaluatorError::InvalidOperation { 
+                message: format!("System property '{}' not found", prop_name) 
+            }.into())
         }
     }
 
@@ -518,7 +546,7 @@ impl Evaluator {
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(float_op(*l, *r))),
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(float_op(*l as f64, *r))),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(float_op(*l, *r as f64))),
-            _ => Err(anyhow!("Type error in {}", op_name)),
+            _ => Err(EvaluatorError::binary_type_error(op_name, &left.type_name(), &right.type_name()).into()),
         }
     }
 
@@ -535,8 +563,10 @@ impl Evaluator {
                     (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(*l as f64 + r)),
                     (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l + *r as f64)),
                     (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{}{}", l, r))),
-                    _ => Err(anyhow!("Type error in addition: cannot add {} and {}", 
-                                    left_val.type_name(), right_val.type_name())),
+                    _ => Err(EvaluatorError::binary_type_error(
+                        "addition", 
+                        &left_val.type_name(), 
+                        &right_val.type_name()).into()),
                 }
             }
             ArithmeticOp::Subtract => {
@@ -548,10 +578,10 @@ impl Evaluator {
             ArithmeticOp::Divide => {
                 match (&left_val, &right_val) {
                     (_, Value::Integer(0)) => {
-                        Err(anyhow!("Division by zero"))
+                        Err(EvaluatorError::DivisionByZero.into())
                     }
                     (_, Value::Float(f)) if *f == 0.0 => {
-                        Err(anyhow!("Division by zero"))
+                        Err(EvaluatorError::DivisionByZero.into())
                     }
                     _ => self.eval_numeric_binop(&left_val, &right_val, 
                                                 |a, b| a / b, |a, b| a / b, "division")
@@ -561,14 +591,14 @@ impl Evaluator {
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => {
                         if *r == 0 {
-                            Err(anyhow!("Modulo by zero"))
+                            Err(EvaluatorError::DivisionByZero.into())
                         } else {
                             Ok(Value::Integer(l % r))
                         }
                     }
                     (Value::Float(l), Value::Float(r)) => {
                         if *r == 0.0 {
-                            Err(anyhow!("Modulo by zero"))
+                            Err(EvaluatorError::DivisionByZero.into())
                         } else {
                             Ok(Value::Float(l % r))
                         }
@@ -764,10 +794,16 @@ impl Evaluator {
                 let right_val = self.eval_with_player(right, player_id)?;
                 match right_val {
                     Value::Boolean(b) => Ok(Value::Boolean(b)),
-                    _ => Err(anyhow!("Type error: && requires boolean operands")),
+                    _ => Err(EvaluatorError::unary_type_error(
+                        "logical AND (right operand)", 
+                        "boolean", 
+                        &right_val.type_name()).into()),
                 }
             }
-            _ => Err(anyhow!("Type error: && requires boolean operands")),
+            _ => Err(EvaluatorError::unary_type_error(
+                "logical AND (left operand)", 
+                "boolean", 
+                &left_val.type_name()).into()),
         }
     }
 
@@ -782,10 +818,16 @@ impl Evaluator {
                 let right_val = self.eval_with_player(right, player_id)?;
                 match right_val {
                     Value::Boolean(b) => Ok(Value::Boolean(b)),
-                    _ => Err(anyhow!("Type error: || requires boolean operands")),
+                    _ => Err(EvaluatorError::unary_type_error(
+                        "logical OR (right operand)", 
+                        "boolean", 
+                        &right_val.type_name()).into()),
                 }
             }
-            _ => Err(anyhow!("Type error: || requires boolean operands")),
+            _ => Err(EvaluatorError::unary_type_error(
+                "logical OR (left operand)", 
+                "boolean", 
+                &left_val.type_name()).into()),
         }
     }
 
@@ -794,7 +836,211 @@ impl Evaluator {
         let val = self.eval_with_player(operand, player_id)?;
         match val {
             Value::Boolean(b) => Ok(Value::Boolean(!b)),
-            _ => Err(anyhow!("Type error: ! requires boolean operand")),
+            _ => Err(EvaluatorError::unary_type_error(
+                "logical NOT", 
+                "boolean", 
+                &val.type_name()).into()),
+        }
+    }
+
+    /// Evaluate IN operation (membership test)
+    fn eval_in(&mut self, left: &EchoAst, right: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let left_val = self.eval_with_player(left, player_id)?;
+        let right_val = self.eval_with_player(right, player_id)?;
+        
+        match right_val {
+            Value::List(items) => {
+                // Check if left_val is in the list
+                for item in items {
+                    if self.values_equal(&left_val, &item) {
+                        return Ok(Value::Boolean(true));
+                    }
+                }
+                Ok(Value::Boolean(false))
+            }
+            Value::String(s) => {
+                // Check if left_val (as string) is a substring
+                match left_val {
+                    Value::String(substr) => Ok(Value::Boolean(s.contains(&substr))),
+                    _ => Err(EvaluatorError::binary_type_error(
+                        "string containment", 
+                        &left_val.type_name(), 
+                        "string").into()),
+                }
+            }
+            _ => Err(EvaluatorError::binary_type_error(
+                "membership test", 
+                &left_val.type_name(), 
+                &right_val.type_name()).into()),
+        }
+    }
+
+    /// Evaluate unary minus operation
+    fn eval_unary_minus(&mut self, operand: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let val = self.eval_with_player(operand, player_id)?;
+        match val {
+            Value::Integer(n) => Ok(Value::Integer(-n)),
+            Value::Float(f) => Ok(Value::Float(-f)),
+            _ => Err(EvaluatorError::unary_type_error(
+                "unary minus", 
+                "number", 
+                &val.type_name()).into()),
+        }
+    }
+
+    /// Evaluate unary plus operation
+    fn eval_unary_plus(&mut self, operand: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let val = self.eval_with_player(operand, player_id)?;
+        match val {
+            Value::Integer(_) | Value::Float(_) => Ok(val),
+            _ => Err(EvaluatorError::unary_type_error(
+                "unary plus", 
+                "number", 
+                &val.type_name()).into()),
+        }
+    }
+
+    /// Evaluate map literal
+    fn eval_map(&mut self, entries: &[(String, EchoAst)], player_id: ObjectId) -> Result<Value> {
+        let mut map = std::collections::HashMap::new();
+        for (key, value_expr) in entries {
+            let value = self.eval_with_player(value_expr, player_id)?;
+            map.insert(key.clone(), value);
+        }
+        Ok(Value::Map(map))
+    }
+
+    /// Evaluate local assignment (let x = value)
+    fn eval_local_assignment(&mut self, target: &BindingPattern, value: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let val = self.eval_with_player(value, player_id)?;
+        self.bind_pattern(target, &val, player_id, BindingType::Let)?;
+        Ok(val)
+    }
+
+    /// Evaluate const assignment (const x = value)
+    fn eval_const_assignment(&mut self, target: &BindingPattern, value: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let val = self.eval_with_player(value, player_id)?;
+        self.bind_pattern(target, &val, player_id, BindingType::Const)?;
+        Ok(val)
+    }
+
+    /// Bind a pattern to a value with the given binding type
+    fn bind_pattern(&mut self, pattern: &BindingPattern, value: &Value, player_id: ObjectId, binding_type: BindingType) -> Result<()> {
+        match pattern {
+            BindingPattern::Identifier(name) => {
+                // Simple variable binding
+                self.environments.entry(player_id).and_modify(|env| {
+                    env.variables.insert(name.clone(), value.clone());
+                    
+                    // Handle binding type
+                    match binding_type {
+                        BindingType::Const => {
+                            env.const_bindings.insert(name.clone());
+                        }
+                        BindingType::Let => {
+                            // Remove from const set if it was there
+                            env.const_bindings.remove(name);
+                        }
+                        BindingType::None => {
+                            // No special handling for reassignment
+                        }
+                    }
+                });
+                Ok(())
+            }
+            BindingPattern::List(patterns) => {
+                // List destructuring
+                match value {
+                    Value::List(values) => {
+                        if patterns.len() != values.len() {
+                            return Err(EvaluatorError::InvalidOperation {
+                                message: format!("Pattern length mismatch: expected {}, got {}", patterns.len(), values.len())
+                            }.into());
+                        }
+                        
+                        for (pattern_elem, value) in patterns.iter().zip(values.iter()) {
+                            self.bind_pattern_element(pattern_elem, value, player_id, binding_type.clone())?;
+                        }
+                        Ok(())
+                    }
+                    _ => Err(EvaluatorError::TypeError {
+                        operation: "list destructuring".to_string(),
+                        expected: "list".to_string(),
+                        actual: value.type_name().to_string(),
+                    }.into())
+                }
+            }
+            BindingPattern::Object(_) => {
+                // Object destructuring not yet implemented
+                Err(EvaluatorError::InvalidOperation {
+                    message: "Object destructuring not yet implemented".to_string()
+                }.into())
+            }
+            BindingPattern::Rest(_) => {
+                // Rest patterns not yet implemented
+                Err(EvaluatorError::InvalidOperation {
+                    message: "Rest patterns not yet implemented".to_string()
+                }.into())
+            }
+            BindingPattern::Ignore => {
+                // Ignore pattern - do nothing
+                Ok(())
+            }
+        }
+    }
+
+    /// Bind a pattern element to a value
+    fn bind_pattern_element(&mut self, element: &BindingPatternElement, value: &Value, player_id: ObjectId, binding_type: BindingType) -> Result<()> {
+        match element {
+            BindingPatternElement::Simple(name) => {
+                self.environments.entry(player_id).and_modify(|env| {
+                    env.variables.insert(name.clone(), value.clone());
+                    
+                    match binding_type {
+                        BindingType::Const => {
+                            env.const_bindings.insert(name.clone());
+                        }
+                        BindingType::Let => {
+                            env.const_bindings.remove(name);
+                        }
+                        BindingType::None => {
+                            // No special handling
+                        }
+                    }
+                });
+                Ok(())
+            }
+            BindingPatternElement::Optional { name, default } => {
+                // For optional elements, use default if value is null
+                let actual_value = if matches!(value, Value::Null) {
+                    self.eval_with_player(default, player_id)?
+                } else {
+                    value.clone()
+                };
+                
+                self.environments.entry(player_id).and_modify(|env| {
+                    env.variables.insert(name.clone(), actual_value);
+                    
+                    match binding_type {
+                        BindingType::Const => {
+                            env.const_bindings.insert(name.clone());
+                        }
+                        BindingType::Let => {
+                            env.const_bindings.remove(name);
+                        }
+                        BindingType::None => {
+                            // No special handling
+                        }
+                    }
+                });
+                Ok(())
+            }
+            BindingPatternElement::Rest(_) => {
+                // Rest elements not yet implemented
+                Err(EvaluatorError::InvalidOperation {
+                    message: "Rest pattern elements not yet implemented".to_string()
+                }.into())
+            }
         }
     }
 
@@ -829,7 +1075,10 @@ impl Evaluator {
                     Ok(Value::Null)
                 }
             }
-            _ => Err(anyhow!("Type error: if condition must be boolean")),
+            _ => Err(EvaluatorError::unary_type_error(
+                "if condition", 
+                "boolean", 
+                &cond_val.type_name()).into()),
         }
     }
 
@@ -868,7 +1117,10 @@ impl Evaluator {
                         }
                     }
                 }
-                _ => return Err(anyhow!("Type error: while condition must be boolean")),
+                _ => return Err(EvaluatorError::unary_type_error(
+                    "while condition", 
+                    "boolean", 
+                    &cond_val.type_name()).into()),
             }
         }
         Ok(Value::Null)
@@ -918,7 +1170,47 @@ impl Evaluator {
                 }
                 Ok(Value::Null)
             }
-            _ => Err(anyhow!("Type error: for loop requires list")),
+            _ => Err(EvaluatorError::unary_type_error(
+                "for loop collection", 
+                "list", 
+                &coll_val.type_name()).into()),
+        }
+    }
+
+    /// Evaluate index access (obj[index])
+    fn eval_index_access(&mut self, object: &EchoAst, index: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        let obj_val = self.eval_with_player(object, player_id)?;
+        let index_val = self.eval_with_player(index, player_id)?;
+        
+        match (&obj_val, &index_val) {
+            (Value::List(items), Value::Integer(i)) => {
+                let idx = *i as usize;
+                if idx < items.len() {
+                    Ok(items[idx].clone())
+                } else {
+                    Err(EvaluatorError::Runtime(
+                        format!("List index {} out of bounds (length {})", i, items.len())
+                    ).into())
+                }
+            }
+            (Value::Map(map), Value::String(key)) => {
+                Ok(map.get(key).cloned().unwrap_or(Value::Null))
+            }
+            (Value::String(s), Value::Integer(i)) => {
+                let idx = *i as usize;
+                if idx < s.len() {
+                    let ch = s.chars().nth(idx).unwrap_or('\0');
+                    Ok(Value::String(ch.to_string()))
+                } else {
+                    Err(EvaluatorError::Runtime(
+                        format!("String index {} out of bounds (length {})", i, s.len())
+                    ).into())
+                }
+            }
+            _ => Err(EvaluatorError::binary_type_error(
+                "index access", 
+                &obj_val.type_name(), 
+                &index_val.type_name()).into()),
         }
     }
 
@@ -939,11 +1231,194 @@ impl Evaluator {
         }
     }
 
+    /// Process a property member during object definition.
+    /// 
+    /// Evaluates the property value expression and stores it in the object's property map.
+    /// Properties are stored as PropertyValue types which can be serialized to the object store.
+    /// 
+    /// # Arguments
+    /// * `prop_name` - The name of the property being defined
+    /// * `value` - The AST expression that defines the property value
+    /// * `player_id` - The ID of the player defining the object (for evaluation context)
+    /// * `properties` - Mutable reference to the property map being built
+    /// 
+    /// # Returns
+    /// * `Ok(())` if the property is successfully processed
+    /// * `Err` if property evaluation or storage conversion fails
+    fn process_property_member(
+        &mut self,
+        prop_name: &str,
+        value: &EchoAst,
+        player_id: ObjectId,
+        properties: &mut HashMap<String, PropertyValue>,
+    ) -> Result<()> {
+        let val = self.eval_with_player(value, player_id)?;
+        properties.insert(prop_name.to_string(), value_to_property_value(val)?);
+        Ok(())
+    }
+    
+    /// Process a verb member during object definition.
+    /// 
+    /// Creates a VerbDefinition containing the verb's code, parameters, and permissions.
+    /// The verb's AST is preserved for future execution, and source code is reconstructed
+    /// for debugging and introspection purposes.
+    /// 
+    /// # Arguments
+    /// * `verb_name` - The name of the verb being defined
+    /// * `args` - Parameter definitions for the verb
+    /// * `body` - The AST statements that make up the verb body
+    /// * `permissions` - Optional permission settings for read/write/execute access
+    /// * `verbs` - Mutable reference to the verb map being built
+    /// 
+    /// # Returns
+    /// * `Ok(())` if the verb is successfully processed
+    /// * `Err` if verb definition creation fails
+    fn process_verb_member(
+        &mut self,
+        verb_name: &str,
+        args: &[crate::ast::Parameter],
+        body: &[EchoAst],
+        permissions: &Option<crate::ast::VerbPermissions>,
+        verbs: &mut HashMap<String, crate::storage::object_store::VerbDefinition>,
+    ) -> Result<()> {
+        use crate::ast::ToSource;
+        let source_code = format!("verb {}({}) {}\nendverb", 
+            verb_name,
+            args.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
+            body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
+        );
+        
+        let verb_def = crate::storage::object_store::VerbDefinition {
+            name: verb_name.to_string(),
+            signature: crate::storage::object_store::VerbSignature {
+                dobj: String::new(),  // TODO: Add dobj/prep/iobj support
+                prep: String::new(),
+                iobj: String::new(),
+            },
+            code: source_code,
+            ast: body.to_vec(),
+            params: args.to_vec(),
+            permissions: permissions.as_ref().map(|p| crate::storage::object_store::VerbPermissions {
+                read: p.read == "anyone",
+                write: p.write == "anyone",
+                execute: p.execute == "anyone",
+            }).unwrap_or(crate::storage::object_store::VerbPermissions {
+                read: true,
+                write: true,
+                execute: true,
+            }),
+        };
+        
+        verbs.insert(verb_name.to_string(), verb_def);
+        Ok(())
+    }
+    
+    /// Process an event member during object definition.
+    /// 
+    /// Registers an event handler with the event system. Event handlers are callable
+    /// code blocks that respond to specific events emitted within the system.
+    /// 
+    /// # Arguments
+    /// * `obj_id` - The ID of the object that owns this event handler
+    /// * `event_name` - The name of the event this handler responds to
+    /// * `params` - Parameter definitions for the event handler
+    /// * `body` - The AST statements that make up the event handler body
+    /// 
+    /// # Returns
+    /// * `Ok(())` if the event handler is successfully registered
+    /// * `Err` if event registration fails
+    fn process_event_member(
+        &mut self,
+        obj_id: ObjectId,
+        event_name: &str,
+        params: &[crate::ast::Parameter],
+        body: &[EchoAst],
+        properties: &mut HashMap<String, PropertyValue>,
+    ) -> Result<()> {
+        use crate::ast::ToSource;
+        let event_source = format!("event {}({}) {}\nendevent", 
+            event_name,
+            params.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
+            body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
+        );
+        
+        // Register event handler with the event system
+        self.event_system.register_handler(
+            obj_id,
+            event_name.to_string(),
+            params.iter().map(|p| p.name.clone()).collect(),
+            body.to_vec(),
+            None, // Default priority
+        );
+        
+        // Store event handler metadata as a property for introspection
+        properties.insert(
+            format!("__event_{}", event_name), 
+            PropertyValue::String(event_source)
+        );
+        
+        println!("Registered event handler '{}' on object", event_name);
+        Ok(())
+    }
+    
+    /// Process a query member during object definition.
+    /// 
+    /// Creates a Datalog-style query definition and stores it as object metadata.
+    /// Queries define logical rules that can be used for inference and data retrieval.
+    /// 
+    /// # Arguments
+    /// * `query_name` - The name of the query being defined
+    /// * `params` - Parameter names for the query
+    /// * `clauses` - The query clauses that define the logical rules
+    /// * `properties` - Mutable reference to the property map for storing metadata
+    /// 
+    /// # Returns
+    /// * `Ok(())` if the query is successfully processed
+    /// * `Err` if query processing fails
+    fn process_query_member(
+        &mut self,
+        query_name: &str,
+        params: &[String],
+        clauses: &[crate::ast::QueryClause],
+        properties: &mut HashMap<String, PropertyValue>,
+    ) -> Result<()> {
+        use crate::ast::ToSource;
+        let mut query_source = format!("query {}", query_name);
+        if !params.is_empty() {
+            query_source.push_str(&format!("({})", params.join(", ")));
+        }
+        query_source.push_str(" :- ");
+        
+        let clauses_str = clauses.iter()
+            .map(|c| {
+                let args_str = c.args.iter()
+                    .map(|arg| match arg {
+                        crate::ast::QueryArg::Variable(v) => v.clone(),
+                        crate::ast::QueryArg::Constant(c) => c.to_source(),
+                        crate::ast::QueryArg::Wildcard => "_".to_string(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{}({})", c.predicate, args_str)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        query_source.push_str(&clauses_str);
+        query_source.push('.');
+        
+        // Store query metadata as a property
+        properties.insert(
+            format!("__query_{}", query_name), 
+            PropertyValue::String(query_source)
+        );
+        
+        println!("Registered query '{}' on object", query_name);
+        Ok(())
+    }
+    
     /// Evaluate object definition
     fn eval_object_def(&mut self, name: &str, parent: &Option<String>, members: &[ObjectMember], player_id: ObjectId) -> Result<Value> {
-        // Create new object
         let obj_id = ObjectId::new();
-        
         let mut properties = HashMap::new();
         let mut verbs = HashMap::new();
         
@@ -951,104 +1426,16 @@ impl Evaluator {
         for member in members {
             match member {
                 ObjectMember::Property { name: prop_name, value, .. } => {
-                    let val = self.eval_with_player(value, player_id)?;
-                    properties.insert(prop_name.clone(), value_to_property_value(val)?);
+                    self.process_property_member(prop_name, value, player_id, &mut properties)?;
                 }
                 ObjectMember::Verb { name: verb_name, args, body, permissions } => {
-                    // Generate source code from AST for display
-                    use crate::ast::ToSource;
-                    let source_code = format!("verb {}({}) {}\nendverb", 
-                        verb_name,
-                        args.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
-                        body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
-                    );
-                    
-                    let verb_def = crate::storage::object_store::VerbDefinition {
-                        name: verb_name.clone(),
-                        signature: crate::storage::object_store::VerbSignature {
-                            dobj: String::new(),  // TODO: Add dobj/prep/iobj support
-                            prep: String::new(),
-                            iobj: String::new(),
-                        },
-                        code: source_code,
-                        ast: body.clone(),  // Store the AST for execution
-                        params: args.clone(),  // Store the parameters
-                        permissions: permissions.as_ref().map(|p| crate::storage::object_store::VerbPermissions {
-                            read: p.read == "anyone",
-                            write: p.write == "anyone",
-                            execute: p.execute == "anyone",
-                        }).unwrap_or(crate::storage::object_store::VerbPermissions {
-                            read: true,
-                            write: true,
-                            execute: true,
-                        }),
-                    };
-                    
-                    verbs.insert(verb_name.clone(), verb_def);
+                    self.process_verb_member(verb_name, args, body, permissions, &mut verbs)?;
                 }
                 ObjectMember::Event { name: event_name, params, body } => {
-                    // TODO: Register event handler
-                    // For now, we'll store it as a special property
-                    use crate::ast::ToSource;
-                    let event_source = format!("event {}({}) {}\nendevent", 
-                        event_name,
-                        params.iter().map(|p| p.name.clone()).collect::<Vec<_>>().join(", "),
-                        body.iter().map(|stmt| stmt.to_source()).collect::<Vec<_>>().join("\n  ")
-                    );
-                    
-                    // Register event handler with the event system
-                    self.event_system.register_handler(
-                        obj_id,
-                        event_name.clone(),
-                        params.iter().map(|p| p.name.clone()).collect(),
-                        body.clone(),
-                        None, // Default priority
-                    );
-                    
-                    // Also store event handler metadata as a property for introspection
-                    properties.insert(
-                        format!("__event_{}", event_name), 
-                        PropertyValue::String(event_source)
-                    );
-                    
-                    // TODO: Actually register with event system when implemented
-                    println!("Registered event handler '{}' on object", event_name);
+                    self.process_event_member(obj_id, event_name, params, body, &mut properties)?;
                 }
                 ObjectMember::Query { name: query_name, params, clauses } => {
-                    // TODO: Register query with Datalog engine
-                    // For now, we'll store it as a special property
-                    use crate::ast::ToSource;
-                    let mut query_source = format!("query {}", query_name);
-                    if !params.is_empty() {
-                        query_source.push_str(&format!("({})", params.join(", ")));
-                    }
-                    query_source.push_str(" :- ");
-                    
-                    let clauses_str = clauses.iter()
-                        .map(|c| {
-                            let args_str = c.args.iter()
-                                .map(|arg| match arg {
-                                    QueryArg::Variable(v) => v.clone(),
-                                    QueryArg::Constant(c) => c.to_source(),
-                                    QueryArg::Wildcard => "_".to_string(),
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            format!("{}({})", c.predicate, args_str)
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    query_source.push_str(&clauses_str);
-                    query_source.push('.');
-                    
-                    // Store query metadata as a property for now
-                    properties.insert(
-                        format!("__query_{}", query_name), 
-                        PropertyValue::String(query_source)
-                    );
-                    
-                    // TODO: Actually register with Datalog engine when implemented
-                    println!("Registered query '{}' on object", query_name);
+                    self.process_query_member(query_name, params, clauses, &mut properties)?;
                 }
                 _ => {}
             }
@@ -1226,6 +1613,144 @@ impl Evaluator {
     }
 
     /// Evaluate function call
+    /// Evaluate function calls by name (built-in functions)
+    fn eval_function_call(&mut self, name: &str, args: &[EchoAst], player_id: ObjectId) -> Result<Value> {
+        // Evaluate arguments
+        let arg_values: Result<Vec<_>> = args.iter()
+            .map(|arg| self.eval_with_player(arg, player_id))
+            .collect();
+        let arg_values = arg_values?;
+        
+        // Built-in functions
+        match name {
+            "len" => {
+                if arg_values.len() != 1 {
+                    return Err(EvaluatorError::InvalidOperation {
+                        message: format!("len() takes exactly 1 argument, got {}", arg_values.len())
+                    }.into());
+                }
+                
+                match &arg_values[0] {
+                    Value::List(items) => Ok(Value::Integer(items.len() as i64)),
+                    Value::String(s) => Ok(Value::Integer(s.len() as i64)),
+                    Value::Map(map) => Ok(Value::Integer(map.len() as i64)),
+                    _ => Err(EvaluatorError::unary_type_error(
+                        "len()", 
+                        "list, string, or map", 
+                        &arg_values[0].type_name()).into()),
+                }
+            }
+            "type" => {
+                if arg_values.len() != 1 {
+                    return Err(EvaluatorError::InvalidOperation {
+                        message: format!("type() takes exactly 1 argument, got {}", arg_values.len())
+                    }.into());
+                }
+                
+                Ok(Value::String(arg_values[0].type_name().to_string()))
+            }
+            "str" => {
+                if arg_values.len() != 1 {
+                    return Err(EvaluatorError::InvalidOperation {
+                        message: format!("str() takes exactly 1 argument, got {}", arg_values.len())
+                    }.into());
+                }
+                
+                Ok(Value::String(arg_values[0].to_string()))
+            }
+            "print" => {
+                // Print all arguments separated by spaces
+                let output = arg_values.iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                println!("{}", output);
+                Ok(Value::Null)
+            }
+            _ => {
+                // Try to resolve as a variable containing a function
+                if let Ok(func_val) = self.eval_identifier(name, player_id) {
+                    // If it's a lambda, call it with the evaluated arguments
+                    match func_val {
+                        Value::Lambda { params, body, captured_env } => {
+                            // Create a new environment with the captured environment
+                            let mut lambda_env = Environment {
+                                player_id,
+                                variables: captured_env,
+                                const_bindings: HashSet::new(),
+                            };
+                            
+                            // Process parameters based on their type
+                            let mut arg_iter = arg_values.into_iter();
+                            let mut rest_args = Vec::new();
+                            
+                            for param in &params {
+                                match param {
+                                    LambdaParam::Simple(name) => {
+                                        match arg_iter.next() {
+                                            Some(val) => {
+                                                lambda_env.variables.insert(name.clone(), val);
+                                            }
+                                            None => {
+                                                return Err(anyhow!("Missing required argument: {}", name));
+                                            }
+                                        }
+                                    }
+                                    LambdaParam::Optional { name, default } => {
+                                        let val = match arg_iter.next() {
+                                            Some(v) => v,
+                                            None => {
+                                                // Evaluate the default value in the lambda's environment
+                                                let saved = self.environments.get(&player_id).map(|e| e.clone());
+                                                self.environments.insert(player_id, lambda_env.clone());
+                                                let default_val = self.eval_with_player_impl(default, player_id)?;
+                                                if let Some(env) = saved {
+                                                    self.environments.insert(player_id, env);
+                                                }
+                                                default_val
+                                            }
+                                        };
+                                        lambda_env.variables.insert(name.clone(), val);
+                                    }
+                                    LambdaParam::Rest(name) => {
+                                        // Collect all remaining arguments
+                                        rest_args.extend(arg_iter.by_ref());
+                                        lambda_env.variables.insert(name.clone(), Value::List(rest_args.clone()));
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Check if there are extra arguments (only an error if no rest parameter)
+                            if arg_iter.next().is_some() && !params.iter().any(|p| matches!(p, LambdaParam::Rest(_))) {
+                                return Err(anyhow!("Too many arguments for lambda"));
+                            }
+                            
+                            // Save current environment and set lambda environment
+                            let saved_env = self.environments.get(&player_id).map(|e| e.clone());
+                            self.environments.insert(player_id, lambda_env);
+                            
+                            // Evaluate the body
+                            let result = self.eval_with_player_impl(&body, player_id);
+                            
+                            // Restore the original environment
+                            if let Some(env) = saved_env {
+                                self.environments.insert(player_id, env);
+                            }
+                            
+                            result
+                        }
+                        _ => Err(anyhow!("{} is not a function", name))
+                    }
+                } else {
+                    Err(EvaluatorError::InvalidOperation {
+                        message: format!("Unknown function: {}", name)
+                    }.into())
+                }
+            }
+        }
+    }
+
     fn eval_call(&mut self, func: &EchoAst, args: &[EchoAst], player_id: ObjectId) -> Result<Value> {
         // Evaluate the function expression
         let func_val = self.eval_with_player(func, player_id)?;
@@ -1337,21 +1862,27 @@ impl Evaluator {
             EchoAst::LessEqual { left, right } => self.eval_comparison_op(left, right, player_id, ComparisonOp::LessEqual),
             EchoAst::GreaterThan { left, right } => self.eval_comparison_op(left, right, player_id, ComparisonOp::GreaterThan),
             EchoAst::GreaterEqual { left, right } => self.eval_comparison_op(left, right, player_id, ComparisonOp::GreaterEqual),
+            EchoAst::In { left, right } => self.eval_in(left, right, player_id),
             
             // Logical operations
             EchoAst::And { left, right } => self.eval_and(left, right, player_id),
             EchoAst::Or { left, right } => self.eval_or(left, right, player_id),
             EchoAst::Not { operand } => self.eval_not(operand, player_id),
+            EchoAst::UnaryMinus { operand } => self.eval_unary_minus(operand, player_id),
+            EchoAst::UnaryPlus { operand } => self.eval_unary_plus(operand, player_id),
             
             // Object operations
             EchoAst::PropertyAccess { object, property } => self.eval_property_access(object, property, player_id),
+            EchoAst::IndexAccess { object, index } => self.eval_index_access(object, index, player_id),
             EchoAst::ObjectDef { name, parent, members } => self.eval_object_def(name, parent, members, player_id),
             EchoAst::MethodCall { object, method, args } => self.eval_method_call(object, method, args, player_id),
             
             // Collections and functions
             EchoAst::List { elements } => self.eval_list(elements, player_id),
+            EchoAst::Map { entries } => self.eval_map(entries, player_id),
             EchoAst::Lambda { params, body } => self.eval_lambda(params, body, player_id),
             EchoAst::Call { func, args } => self.eval_call(func, args, player_id),
+            EchoAst::FunctionCall { name, args } => self.eval_function_call(name, args, player_id),
             
             // Control flow
             EchoAst::If { condition, then_branch, else_branch } => self.eval_if(condition, then_branch, else_branch, player_id),
@@ -1364,6 +1895,8 @@ impl Evaluator {
             // Program structure
             EchoAst::Program(statements) => self.eval_program(statements, player_id),
             EchoAst::Assignment { target, value } => self.eval_assignment(target, value, player_id),
+            EchoAst::LocalAssignment { target, value } => self.eval_local_assignment(target, value, player_id),
+            EchoAst::ConstAssignment { target, value } => self.eval_const_assignment(target, value, player_id),
             
             _ => Err(anyhow!("Evaluation not implemented for this AST node type"))
         }
@@ -1600,6 +2133,12 @@ fn value_to_property_value(val: Value) -> Result<PropertyValue> {
                 .collect();
             Ok(PropertyValue::List(prop_items?))
         }
+        Value::Map(map) => {
+            let prop_map: Result<HashMap<String, PropertyValue>> = map.into_iter()
+                .map(|(k, v)| value_to_property_value(v).map(|pv| (k, pv)))
+                .collect();
+            Ok(PropertyValue::Map(prop_map?))
+        }
         Value::Lambda { .. } => {
             // For now, we can't store lambdas as properties
             Err(anyhow!("Cannot store lambda functions as properties"))
@@ -1621,9 +2160,11 @@ fn property_value_to_value(prop_val: PropertyValue) -> Result<Value> {
                 .collect();
             Ok(Value::List(val_items?))
         }
-        PropertyValue::Map(_) => {
-            // For now, just return null for maps - full implementation would convert to Value::Map
-            Ok(Value::Null)
+        PropertyValue::Map(map) => {
+            let val_map: Result<HashMap<String, Value>> = map.into_iter()
+                .map(|(k, v)| property_value_to_value(v).map(|val| (k, val)))
+                .collect();
+            Ok(Value::Map(val_map?))
         }
     }
 }
@@ -1646,6 +2187,18 @@ impl std::fmt::Display for Value {
                     write!(f, "{}", item)?;
                 }
                 write!(f, "]")
+            }
+            Value::Map(map) => {
+                write!(f, "{{")?;
+                let mut first = true;
+                for (key, value) in map {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", key, value)?;
+                    first = false;
+                }
+                write!(f, "}}")
             }
             Value::Lambda { params, .. } => {
                 let param_strs: Vec<String> = params.iter().map(|p| match p {
@@ -1680,6 +2233,7 @@ impl Value {
             Value::String(_) => "string",
             Value::Object(_) => "object",
             Value::List(_) => "list",
+            Value::Map(_) => "map",
             Value::Lambda { .. } => "lambda",
         }
     }

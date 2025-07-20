@@ -1,0 +1,5 @@
+// Test simple query parsing
+print("Testing query syntax");
+
+// For now, just verify that queries are part of the grammar
+// Full object definitions need to be parsed as a whole, not line by line

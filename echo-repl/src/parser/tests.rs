@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::ast::{EchoAst, LValue, BindingType, BindingPattern};
-    use crate::parser::{Parser, create_parser};
+    use crate::parser::{create_parser};
     
     fn parse(input: &str) -> Result<EchoAst, anyhow::Error> {
         let mut parser = create_parser("echo")?;
@@ -105,7 +104,7 @@ mod tests {
                     }
                     _ => panic!("Expected binding LValue"),
                 }
-                assert!(matches!(**value, EchoAst::Number(42)));
+                assert!(matches!(value.as_ref(), EchoAst::Number(42)));
             }
             _ => panic!("Expected assignment"),
         }
@@ -123,7 +122,7 @@ mod tests {
                     }
                     _ => panic!("Expected binding LValue"),
                 }
-                assert!(matches!(**value, EchoAst::Number(42)));
+                assert!(matches!(value.as_ref(), EchoAst::Number(42)));
             }
             _ => panic!("Expected assignment"),
         }
@@ -141,7 +140,7 @@ mod tests {
                     }
                     _ => panic!("Expected binding LValue"),
                 }
-                assert!(matches!(**value, EchoAst::Float(_)));
+                assert!(matches!(value.as_ref(), EchoAst::Float(_)));
             }
             _ => panic!("Expected assignment"),
         }
@@ -154,12 +153,12 @@ mod tests {
             EchoAst::Assignment { target, value } => {
                 match target {
                     LValue::PropertyAccess { object, property } => {
-                        assert!(matches!(**object, EchoAst::Identifier(s) if s == "obj"));
+                        assert!(matches!(object.as_ref(), EchoAst::Identifier(s) if s == "obj"));
                         assert_eq!(property, "prop");
                     }
                     _ => panic!("Expected property access LValue"),
                 }
-                assert!(matches!(**value, EchoAst::Number(123)));
+                assert!(matches!(value.as_ref(), EchoAst::Number(123)));
             }
             _ => panic!("Expected assignment"),
         }
@@ -170,7 +169,7 @@ mod tests {
         let ast = parse("obj.prop").unwrap();
         match ast {
             EchoAst::PropertyAccess { object, property } => {
-                assert!(matches!(**object, EchoAst::Identifier(s) if s == "obj"));
+                assert!(matches!(object.as_ref(), EchoAst::Identifier(s) if s == "obj"));
                 assert_eq!(property, "prop");
             }
             _ => panic!("Expected property access"),
@@ -181,7 +180,7 @@ mod tests {
         match ast {
             EchoAst::PropertyAccess { object, property } => {
                 assert_eq!(property, "subprop");
-                assert!(matches!(**object, EchoAst::PropertyAccess { .. }));
+                assert!(matches!(object.as_ref(), EchoAst::PropertyAccess { .. }));
             }
             _ => panic!("Expected property access"),
         }
@@ -303,8 +302,8 @@ mod tests {
         let ast = parse("1 + 2 * 3").unwrap();
         match ast {
             EchoAst::Add { left, right } => {
-                assert!(matches!(**left, EchoAst::Number(1)));
-                assert!(matches!(**right, EchoAst::Multiply { .. }));
+                assert!(matches!(left.as_ref(), EchoAst::Number(1)));
+                assert!(matches!(right.as_ref(), EchoAst::Multiply { .. }));
             }
             _ => panic!("Expected addition with multiplication on right"),
         }
@@ -313,8 +312,8 @@ mod tests {
         let ast = parse("1 + 2 < 3 * 4").unwrap();
         match ast {
             EchoAst::LessThan { left, right } => {
-                assert!(matches!(**left, EchoAst::Add { .. }));
-                assert!(matches!(**right, EchoAst::Multiply { .. }));
+                assert!(matches!(left.as_ref(), EchoAst::Add { .. }));
+                assert!(matches!(right.as_ref(), EchoAst::Multiply { .. }));
             }
             _ => panic!("Expected less than comparison"),
         }

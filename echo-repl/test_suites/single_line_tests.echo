@@ -1,0 +1,6 @@
+10 + 20
+"Hello" + " " + "World"
+let x = 42
+x * 2
+true && true
+5 < 10

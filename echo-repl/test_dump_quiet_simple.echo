@@ -1,0 +1,32 @@
+// Simple test for .dump and .quiet commands
+
+// Create some variables
+let x = 42
+let y = "hello"
+const PI = 3.14159
+
+// Show initial state
+.env
+
+// Dump to stderr (JSON format)
+.dump
+
+// Test quiet mode
+.quiet
+"This won't show a result"
+let z = x + 58
+z
+
+// Turn quiet mode off
+.quiet
+"This will show a result"
+z
+
+// Final state
+.dump
+
+// Verify variables are still there
+"x = " + x
+"y = " + y
+"z = " + z
+"PI = " + PI

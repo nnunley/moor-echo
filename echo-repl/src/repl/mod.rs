@@ -13,6 +13,9 @@ use crate::storage::Storage;
 mod multiline_simple;
 pub use multiline_simple::{MultiLineCollector, LineProcessResult};
 
+#[cfg(feature = "web-ui")]
+pub mod web_notifier;
+
 /// Trait for handling REPL output notifications
 pub trait ReplNotifier: Send + Sync {
     /// Called when a command or expression has been evaluated
@@ -252,6 +255,34 @@ impl Repl {
         &mut *self.parser
     }
     
+    pub fn current_player_name(&self) -> Option<String> {
+        self.evaluator.current_player_name()
+    }
+    
+    pub fn get_environment_snapshot(&self) -> Vec<(String, String, String)> {
+        if let Some(player_id) = self.evaluator.current_player() {
+            if let Some(env) = self.evaluator.get_environment(player_id) {
+                let mut vars = Vec::new();
+                for (name, val) in &env.variables {
+                    vars.push((
+                        name.clone(),
+                        format!("{}", val),
+                        val.type_name().to_string(),
+                    ));
+                }
+                return vars;
+            }
+        }
+        Vec::new()
+    }
+    
+    pub fn get_objects_snapshot(&self) -> Vec<(String, String, Vec<String>)> {
+        let objects = Vec::new();
+        // This is a simplified version - you'd need to implement proper object listing
+        // For now, return empty vec
+        objects
+    }
+    
     pub fn is_eval_mode(&self) -> bool {
         self.eval_mode
     }
@@ -340,27 +371,46 @@ impl Repl {
                 Ok(format!("Created and switched to player '{}' ({})", name, player_id))
             }
             ReplCommand::SwitchPlayer(name) => {
-                let player_name = format!("player_{}", name);
-                match self.storage.objects.find_by_name(&player_name) {
+                // Look up player by username in the registry
+                match self.evaluator.find_player_by_username(&name) {
                     Ok(Some(player_id)) => {
                         self.evaluator.switch_player(player_id)
                             .map_err(|e| ReplError::StorageError(e.to_string()))?;
-                        Ok(format!("Switched to player '{}'", name))
+                        Ok(format!("Switched to player '{}' ({})", name, player_id))
                     }
                     Ok(None) => Err(ReplError::ExecutionError(format!("Player '{}' not found", name))),
                     Err(e) => Err(ReplError::StorageError(e.to_string())),
                 }
             }
             ReplCommand::ListPlayers => {
-                let players = self.storage.objects.list_all()
+                // Get the player registry from #0
+                let system_obj = self.storage.objects.get(crate::storage::ObjectId::system())
                     .map_err(|e| ReplError::StorageError(e.to_string()))?;
                 
                 let mut player_list = Vec::new();
-                for id in players {
-                    if let Ok(obj) = self.storage.objects.get(id) {
-                        if obj.name.starts_with("player_") {
-                            let name = obj.name.trim_start_matches("player_");
-                            player_list.push(format!("  {} ({})", name, id));
+                
+                // Check if player_registry exists
+                if let Some(crate::storage::PropertyValue::Map(registry)) = system_obj.properties.get("player_registry") {
+                    // Sort players by username
+                    let mut entries: Vec<_> = registry.iter().collect();
+                    entries.sort_by_key(|(username, _)| username.as_str());
+                    
+                    for (username, player_ref) in entries {
+                        if let crate::storage::PropertyValue::Object(player_id) = player_ref {
+                            // Get player's display name if different from username
+                            if let Ok(player_obj) = self.storage.objects.get(*player_id) {
+                                let display_name = match player_obj.properties.get("display_name") {
+                                    Some(crate::storage::PropertyValue::String(name)) => name,
+                                    _ => username,
+                                };
+                                if display_name != username {
+                                    player_list.push(format!("  {} ({}, {}) ", username, display_name, player_id));
+                                } else {
+                                    player_list.push(format!("  {} ({})", username, player_id));
+                                }
+                            } else {
+                                player_list.push(format!("  {} ({}) [invalid]", username, player_id));
+                            }
                         }
                     }
                 }
@@ -375,8 +425,21 @@ impl Repl {
                 match self.evaluator.current_player() {
                     Some(id) => {
                         if let Ok(obj) = self.storage.objects.get(id) {
-                            let name = obj.name.trim_start_matches("player_");
-                            Ok(format!("Current player: {} ({})", name, id))
+                            // Get the username and display name from properties
+                            let username = match obj.properties.get("username") {
+                                Some(crate::storage::PropertyValue::String(name)) => name.clone(),
+                                _ => "unknown".to_string(),
+                            };
+                            let display_name = match obj.properties.get("display_name") {
+                                Some(crate::storage::PropertyValue::String(name)) => name.clone(),
+                                _ => username.clone(),
+                            };
+                            
+                            if display_name != username {
+                                Ok(format!("Current player: {} ({}, {})", username, display_name, id))
+                            } else {
+                                Ok(format!("Current player: {} ({})", username, id))
+                            }
                         } else {
                             Ok(format!("Current player: {}", id))
                         }

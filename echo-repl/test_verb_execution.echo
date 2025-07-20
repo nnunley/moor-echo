@@ -1,0 +1,56 @@
+// Test verb definitions and execution
+
+// Simple object with a verb
+object greeter
+    property name = "World"
+    property greeting = "Hello"
+    
+    verb greet {}
+        return this.greeting + " " + this.name + "!"
+    endverb
+endobject
+
+// Bind to system object
+let g = greeter
+$greeter = g
+
+// Test calling the verb
+g:greet()
+
+// Object with verb that takes parameters
+object calculator
+    verb add {x, y}
+        return x + y
+    endverb
+    
+    verb multiply {x, y}
+        return x * y
+    endverb
+    
+    verb greet {?name="friend"}
+        return "Hello, " + name + "!"
+    endverb
+endobject
+
+let calc = calculator
+$calculator = calc
+
+// Test verbs with parameters
+calc:add(5, 3)
+calc:multiply(4, 7)
+calc:greet()
+calc:greet("Echo")
+
+// Test verb with rest parameters
+object logger
+    verb log {@messages}
+        let result = "LOG: "
+        for msg in messages
+            result = result + msg + " "
+        end
+        return result
+    endverb
+endobject
+
+let log = logger
+log:log("Hello", "from", "Echo!")
