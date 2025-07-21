@@ -8,6 +8,7 @@ use dashmap::DashMap;
 
 use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam};
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
+use crate::ui_callback::{UiEventCallback, UiEvent, UiAction, convert_ui_event};
 // TODO: Re-enable when VerbDef is added back to grammar
 // use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
 
@@ -65,6 +66,7 @@ pub struct Evaluator {
     environments: DashMap<ObjectId, Environment>,
     current_player: Option<ObjectId>,
     event_system: Arc<event_system::EventSystem>,
+    ui_callback: Option<UiEventCallback>,
 }
 
 #[derive(Clone)]
@@ -74,7 +76,7 @@ pub struct Environment {
     pub const_bindings: HashSet<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Value {
     Null,
     Boolean(bool),
@@ -162,6 +164,30 @@ impl Evaluator {
             environments: DashMap::new(),
             current_player: None,
             event_system: Arc::new(event_system::EventSystem::new()),
+            ui_callback: None,
+        }
+    }
+    
+    /// Set a UI event callback
+    pub fn set_ui_callback(&mut self, callback: UiEventCallback) {
+        self.ui_callback = Some(callback);
+    }
+    
+    /// Send a UI event if a callback is registered
+    fn send_ui_event(&self, action: UiAction) {
+        if let Some(ref callback) = self.ui_callback {
+            let event = UiEvent {
+                action: action.clone(),
+                target: match &action {
+                    UiAction::Clear => "dynamic_ui".to_string(),
+                    UiAction::AddButton { id, .. } => id.clone(),
+                    UiAction::AddText { id, .. } => id.clone(),
+                    UiAction::AddDiv { id, .. } => id.clone(),
+                    UiAction::Update { id, .. } => id.clone(),
+                },
+                data: HashMap::new(),
+            };
+            callback(event);
         }
     }
     
@@ -184,6 +210,16 @@ impl Evaluator {
         };
         self.environments.insert(player_id, env);
         Ok(())
+    }
+    
+    /// Get the environment variables for a player
+    pub fn get_player_environment(&self, player_id: ObjectId) -> Option<Vec<(String, Value)>> {
+        self.environments.get(&player_id)
+            .map(|env| {
+                env.variables.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
     }
     
     pub fn create_player(&mut self, name: &str) -> Result<ObjectId> {
@@ -1673,18 +1709,7 @@ impl Evaluator {
             }
             // UI manipulation functions
             "ui_clear" => {
-                // Emit a UI event
-                let event_system = self.event_system.clone();
-                event_system.emit(self, event_system::Event {
-                    name: "ui_update".to_string(),
-                    args: vec![
-                        Value::String("clear".to_string()),
-                        Value::String("dynamicContent".to_string()),
-                    ],
-                    emitter: player_id,
-                    bubbles: false,
-                    cancelable: false,
-                })?;
+                self.send_ui_event(UiAction::Clear);
                 Ok(Value::Null)
             }
             "ui_add_button" => {
@@ -1707,20 +1732,7 @@ impl Evaluator {
                     _ => return Err(anyhow!("ui_add_button() action must be a string")),
                 };
                 
-                // Emit UI event
-                let event_system = self.event_system.clone();
-                event_system.emit(self, event_system::Event {
-                    name: "ui_update".to_string(),
-                    args: vec![
-                        Value::String("add_button".to_string()),
-                        Value::String(id),
-                        Value::String(label),
-                        Value::String(action),
-                    ],
-                    emitter: player_id,
-                    bubbles: false,
-                    cancelable: false,
-                })?;
+                self.send_ui_event(UiAction::AddButton { id, label, action });
                 Ok(Value::Null)
             }
             "ui_add_text" => {
@@ -1739,25 +1751,21 @@ impl Evaluator {
                 };
                 
                 let style = if arg_values.len() > 2 {
-                    arg_values[2].clone()
+                    match &arg_values[2] {
+                        Value::Map(map) => {
+                            let mut style_map = HashMap::new();
+                            for (k, v) in map {
+                                style_map.insert(k.clone(), v.to_string());
+                            }
+                            Some(style_map)
+                        },
+                        _ => None,
+                    }
                 } else {
-                    Value::Null
+                    None
                 };
                 
-                // Emit UI event
-                let event_system = self.event_system.clone();
-                event_system.emit(self, event_system::Event {
-                    name: "ui_update".to_string(),
-                    args: vec![
-                        Value::String("add_text".to_string()),
-                        Value::String(id),
-                        Value::String(text),
-                        style,
-                    ],
-                    emitter: player_id,
-                    bubbles: false,
-                    cancelable: false,
-                })?;
+                self.send_ui_event(UiAction::AddText { id, text, style });
                 Ok(Value::Null)
             }
             "ui_add_div" => {
@@ -1776,34 +1784,26 @@ impl Evaluator {
                 };
                 
                 let style = if arg_values.len() > 2 {
-                    arg_values[2].clone()
+                    match &arg_values[2] {
+                        Value::Map(map) => {
+                            let mut style_map = HashMap::new();
+                            for (k, v) in map {
+                                style_map.insert(k.clone(), v.to_string());
+                            }
+                            Some(style_map)
+                        },
+                        _ => None,
+                    }
                 } else {
-                    Value::Map(HashMap::new())
+                    None
                 };
                 
-                // Emit event to add div
-                let event_system = self.event_system.clone();
-                event_system.emit(self, event_system::Event {
-                    name: "web:ui:add_element".to_string(),
-                    args: vec![
-                        Value::Map({
-                            let mut map = HashMap::new();
-                            map.insert("type".to_string(), Value::String("div".to_string()));
-                            map.insert("id".to_string(), Value::String(id));
-                            map.insert("content".to_string(), Value::String(content));
-                            map.insert("style".to_string(), style);
-                            map
-                        }),
-                    ],
-                    emitter: player_id,
-                    bubbles: false,
-                    cancelable: false,
-                })?;
+                self.send_ui_event(UiAction::AddDiv { id, content, style });
                 Ok(Value::Null)
             }
             "ui_update" => {
-                if arg_values.is_empty() {
-                    return Err(anyhow!("ui_update() requires at least 1 argument (id)"));
+                if arg_values.len() != 2 {
+                    return Err(anyhow!("ui_update() takes exactly 2 arguments (id, properties)"));
                 }
                 
                 let id = match &arg_values[0] {
@@ -1811,30 +1811,12 @@ impl Evaluator {
                     _ => return Err(anyhow!("ui_update() id must be a string")),
                 };
                 
-                let mut update_data = HashMap::new();
-                update_data.insert("id".to_string(), Value::String(id));
+                let properties = match &arg_values[1] {
+                    Value::Map(props) => props.clone(),
+                    _ => return Err(anyhow!("ui_update() properties must be a map")),
+                };
                 
-                // Optional properties to update
-                if arg_values.len() > 1 {
-                    match &arg_values[1] {
-                        Value::Map(props) => {
-                            for (key, value) in props {
-                                update_data.insert(key.clone(), value.clone());
-                            }
-                        }
-                        _ => return Err(anyhow!("ui_update() properties must be a map")),
-                    }
-                }
-                
-                // Emit update event
-                let event_system = self.event_system.clone();
-                event_system.emit(self, event_system::Event {
-                    name: "web:ui:update_element".to_string(),
-                    args: vec![Value::Map(update_data)],
-                    emitter: player_id,
-                    bubbles: false,
-                    cancelable: false,
-                })?;
+                self.send_ui_event(UiAction::Update { id, properties });
                 Ok(Value::Null)
             }
             "emit" => {

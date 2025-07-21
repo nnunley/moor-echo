@@ -13,6 +13,15 @@ pub enum WebEvent {
     Result { output: String, duration_ms: u64 },
     StateUpdate { snapshot: StateSnapshot },
     UiUpdate { update: UiUpdate },
+    Event { event: EventData },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventData {
+    pub name: String,
+    pub args: Vec<serde_json::Value>,
+    pub emitter: String,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +105,10 @@ impl WebNotifier {
 
     pub fn send_ui_update(&self, update: UiUpdate) {
         self.send_event(WebEvent::UiUpdate { update });
+    }
+    
+    pub fn send_echo_event(&self, event: EventData) {
+        self.send_event(WebEvent::Event { event });
     }
 }
 

@@ -158,37 +158,6 @@
         .dynamic-button:hover {
             background: #138496;
         }
-        
-        /* Dynamic UI elements */
-        .dynamic-input, .dynamic-select {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-        
-        .dynamic-input:focus, .dynamic-select:focus {
-            outline: none;
-            border-color: #2196F3;
-            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
-        }
-        
-        #dynamicContent ul {
-            list-style-type: disc;
-            padding-left: 20px;
-        }
-        
-        #dynamicContent li {
-            margin-bottom: 5px;
-        }
-        
-        .echo-message {
-            padding: 10px;
-            margin: 5px 0;
-            background: #e3f2fd;
-            border-left: 4px solid #2196F3;
-            border-radius: 4px;
-        }
     </style>
 </head>
 <body>
@@ -330,9 +299,6 @@
                 case 'UiUpdate':
                     updateDynamicUI(data.data.update);
                     break;
-                case 'Event':
-                    handleEchoEvent(data.data.event);
-                    break;
             }
         }
         
@@ -358,13 +324,6 @@
             // Display the command in output
             addOutputLine(`>> ${command}`, 'output');
             
-            // Execute the command
-            executeCommand(command);
-            
-            input.value = '';
-        }
-        
-        function executeCommand(command) {
             // Send to server
             fetch('/api/command', {
                 method: 'POST',
@@ -380,6 +339,8 @@
             .catch(err => {
                 addOutputLine(`Failed to send command: ${err}`, 'error');
             });
+            
+            input.value = '';
         }
         
         function clearOutput() {
@@ -459,208 +420,31 @@
                     }
                     dynamicContent.appendChild(text);
                     break;
-            }
-        }
-        
-        // Event system for handling Echo events
-        const echoEventHandlers = new Map();
-        
-        // Register an event handler
-        window.onEchoEvent = function(eventPattern, handler) {
-            if (!echoEventHandlers.has(eventPattern)) {
-                echoEventHandlers.set(eventPattern, []);
-            }
-            echoEventHandlers.get(eventPattern).push(handler);
-        };
-        
-        // Handle incoming Echo events
-        function handleEchoEvent(event) {
-            // First, dispatch to any global event handlers
-            document.dispatchEvent(new CustomEvent('echo-event', { 
-                detail: event 
-            }));
-            
-            // Then check registered handlers
-            for (const [pattern, handlers] of echoEventHandlers) {
-                if (matchesEventPattern(event.name, pattern)) {
-                    for (const handler of handlers) {
-                        try {
-                            handler(event);
-                        } catch (e) {
-                            console.error('Error in Echo event handler:', e);
+                case 'add_div':
+                    const div = document.createElement('div');
+                    div.innerHTML = update.data.content;
+                    if (update.data.style) {
+                        Object.assign(div.style, update.data.style);
+                    }
+                    dynamicContent.appendChild(div);
+                    break;
+                case 'update':
+                    // Find element by target ID and update its properties
+                    const targetElement = document.getElementById(update.target);
+                    if (targetElement) {
+                        if (update.data.text) {
+                            targetElement.textContent = update.data.text;
+                        }
+                        if (update.data.content) {
+                            targetElement.innerHTML = update.data.content;
+                        }
+                        if (update.data.style) {
+                            Object.assign(targetElement.style, update.data.style);
                         }
                     }
-                }
+                    break;
             }
-            
-            // Log the event for debugging
-            console.log('Echo Event:', event);
         }
-        
-        // Simple pattern matching (supports * wildcard)
-        function matchesEventPattern(eventName, pattern) {
-            if (pattern === '*') return true;
-            if (pattern.endsWith('*')) {
-                const prefix = pattern.slice(0, -1);
-                return eventName.startsWith(prefix);
-            }
-            return eventName === pattern;
-        }
-        
-        // Example usage: Register a handler for all web:ui events
-        window.onEchoEvent('web:ui:*', (event) => {
-            // Handle UI-related events
-            if (event.name === 'web:ui:show_message' && event.args.length > 0) {
-                const message = event.args[0];
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'echo-message';
-                messageDiv.textContent = message;
-                document.getElementById('dynamicContent').appendChild(messageDiv);
-            }
-            else if (event.name === 'web:ui:clear_element' && event.args.length > 0) {
-                const elementId = event.args[0];
-                const element = document.getElementById(elementId);
-                if (element) {
-                    element.innerHTML = '';
-                }
-            }
-            else if (event.name === 'web:ui:show_element' && event.args.length > 0) {
-                const elementId = event.args[0];
-                const element = document.getElementById(elementId);
-                if (element) {
-                    element.style.display = 'block';
-                }
-            }
-            else if (event.name === 'web:ui:scroll_to_bottom' && event.args.length > 0) {
-                const elementId = event.args[0];
-                const element = document.getElementById(elementId);
-                if (element) {
-                    element.scrollTop = element.scrollHeight;
-                }
-            }
-            else if (event.name === 'web:ui:notification' && event.args.length > 0) {
-                const notif = event.args[0];
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification(notif.title, { body: notif.body });
-                }
-            }
-            else if (event.name === 'web:ui:add_element' && event.args.length > 0) {
-                const elem = event.args[0];
-                const container = document.getElementById('dynamicContent');
-                
-                switch(elem.type) {
-                    case 'input':
-                        const input = document.createElement('input');
-                        input.id = elem.id;
-                        input.placeholder = elem.placeholder || '';
-                        input.className = 'dynamic-input';
-                        input.style.marginBottom = '10px';
-                        input.style.padding = '8px';
-                        input.style.width = '200px';
-                        input.onchange = (e) => {
-                            executeCommand(elem.onchange.replace('value', `"${e.target.value}"`));
-                        };
-                        container.appendChild(input);
-                        break;
-                        
-                    case 'select':
-                        const select = document.createElement('select');
-                        select.id = elem.id;
-                        select.className = 'dynamic-select';
-                        select.style.marginBottom = '10px';
-                        select.style.padding = '8px';
-                        elem.options.forEach(opt => {
-                            const option = document.createElement('option');
-                            option.value = opt;
-                            option.textContent = opt;
-                            select.appendChild(option);
-                        });
-                        select.onchange = (e) => {
-                            executeCommand(elem.onchange.replace('value', `"${e.target.value}"`));
-                        };
-                        container.appendChild(select);
-                        break;
-                        
-                    case 'div':
-                        const div = document.createElement('div');
-                        div.id = elem.id;
-                        div.innerHTML = elem.content || '';
-                        if (elem.style) {
-                            Object.assign(div.style, elem.style);
-                        }
-                        container.appendChild(div);
-                        break;
-                        
-                    case 'list':
-                        const list = document.createElement('ul');
-                        list.id = elem.id;
-                        if (elem.style) {
-                            Object.assign(list.style, elem.style);
-                        }
-                        elem.items.forEach(item => {
-                            const li = document.createElement('li');
-                            li.textContent = item;
-                            list.appendChild(li);
-                        });
-                        container.appendChild(list);
-                        break;
-                }
-            }
-            else if (event.name === 'web:ui:update_element' && event.args.length > 0) {
-                const update = event.args[0];
-                const element = document.getElementById(update.id);
-                if (element) {
-                    if (update.text !== undefined) {
-                        element.textContent = update.text;
-                    }
-                    if (update.style) {
-                        Object.assign(element.style, update.style);
-                    }
-                    if (update.value !== undefined) {
-                        element.value = update.value;
-                    }
-                }
-            }
-        });
-        
-        // Shared state event handlers
-        window.onEchoEvent('web:shared:*', (event) => {
-            if (event.name === 'web:shared:counter_changed' && event.args.length > 0) {
-                const newValue = event.args[0];
-                executeCommand(`handle_counter_change(${newValue})`);
-            }
-            else if (event.name === 'web:shared:counter_reset') {
-                executeCommand(`handle_counter_reset()`);
-            }
-        });
-        
-        // Chat event handlers
-        window.onEchoEvent('web:chat:*', (event) => {
-            if (event.name === 'web:chat:message' && event.args.length > 0) {
-                // Handle incoming chat messages
-                const message = event.args[0];
-                console.log('Chat message received:', message);
-                
-                // Echo will handle the rendering through handle_remote_message
-                // We just need to make sure the message is processed
-                executeCommand(`handle_remote_message(${JSON.stringify(message)})`);
-            }
-            else if (event.name === 'web:chat:user_joined' && event.args.length > 0) {
-                const data = event.args[0];
-                executeCommand(`handle_user_joined(${JSON.stringify(data)})`);
-            }
-            else if (event.name === 'web:chat:user_left' && event.args.length > 0) {
-                const data = event.args[0];
-                executeCommand(`handle_user_left(${JSON.stringify(data)})`);
-            }
-            else if (event.name === 'web:chat:initialized') {
-                console.log('Chat initialized:', event.args[0]);
-                // Request notification permission
-                if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission();
-                }
-            }
-        });
         
         // Handle keyboard shortcuts
         document.getElementById('commandInput').addEventListener('keydown', (event) => {

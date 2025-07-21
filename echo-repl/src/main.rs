@@ -25,6 +25,35 @@ fn main() -> Result<()> {
     tokio::runtime::Runtime::new()?.block_on(run_main())
 }
 
+// Helper function to convert Echo values to JSON
+#[cfg(feature = "web-ui")]
+fn value_to_json(value: &echo_repl::evaluator::Value) -> serde_json::Value {
+    use echo_repl::evaluator::Value;
+    
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Boolean(b) => serde_json::Value::Bool(*b),
+        Value::Integer(i) => serde_json::Value::Number((*i).into()),
+        Value::Float(f) => serde_json::json!(*f),
+        Value::String(s) => serde_json::Value::String(s.clone()),
+        Value::Object(id) => serde_json::Value::String(id.to_string()),
+        Value::List(list) => {
+            let json_list: Vec<serde_json::Value> = list.iter()
+                .map(|v| value_to_json(v))
+                .collect();
+            serde_json::Value::Array(json_list)
+        },
+        Value::Map(map) => {
+            let mut json_map = serde_json::Map::new();
+            for (k, v) in map {
+                json_map.insert(k.clone(), value_to_json(v));
+            }
+            serde_json::Value::Object(json_map)
+        },
+        Value::Lambda { .. } => serde_json::Value::String("<lambda>".to_string()),
+    }
+}
+
 async fn run_main() -> Result<()> {
     env_logger::init();
     
@@ -96,6 +125,103 @@ async fn run_main() -> Result<()> {
             db_path.clone(),
             notifier.clone(),
         )?;
+        
+        // Subscribe to UI events from the evaluator
+        let ui_notifier = notifier.clone();
+        repl.evaluator_mut().event_system().subscribe("ui_update".to_string(), move |event| {
+            use echo_repl::repl::web_notifier::UiUpdate;
+            use echo_repl::evaluator::Value;
+            
+            if let Some(action) = event.args.get(0) {
+                match action {
+                    Value::String(action_str) => {
+                        let update = match action_str.as_str() {
+                            "clear" => UiUpdate {
+                                target: "dynamicContent".to_string(),
+                                action: "clear".to_string(),
+                                data: serde_json::json!({}),
+                            },
+                            "add_button" => {
+                                if let (Some(Value::String(id)), Some(Value::String(label)), Some(Value::String(action))) = 
+                                    (event.args.get(1), event.args.get(2), event.args.get(3)) {
+                                    UiUpdate {
+                                        target: id.clone(),
+                                        action: "add_button".to_string(),
+                                        data: serde_json::json!({
+                                            "label": label,
+                                            "action": action,
+                                        }),
+                                    }
+                                } else {
+                                    return Ok(());
+                                }
+                            },
+                            "add_text" => {
+                                if let (Some(Value::String(id)), Some(Value::String(text))) = 
+                                    (event.args.get(1), event.args.get(2)) {
+                                    let mut data = serde_json::json!({
+                                        "text": text,
+                                    });
+                                    
+                                    // Handle optional style parameter
+                                    if let Some(style_val) = event.args.get(3) {
+                                        if let Value::Map(style_map) = style_val {
+                                            let mut style_obj = serde_json::Map::new();
+                                            for (k, v) in style_map {
+                                                style_obj.insert(k.clone(), serde_json::Value::String(v.to_string()));
+                                            }
+                                            data["style"] = serde_json::Value::Object(style_obj);
+                                        }
+                                    }
+                                    
+                                    UiUpdate {
+                                        target: id.clone(),
+                                        action: "add_text".to_string(),
+                                        data,
+                                    }
+                                } else {
+                                    return Ok(());
+                                }
+                            },
+                            _ => return Ok(()),
+                        };
+                        
+                        ui_notifier.send_ui_update(update);
+                    }
+                    _ => {}
+                }
+            }
+            
+            Ok(())
+        });
+        
+        // Subscribe to web-targeted events (pattern: "web:*")
+        let event_notifier = notifier.clone();
+        repl.evaluator_mut().event_system().subscribe("web:*".to_string(), move |event| {
+            use echo_repl::repl::web_notifier::EventData;
+            use echo_repl::evaluator::Value;
+            use std::time::{SystemTime, UNIX_EPOCH};
+            
+            // Convert event args to JSON values
+            let mut json_args = Vec::new();
+            for arg in &event.args {
+                json_args.push(value_to_json(arg));
+            }
+            
+            // Create event data
+            let event_data = EventData {
+                name: event.name.clone(),
+                args: json_args,
+                emitter: event.emitter.to_string(),
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64,
+            };
+            
+            event_notifier.send_echo_event(event_data);
+            Ok(())
+        });
         
         // Create or use default player
         match repl.handle_command(ReplCommand::CreatePlayer("guest".to_string())) {

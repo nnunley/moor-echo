@@ -1,0 +1,69 @@
+warning: /Users/ndn/development/moor-echo/Cargo.toml: unused manifest key: workspace.build-dependencies
+warning: unused import: `convert_ui_event`
+  --> crates/echo-core/src/evaluator/mod.rs:11:62
+   |
+11 | use crate::ui_callback::{UiEventCallback, UiEvent, UiAction, convert_ui_event};
+   |                                                              ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `EchoError`, `UiAction`, `UiEvent`, and `convert_ui_event`
+  --> crates/echo-core/src/runtime.rs:10:17
+   |
+10 |     EchoConfig, EchoError,
+   |                 ^^^^^^^^^
+...
+14 |     ui_callback::{UiEventCallback, UiEvent, UiAction, convert_ui_event},
+   |                                    ^^^^^^^  ^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+warning: unused variable: `callback`
+   --> crates/echo-core/src/runtime.rs:153:25
+    |
+153 |         if let Some(ref callback) = self.ui_callback {
+    |                         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_callback`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: variable does not need to be mutable
+  --> crates/echo-core/src/lib.rs:49:9
+   |
+49 |     let mut features = vec!["core"];
+   |         ----^^^^^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` on by default
+
+warning: `echo-core` (lib) generated 4 warnings (run `cargo fix --lib -p echo-core` to apply 3 suggestions)
+warning: unused import: `WebEvent as WebReplEvent`
+  --> crates/echo-web/src/server.rs:29:59
+   |
+29 | use crate::web_notifier::{WebNotifier as WebReplNotifier, WebEvent as WebReplEvent};
+   |                                                           ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused variable: `receiver`
+   --> crates/echo-web/src/web_notifier.rs:100:40
+    |
+100 |     pub fn send_buffered_events(&self, receiver: &broadcast::Receiver<WebEvent>) -> Vec<WebEvent> {
+    |                                        ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_receiver`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: field `filter` is never read
+  --> crates/echo-web/src/server.rs:81:5
+   |
+79 | pub struct StateQuery {
+   |            ---------- field in this struct
+80 |     /// Optional filter for specific state components
+81 |     filter: Option<String>,
+   |     ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `echo-web` (lib) generated 3 warnings (run `cargo fix --lib -p echo-web` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running `/Users/ndn/development/moor-echo/target/debug/web-server`
+Echo Web Server v0.1.0
+Web server starting on http://127.0.0.1:8081

@@ -283,6 +283,10 @@ impl Repl {
         objects
     }
     
+    pub fn evaluator_mut(&mut self) -> &mut Evaluator {
+        &mut self.evaluator
+    }
+    
     pub fn is_eval_mode(&self) -> bool {
         self.eval_mode
     }
