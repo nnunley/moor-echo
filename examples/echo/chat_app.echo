@@ -1,0 +1,203 @@
+// Multi-User Chat Application in Echo
+// This demonstrates real-time communication between web clients
+
+// Initialize chat state
+let messages = []
+let users = {}
+let message_counter = 0
+
+// Set up the UI
+ui_clear()
+ui_add_text("title", "💬 Echo Chat", {fontSize: "24px", color: "#1976d2", marginBottom: "20px"})
+
+// User section
+ui_add_text("user_section", "", {marginBottom: "20px"})
+ui_add_text("user_label", "Enter your name:", {marginBottom: "5px"})
+ui_add_button("join_btn", "Join Chat", "join_chat(prompt(\"Enter your name:\"))")
+
+// Messages area
+ui_add_text("messages_area", "", {
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    padding: "15px",
+    minHeight: "300px",
+    maxHeight: "400px",
+    overflow: "auto",
+    background: "#f5f5f5",
+    marginBottom: "20px"
+})
+
+// Input area
+ui_add_text("input_area", "", {display: "none", id: "input_area"})
+
+// Function to join the chat
+join_chat = fn(username) {
+    if username == "" || username == null {
+        emit("web:ui:show_message", "Please enter a valid username")
+        return
+    }
+    
+    // Store user info
+    let user_id = str(random() * 10000)
+    users[user_id] = {
+        name: username,
+        joined_at: time()
+    }
+    
+    // Update UI for joined user
+    emit("web:ui:clear_element", "user_section")
+    ui_add_text("welcome", "Welcome, " + username + "!", {
+        fontSize: "18px",
+        color: "#4caf50",
+        marginBottom: "10px"
+    })
+    
+    // Show input area
+    emit("web:ui:show_element", "input_area")
+    ui_add_button("send_btn", "Send Message", "send_message(\"" + user_id + "\", prompt(\"Type your message:\"))")
+    ui_add_button("leave_btn", "Leave Chat", "leave_chat(\"" + user_id + "\")")
+    
+    // Announce user joined
+    add_system_message(username + " joined the chat")
+    
+    // Emit join event for other clients
+    emit("web:chat:user_joined", {
+        user_id: user_id,
+        username: username,
+        timestamp: time()
+    })
+    
+    // Show existing messages
+    render_messages()
+}
+
+// Function to send a message
+send_message = fn(user_id, text) {
+    if text == "" || text == null {
+        return
+    }
+    
+    let user = users[user_id]
+    if user == null {
+        emit("web:ui:show_message", "You must join the chat first")
+        return
+    }
+    
+    message_counter = message_counter + 1
+    let message = {
+        id: message_counter,
+        user_id: user_id,
+        username: user.name,
+        text: text,
+        timestamp: time(),
+        type: "user"
+    }
+    
+    messages = messages + [message]
+    
+    // Emit message event for all clients
+    emit("web:chat:message", message)
+    
+    // Update local display
+    render_messages()
+}
+
+// Function to leave chat
+leave_chat = fn(user_id) {
+    let user = users[user_id]
+    if user != null {
+        add_system_message(user.name + " left the chat")
+        
+        // Emit leave event
+        emit("web:chat:user_left", {
+            user_id: user_id,
+            username: user.name,
+            timestamp: time()
+        })
+        
+        // Remove user
+        users[user_id] = null
+        
+        // Reset UI
+        ui_clear()
+        emit("web:ui:reload_chat")
+    }
+}
+
+// Add system message
+add_system_message = fn(text) {
+    message_counter = message_counter + 1
+    let message = {
+        id: message_counter,
+        text: text,
+        timestamp: time(),
+        type: "system"
+    }
+    messages = messages + [message]
+    render_messages()
+}
+
+// Render all messages
+render_messages = fn() {
+    emit("web:ui:clear_element", "messages_area")
+    
+    if len(messages) == 0 {
+        ui_add_text("no_messages", "No messages yet. Start the conversation!", {
+            color: "#666",
+            fontStyle: "italic"
+        })
+    } else {
+        for (i = 0; i < len(messages); i = i + 1) {
+            let msg = messages[i]
+            if msg.type == "system" {
+                ui_add_text("msg_" + str(msg.id), "🔔 " + msg.text, {
+                    color: "#666",
+                    fontStyle: "italic",
+                    marginBottom: "5px"
+                })
+            } else {
+                ui_add_text("msg_" + str(msg.id), msg.username + ": " + msg.text, {
+                    marginBottom: "8px",
+                    padding: "8px",
+                    background: "#fff",
+                    borderRadius: "4px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                })
+            }
+        }
+    }
+    
+    // Scroll to bottom
+    emit("web:ui:scroll_to_bottom", "messages_area")
+}
+
+// Handler for incoming messages from other clients
+handle_remote_message = fn(data) {
+    let message = data
+    messages = messages + [message]
+    render_messages()
+    
+    // Play notification sound or show notification
+    emit("web:ui:notification", {
+        title: "New message from " + message.username,
+        body: message.text
+    })
+}
+
+// Handler for user join events
+handle_user_joined = fn(data) {
+    add_system_message(data.username + " joined the chat")
+}
+
+// Handler for user leave events  
+handle_user_left = fn(data) {
+    add_system_message(data.username + " left the chat")
+}
+
+// Initialize the chat
+emit("web:chat:initialized", {
+    version: "1.0",
+    features: ["real-time", "multi-user", "notifications"]
+})
+
+print("Chat application loaded! Open this in multiple browser windows to test multi-user chat.")

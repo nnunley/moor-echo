@@ -1,4 +1,4 @@
-use echo_repl::parser::grammar::parse_echo;
+use echo_repl::parser::{create_parser, Parser};
 use echo_repl::evaluator::{create_evaluator, Value};
 use echo_repl::storage::Storage;
 use std::sync::Arc;
@@ -15,7 +15,8 @@ fn test_conditional_true_branch() {
     evaluator.switch_player(player_id).expect("Failed to switch player");
     
     // Test if (true) return 42; endif
-    let ast = parse_echo("if (true) return 42; endif").expect("Failed to parse");
+    let mut parser = create_parser("echo").expect("Failed to create parser");
+    let ast = parser.parse("if (true) return 42; endif").expect("Failed to parse");
     let result = evaluator.eval(&ast).expect("Failed to evaluate");
     
     assert_eq!(result, Value::Integer(42));
@@ -32,7 +33,8 @@ fn test_conditional_false_branch() {
     evaluator.switch_player(player_id).expect("Failed to switch player");
     
     // Test if (false) return 42; endif (should return null)
-    let ast = parse_echo("if (false) return 42; endif").expect("Failed to parse");
+    let mut parser = create_parser("echo").expect("Failed to create parser");
+    let ast = parser.parse("if (false) return 42; endif").expect("Failed to parse");
     let result = evaluator.eval(&ast).expect("Failed to evaluate");
     
     assert_eq!(result, Value::Null);
@@ -49,7 +51,8 @@ fn test_conditional_if_else() {
     evaluator.switch_player(player_id).expect("Failed to switch player");
     
     // Test if (false) return 1; else return 2; endif
-    let ast = parse_echo("if (false) return 1; else return 2; endif").expect("Failed to parse");
+    let mut parser = create_parser("echo").expect("Failed to create parser");
+    let ast = parser.parse("if (false) return 1; else return 2; endif").expect("Failed to parse");
     let result = evaluator.eval(&ast).expect("Failed to evaluate");
     
     assert_eq!(result, Value::Integer(2));
@@ -66,7 +69,8 @@ fn test_conditional_with_comparison() {
     evaluator.switch_player(player_id).expect("Failed to switch player");
     
     // Test if (1 == 1) return "equal"; else return "not equal"; endif
-    let ast = parse_echo("if (1 == 1) return \"equal\"; else return \"not equal\"; endif").expect("Failed to parse");
+    let mut parser = create_parser("echo").expect("Failed to create parser");
+    let ast = parser.parse("if (1 == 1) return \"equal\"; else return \"not equal\"; endif").expect("Failed to parse");
     let result = evaluator.eval(&ast).expect("Failed to evaluate");
     
     assert_eq!(result, Value::String("equal".to_string()));
@@ -101,7 +105,8 @@ fn test_comparison_operators() {
     ];
     
     for (expr, expected) in test_cases {
-        let ast = parse_echo(expr).expect(&format!("Failed to parse: {}", expr));
+        let mut parser = create_parser("echo").expect("Failed to create parser");
+        let ast = parser.parse(expr).expect(&format!("Failed to parse: {}", expr));
         let result = evaluator.eval(&ast).expect(&format!("Failed to evaluate: {}", expr));
         assert_eq!(result, expected, "Failed for expression: {}", expr);
     }

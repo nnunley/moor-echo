@@ -1,9 +1,0 @@
-.eval
-object calculator
-property pi = 3.14159;
-property e = 2.71828
-endobject
-calculator.pi
-calculator.e
-.
-.quit

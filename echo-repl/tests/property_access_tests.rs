@@ -20,11 +20,11 @@ fn test_property_access_simple() {
     // Access properties using dot notation
     let result = repl.execute("p.name");
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "Alice");
+    assert_eq!(result.unwrap().0, "Alice");
     
     let result = repl.execute("p.age");
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "30");
+    assert_eq!(result.unwrap().0, "30");
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn test_property_access_in_expression() {
         eprintln!("Error accessing property: {:?}", result.as_ref().unwrap_err());
     }
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "5");
+    assert_eq!(result.unwrap().0, "5");
     
     // Use property in arithmetic expression
     let result = repl.execute("c.count + 10");
@@ -55,7 +55,7 @@ fn test_property_access_in_expression() {
         eprintln!("Error in expression: {:?}", result.as_ref().unwrap_err());
     }
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "15");
+    assert_eq!(result.unwrap().0, "15");
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn test_property_access_in_verb() {
     // Call verb that uses property access
     let result = repl.execute("g:greet()");
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), "Hello World!");
+    assert_eq!(result.unwrap().0, "Hello World!");
 }
 
 #[test]

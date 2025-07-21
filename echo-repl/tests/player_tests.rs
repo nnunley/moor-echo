@@ -52,7 +52,7 @@ fn test_player_isolation() {
     // Create alice and set a variable
     repl.handle_command(ReplCommand::CreatePlayer("alice".to_string())).unwrap();
     repl.execute("let x = 100;").unwrap();
-    assert_eq!(repl.execute("x").unwrap(), "100");
+    assert_eq!(repl.execute("x").unwrap().0, "100");
     
     // Create bob and verify x doesn't exist
     repl.handle_command(ReplCommand::CreatePlayer("bob".to_string())).unwrap();
@@ -66,7 +66,7 @@ fn test_player_isolation() {
     
     // Switch back to alice and verify original value
     repl.handle_command(ReplCommand::SwitchPlayer("alice".to_string())).unwrap();
-    assert_eq!(repl.execute("x").unwrap(), "100");
+    assert_eq!(repl.execute("x").unwrap().0, "100");
 }
 
 #[test]

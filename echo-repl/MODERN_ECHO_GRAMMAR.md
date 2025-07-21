@@ -17,17 +17,9 @@ const PI = 3.14159;
 
 ## Object Definitions
 ```echo
-// Modern class-like syntax
-class Person {
-    property name: string = "Anonymous";
-    property age: number = 0;
-    
-    method greet() {
-        return "Hello, " + this.name;
-    }
-}
+// Echo will retain its prototype-based inheritance model,
+// using MOO-style `object` definitions for all object creation.
 
-// Or keep MOO-style for familiarity
 object Person
     property name = "Anonymous";
     property age = 0;

@@ -1,0 +1,33 @@
+// Test multi-line constructs in REPL
+
+// 1. Block function
+let factorial = fn {n}
+  if (n <= 1)
+    1
+  else
+    n * factorial(n - 1)
+  endif
+endfn
+factorial(5)
+
+// 2. While loop
+let i = 0
+while (i < 3)
+  i = i + 1
+endwhile
+i
+
+// 3. Object definition
+object hello
+  property greeting = "Hello, World\!"
+endobject
+
+// 4. For loop
+let sum = 0
+for x in ({1, 2, 3, 4, 5})
+  sum = sum + x
+endfor
+sum
+
+.quit
+EOF < /dev/null

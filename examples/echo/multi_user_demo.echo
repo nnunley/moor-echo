@@ -1,0 +1,75 @@
+// Simple multi-user test
+// This demonstrates basic event propagation between clients
+
+ui_clear()
+ui_add_text("title", "Multi-User Event Test", {fontSize: "20px", marginBottom: "10px"})
+
+// Create a simple shared counter
+let shared_counter = 0
+
+// UI setup
+ui_add_text("counter_label", "Shared Counter:", {fontWeight: "bold"})
+ui_add_text("counter_value", str(shared_counter), {fontSize: "24px", id: "counter_value"})
+ui_add_button("increment", "Increment", "increment_shared()")
+ui_add_button("reset", "Reset", "reset_shared()")
+
+// Divider
+ui_add_text("divider", "---", {margin: "20px 0", color: "#ccc"})
+
+// Event log
+ui_add_text("log_title", "Event Log:", {fontWeight: "bold"})
+ui_add_div("event_log", "", {
+    border: "1px solid #ddd",
+    padding: "10px",
+    minHeight: "100px",
+    maxHeight: "200px",
+    overflow: "auto",
+    fontFamily: "monospace",
+    fontSize: "12px"
+})
+
+// Functions
+increment_shared = fn() {
+    shared_counter = shared_counter + 1
+    // Emit event for other clients
+    emit("web:shared:counter_changed", shared_counter)
+    // Update local UI
+    ui_update("counter_value", {text: str(shared_counter)})
+    log_event("Counter incremented to " + str(shared_counter))
+}
+
+reset_shared = fn() {
+    shared_counter = 0
+    // Emit event for other clients
+    emit("web:shared:counter_reset")
+    // Update local UI
+    ui_update("counter_value", {text: str(shared_counter)})
+    log_event("Counter reset to 0")
+}
+
+log_event = fn(msg) {
+    let timestamp = str(time())
+    let log_entry = "[" + timestamp + "] " + msg
+    emit("web:ui:add_element", {
+        type: "div",
+        id: "log_" + timestamp,
+        content: log_entry,
+        style: {marginBottom: "2px"}
+    })
+}
+
+// Handler for remote counter changes
+handle_counter_change = fn(new_value) {
+    shared_counter = new_value
+    ui_update("counter_value", {text: str(shared_counter)})
+    log_event("Counter updated by another client to " + str(shared_counter))
+}
+
+// Handler for remote counter reset
+handle_counter_reset = fn() {
+    shared_counter = 0
+    ui_update("counter_value", {text: str(shared_counter)})
+    log_event("Counter reset by another client")
+}
+
+print("Multi-user test loaded! Open in multiple browser windows and try the buttons.")

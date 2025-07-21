@@ -1,4 +1,4 @@
-use echo_repl::parser::{create_parser, Parser};
+use echo_repl::parser::create_parser;
 
 fn main() -> anyhow::Result<()> {
     let mut parser = create_parser("echo")?;
@@ -7,6 +7,11 @@ fn main() -> anyhow::Result<()> {
         "object hello",
         "object hello\n  property greeting = \"Hello\"\nendobject",
         "object hello\nproperty greeting = \"Hello\"\nendobject",
+        // While loop tests
+        "while (i < 3) i = i + 1 endwhile",
+        "while (i < 3)\n  i = i + 1\nendwhile",
+        // Program tests
+        "let i = 0\nwhile (i < 3)\n  i = i + 1\nendwhile",
     ];
     
     for test_case in test_cases {

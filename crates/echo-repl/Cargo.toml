@@ -1,0 +1,45 @@
+[package]
+name = "echo-repl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Interactive REPL (Read-Eval-Print Loop) for the Echo programming language"
+
+[[bin]]
+name = "echo-repl"
+path = "src/main.rs"
+
+[lib]
+name = "echo_repl"
+path = "src/lib.rs"
+
+[dependencies]
+# Core Echo language
+echo-core = { path = "../echo-core" }
+
+# Workspace dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# REPL-specific dependencies
+rustyline.workspace = true
+clap.workspace = true
+
+# Optional web integration
+echo-web = { path = "../echo-web", optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = ["rustyline/default"]
+web-integration = ["echo-web"]

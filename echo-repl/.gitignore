@@ -1,0 +1,49 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Test databases
+test-*-db/
+test-db-*/
+echo-test-db/
+*-test-db/
+test-*.db
+*.db.lock
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Python cache (for test runner)
+__pycache__/
+*.pyc
+*.pyo
+
+# Output files
+dump_output.json
+env_test_output.json
+debug_*.txt
+test_*.txt
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.backup
+**/grammar_development_backup/
+test_utilities/
+
+# Coverage reports
+*.profraw
+*.profdata
+coverage/

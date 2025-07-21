@@ -1,0 +1,42 @@
+// Test object-owned event handlers
+
+object EventTest {
+    property name = "EventTest";
+    property event_count = 0;
+    
+    // Simple event handler
+    event player_moved(from, to) {
+        this.event_count = this.event_count + 1;
+        print("Player moved from " + from + " to " + to);
+    endevent
+    
+    // Event handler with no parameters
+    event startup() {
+        print(this.name + " initialized");
+    endevent
+    
+    // Event handler with optional parameters
+    event damage_taken(amount, ?source = "unknown") {
+        print("Took " + amount + " damage from " + source);
+    endevent
+    
+    // Verb to trigger test events
+    verb test_events() {
+        emit player_moved;
+        emit startup;
+        emit damage_taken;
+        return this.event_count;
+    endverb
+}
+
+// Create the object
+let test_obj = EventTest;
+print("Created object with event handlers");
+
+// Try emitting events
+emit player_moved;
+emit startup;
+emit damage_taken;
+
+// Call the test verb
+test_obj:test_events();

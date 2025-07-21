@@ -1,0 +1,120 @@
+// Advanced Echo Web UI Example - Interactive Dashboard
+// This demonstrates how to build interactive UIs with the event system
+
+// Clear and set up the UI
+ui_clear()
+ui_add_text("header", "🎮 Echo Interactive Dashboard", {fontSize: "24px", color: "#333", marginBottom: "20px"})
+
+// Create a tabbed interface
+ui_add_text("tabs", "", {display: "flex", gap: "10px", marginBottom: "20px"})
+ui_add_button("tab_stats", "Statistics", "show_stats_tab()")
+ui_add_button("tab_controls", "Controls", "show_controls_tab()")
+ui_add_button("tab_events", "Event Log", "show_events_tab()")
+
+// Content area
+ui_add_text("content_area", "", {border: "1px solid #ddd", padding: "20px", minHeight: "200px"})
+
+// Initialize state
+let current_tab = "stats"
+let event_log = []
+let stats = {
+    clicks: 0,
+    events_sent: 0,
+    ui_updates: 0
+}
+
+// Tab switching functions
+show_stats_tab = fn() {
+    current_tab = "stats"
+    stats.ui_updates = stats.ui_updates + 1
+    render_content()
+    emit("web:ui:tab_changed", "stats")
+}
+
+show_controls_tab = fn() {
+    current_tab = "controls"
+    stats.ui_updates = stats.ui_updates + 1
+    render_content()
+    emit("web:ui:tab_changed", "controls")
+}
+
+show_events_tab = fn() {
+    current_tab = "events"
+    stats.ui_updates = stats.ui_updates + 1
+    render_content()
+    emit("web:ui:tab_changed", "events")
+}
+
+// Content rendering function
+render_content = fn() {
+    // Clear content area by emitting a special event
+    emit("web:ui:clear_element", "content_area")
+    
+    if current_tab == "stats" {
+        ui_add_text("stat_title", "📊 Statistics", {fontSize: "18px", marginBottom: "10px"})
+        ui_add_text("stat_clicks", "Button Clicks: " + str(stats.clicks))
+        ui_add_text("stat_events", "Events Sent: " + str(stats.events_sent))
+        ui_add_text("stat_updates", "UI Updates: " + str(stats.ui_updates))
+    } else if current_tab == "controls" {
+        ui_add_text("control_title", "🎛️ Interactive Controls", {fontSize: "18px", marginBottom: "10px"})
+        ui_add_button("btn_alert", "Send Alert", "send_alert()")
+        ui_add_button("btn_random", "Random Number", "show_random()")
+        ui_add_button("btn_clear_log", "Clear Event Log", "clear_event_log()")
+        ui_add_text("control_output", "", {marginTop: "10px", id: "control_output"})
+    } else if current_tab == "events" {
+        ui_add_text("event_title", "📜 Event Log", {fontSize: "18px", marginBottom: "10px"})
+        if len(event_log) == 0 {
+            ui_add_text("no_events", "No events logged yet", {color: "#666"})
+        } else {
+            for (i = 0; i < len(event_log); i = i + 1) {
+                ui_add_text("event_" + str(i), event_log[i], {fontFamily: "monospace", fontSize: "12px"})
+            }
+        }
+    }
+}
+
+// Control functions
+send_alert = fn() {
+    stats.clicks = stats.clicks + 1
+    stats.events_sent = stats.events_sent + 1
+    let msg = "Alert from Echo at " + str(time())
+    emit("web:ui:alert", msg)
+    log_event("Alert sent: " + msg)
+}
+
+show_random = fn() {
+    stats.clicks = stats.clicks + 1
+    let num = random() * 100
+    ui_add_text("random_result", "Random number: " + str(num), {
+        background: "#e3f2fd",
+        padding: "10px",
+        marginTop: "10px"
+    })
+}
+
+clear_event_log = fn() {
+    stats.clicks = stats.clicks + 1
+    event_log = []
+    log_event("Event log cleared")
+    if current_tab == "events" {
+        render_content()
+    }
+}
+
+// Helper to log events
+log_event = fn(msg) {
+    event_log = event_log + [msg]
+    // Keep only last 10 events
+    if len(event_log) > 10 {
+        event_log = event_log[1:]
+    }
+}
+
+// Initialize the dashboard
+show_stats_tab()
+emit("web:ui:dashboard_loaded", {
+    tabs: ["stats", "controls", "events"],
+    initial_tab: current_tab
+})
+
+print("Advanced Web UI dashboard loaded! Try clicking the tabs and buttons.")

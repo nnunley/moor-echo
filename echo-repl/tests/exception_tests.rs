@@ -1,8 +1,14 @@
 use std::sync::Arc;
 use echo_repl::evaluator::{create_evaluator, Value};
-use echo_repl::parser::grammar::parse_echo;
+use echo_repl::parser::create_parser;
 use echo_repl::storage::Storage;
 use tempfile::tempdir;
+
+// Helper function to parse Echo code
+fn parse_echo(code: &str) -> anyhow::Result<echo_repl::ast::EchoAst> {
+    let mut parser = create_parser("echo")?;
+    parser.parse(code)
+}
 
 #[test]
 fn test_simple_throw_catch() {

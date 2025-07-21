@@ -1,5 +1,4 @@
-use echo_repl::parser::create_parser;
-use echo_repl::parser::Parser;
+use echo_repl::parser::{create_parser, Parser};
 
 fn main() {
     let program = "let mul = fn {x, y}

@@ -1,0 +1,290 @@
+// Dynamic UI Builder Example
+// This shows how Echo can create and manipulate UI elements dynamically
+
+// First, let's extend the UI building capabilities by adding more helper functions
+ui_add_input = fn(id, placeholder, onchange_action) {
+    // We can emit custom events to add input fields
+    emit("web:ui:add_element", {
+        type: "input",
+        id: id,
+        placeholder: placeholder,
+        onchange: onchange_action
+    })
+}
+
+ui_add_select = fn(id, options, onchange_action) {
+    emit("web:ui:add_element", {
+        type: "select",
+        id: id,
+        options: options,
+        onchange: onchange_action
+    })
+}
+
+ui_add_div = fn(id, content, style) {
+    emit("web:ui:add_element", {
+        type: "div",
+        id: id,
+        content: content,
+        style: style
+    })
+}
+
+ui_add_list = fn(id, items, style) {
+    emit("web:ui:add_element", {
+        type: "list",
+        id: id,
+        items: items,
+        style: style
+    })
+}
+
+// Clear and build a dynamic form
+ui_clear()
+ui_add_text("title", "🎨 Dynamic UI Builder Demo", {fontSize: "24px", marginBottom: "20px"})
+
+// Create a dynamic form builder
+ui_add_text("form_title", "Build Your Own Form:", {fontSize: "18px", marginBottom: "10px"})
+
+// Form state
+let form_fields = []
+let form_data = {}
+
+// Add field controls
+ui_add_button("add_text_field", "Add Text Field", "add_form_field(\"text\")")
+ui_add_button("add_number_field", "Add Number Field", "add_form_field(\"number\")")
+ui_add_button("add_checkbox", "Add Checkbox", "add_form_field(\"checkbox\")")
+ui_add_button("show_form_data", "Show Form Data", "display_form_data()")
+
+// Divider
+ui_add_text("divider1", "---", {margin: "20px 0", color: "#ccc"})
+
+// Form container
+ui_add_div("form_container", "", {
+    border: "1px solid #ddd",
+    padding: "20px",
+    borderRadius: "8px",
+    minHeight: "200px"
+})
+
+// Functions to build the form
+add_form_field = fn(field_type) {
+    let field_id = "field_" + str(len(form_fields))
+    let field = {
+        id: field_id,
+        type: field_type,
+        label: prompt("Enter label for " + field_type + " field:")
+    }
+    
+    if field.label == null || field.label == "" {
+        return
+    }
+    
+    form_fields = form_fields + [field]
+    render_form()
+}
+
+render_form = fn() {
+    // Clear form container
+    emit("web:ui:clear_element", "form_container")
+    
+    if len(form_fields) == 0 {
+        ui_add_text("empty_form", "No fields added yet. Click buttons above to add fields.", {
+            color: "#666",
+            fontStyle: "italic"
+        })
+        return
+    }
+    
+    // Render each field
+    for (i = 0; i < len(form_fields); i = i + 1) {
+        let field = form_fields[i]
+        
+        // Add label
+        ui_add_text(field.id + "_label", field.label + ":", {
+            marginBottom: "5px",
+            fontWeight: "bold"
+        })
+        
+        // Add appropriate input based on type
+        if field.type == "text" {
+            ui_add_input(field.id, "Enter " + field.label, "update_form_data(\"" + field.id + "\", value)")
+        } else if field.type == "number" {
+            ui_add_input(field.id + "_number", "0", "update_form_data(\"" + field.id + "\", value)")
+        } else if field.type == "checkbox" {
+            ui_add_button(field.id + "_checkbox", "☐ " + field.label, "toggle_checkbox(\"" + field.id + "\")")
+        }
+        
+        // Add spacing
+        ui_add_text(field.id + "_spacer", "", {height: "10px"})
+    }
+    
+    // Add submit button
+    ui_add_text("submit_spacer", "", {height: "20px"})
+    ui_add_button("submit_form", "Submit Form", "submit_form()")
+}
+
+// Update form data
+update_form_data = fn(field_id, value) {
+    form_data[field_id] = value
+    emit("web:ui:field_updated", {field: field_id, value: value})
+}
+
+// Toggle checkbox
+toggle_checkbox = fn(field_id) {
+    let current = form_data[field_id]
+    if current == true {
+        form_data[field_id] = false
+        emit("web:ui:update_element", {
+            id: field_id + "_checkbox",
+            text: "☐ " + get_field_label(field_id)
+        })
+    } else {
+        form_data[field_id] = true
+        emit("web:ui:update_element", {
+            id: field_id + "_checkbox",
+            text: "☑ " + get_field_label(field_id)
+        })
+    }
+}
+
+get_field_label = fn(field_id) {
+    for (i = 0; i < len(form_fields); i = i + 1) {
+        if form_fields[i].id == field_id {
+            return form_fields[i].label
+        }
+    }
+    return ""
+}
+
+// Display form data
+display_form_data = fn() {
+    ui_add_text("data_title", "Form Data:", {
+        fontSize: "16px",
+        marginTop: "20px",
+        fontWeight: "bold"
+    })
+    
+    if len(form_data) == 0 {
+        ui_add_text("no_data", "No data entered yet", {color: "#666"})
+    } else {
+        for field_id in form_data {
+            let value = form_data[field_id]
+            ui_add_text("data_" + field_id, field_id + ": " + str(value), {
+                fontFamily: "monospace",
+                background: "#f0f0f0",
+                padding: "5px",
+                marginTop: "5px"
+            })
+        }
+    }
+}
+
+// Submit form
+submit_form = fn() {
+    if len(form_data) == 0 {
+        emit("web:ui:show_message", "Please fill in some fields first!")
+        return
+    }
+    
+    // Emit form submission event
+    emit("web:form:submitted", form_data)
+    
+    // Show success message
+    ui_add_text("success", "✅ Form submitted successfully!", {
+        color: "#4caf50",
+        fontSize: "18px",
+        marginTop: "20px"
+    })
+    
+    // Clear form data
+    form_data = {}
+    
+    // You could also send this data to a server, save it to the database, etc.
+}
+
+// Example: Create a dynamic list that can be modified
+ui_add_text("list_section", "Dynamic List Example:", {
+    fontSize: "18px",
+    marginTop: "30px",
+    marginBottom: "10px"
+})
+
+let todo_items = []
+
+ui_add_button("add_todo", "Add Todo Item", "add_todo_item()")
+ui_add_div("todo_list", "", {
+    marginTop: "10px",
+    padding: "10px",
+    background: "#f9f9f9",
+    borderRadius: "4px"
+})
+
+add_todo_item = fn() {
+    let text = prompt("Enter todo item:")
+    if text != null && text != "" {
+        let item = {
+            id: str(time()),
+            text: text,
+            done: false
+        }
+        todo_items = todo_items + [item]
+        render_todos()
+    }
+}
+
+render_todos = fn() {
+    emit("web:ui:clear_element", "todo_list")
+    
+    if len(todo_items) == 0 {
+        ui_add_text("no_todos", "No todo items yet", {color: "#666"})
+        return
+    }
+    
+    for (i = 0; i < len(todo_items); i = i + 1) {
+        let item = todo_items[i]
+        let text = item.text
+        if item.done {
+            text = "✓ " + text
+        }
+        
+        ui_add_text("todo_" + item.id, text, {
+            textDecoration: item.done ? "line-through" : "none",
+            color: item.done ? "#666" : "#000",
+            marginBottom: "5px",
+            cursor: "pointer"
+        })
+        
+        ui_add_button("toggle_" + item.id, item.done ? "Undo" : "Done", 
+                     "toggle_todo(\"" + item.id + "\")")
+        ui_add_button("delete_" + item.id, "Delete", 
+                     "delete_todo(\"" + item.id + "\")")
+    }
+}
+
+toggle_todo = fn(id) {
+    for (i = 0; i < len(todo_items); i = i + 1) {
+        if todo_items[i].id == id {
+            todo_items[i].done = !todo_items[i].done
+            break
+        }
+    }
+    render_todos()
+}
+
+delete_todo = fn(id) {
+    let new_todos = []
+    for (i = 0; i < len(todo_items); i = i + 1) {
+        if todo_items[i].id != id {
+            new_todos = new_todos + [todo_items[i]]
+        }
+    }
+    todo_items = new_todos
+    render_todos()
+}
+
+// Initialize
+render_form()
+render_todos()
+
+print("Dynamic UI Builder loaded! Try adding form fields and todo items.")

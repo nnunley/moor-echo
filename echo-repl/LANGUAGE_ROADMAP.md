@@ -42,8 +42,17 @@
 ### 🔄 In Progress
 
 #### Advanced Language Features
+- **List Comprehensions**: MOO-style comprehensions `{expr for var in iterable}`
+- **Grammar Restructuring**: Aligning with MOO's CST structure
 - **Comprehensive Testing**: Expanding test coverage for edge cases
 - **Documentation**: Updating design documents with recent progress
+
+#### Grammar Improvements (Based on MOO Analysis)
+- **Statement/Expression Separation**: Restructuring AST for clearer parsing
+- **Unified Pattern System**: Consolidating parameter and binding patterns
+- **Precedence Table**: Implementing MOO's complete operator precedence
+- **Range Syntax**: Adding `[start..end]` for numeric ranges
+- **Error Recovery**: Graceful handling of parse errors
 
 ## Phase 1: Essential Language Features
 
@@ -117,6 +126,33 @@ let {counter1, counter2} = {
 - **First-Class Functions**: Functions as values, stored in variables and data structures
 - **Higher-Order Functions**: Functions that take or return other functions
 - **Implicit Returns**: Single expression lambdas return automatically
+
+### 🎯 List Comprehensions (To Implement)
+
+MOO supports list comprehensions using curly brace syntax, which provides a concise way to create lists:
+
+```javascript
+// Basic comprehension
+let doubles = {x * 2 for x in [1, 2, 3, 4, 5]};  // => [2, 4, 6, 8, 10]
+
+// Comprehension with range
+let squares = {x * x for x in [1..10]};  // => [1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
+
+// Nested comprehensions (when implemented with conditions)
+let pairs = {[x, y] for x in [1..3] for y in [1..3]};
+// => [[1,1], [1,2], [1,3], [2,1], [2,2], [2,3], [3,1], [3,2], [3,3]]
+
+// With string manipulation
+let names = ["alice", "bob", "charlie"];
+let greetings = {"Hello, " + name + "!" for name in names};
+// => ["Hello, alice!", "Hello, bob!", "Hello, charlie!"]
+```
+
+#### List Comprehension Features
+- **Expression Evaluation**: Any expression can be used as the output
+- **Iteration**: Support for lists, ranges, and other iterable objects
+- **MOO Syntax**: Uses `{}` instead of `[]` to distinguish from list literals
+- **Lazy Evaluation**: Potential for generator-style comprehensions in the future
 
 ### 🔧 Implementation Tasks
 
@@ -601,12 +637,303 @@ test("player interactions", async () => {
 - **Data Integrity**: Zero data loss during server restarts
 - **Error Recovery**: Graceful handling of all error conditions
 
+## MOO Compatibility Layer
+
+### Overview
+To support existing MOO databases like Cowbell/JHCore, Echo needs to implement a comprehensive compatibility layer that provides all the built-in functions, language features, and system behaviors expected by traditional MOO code.
+
+### Phase 1: Core MOO Built-in Functions
+
+#### Type System Functions
+- **`typeof(value)`** - Returns type constant (INT, FLOAT, STR, LIST, OBJ, ERR)
+- **`valid(object)`** - Checks if object reference is valid
+- **`toint(value)`** - Convert to integer
+- **`tofloat(value)`** - Convert to float  
+- **`tostr(value...)`** - Convert to string with concatenation
+- **`toobj(value)`** - Convert to object reference
+- **`tolitter(value)`** - Convert to literal representation
+
+#### Object System Functions
+- **`create(parent [, owner])`** - Create new object
+- **`parent(object)`** - Get object's parent
+- **`children(object)`** - Get list of object's children
+- **`chparent(object, new_parent)`** - Change object's parent
+- **`max_object()`** - Get highest valid object number
+- **`renumber(object)`** - Renumber an object
+- **`recycle(object)`** - Recycle an object
+- **`move(object, destination)`** - Move object to new location
+
+#### Property Functions  
+- **`properties(object)`** - List all properties on object
+- **`property_info(object, prop_name)`** - Get property details
+- **`add_property(object, prop_name, value, info)`** - Add new property
+- **`delete_property(object, prop_name)`** - Remove property
+- **`clear_property(object, prop_name)`** - Clear property value
+- **`is_clear_property(object, prop_name)`** - Check if property is clear
+
+#### Verb Functions
+- **`verbs(object)`** - List all verbs on object
+- **`verb_info(object, verb_name)`** - Get verb details  
+- **`verb_args(object, verb_name)`** - Get verb argument spec
+- **`verb_code(object, verb_name)`** - Get verb source code
+- **`add_verb(object, info, args)`** - Add new verb
+- **`delete_verb(object, verb_name)`** - Remove verb
+- **`set_verb_info(object, verb_name, info)`** - Update verb info
+- **`set_verb_args(object, verb_name, args)`** - Update verb args
+- **`set_verb_code(object, verb_name, code)`** - Update verb code
+
+#### Player Functions
+- **`players()`** - Get list of all player objects
+- **`is_player(object)`** - Check if object is a player
+- **`set_player_flag(object, value)`** - Set/clear player flag
+- **`connected_players()`** - Get list of connected players
+- **`connected_seconds(player)`** - Get connection duration
+- **`idle_seconds(player)`** - Get idle time
+- **`connection_name(player)`** - Get connection info
+- **`boot_player(player)`** - Disconnect a player
+- **`notify(player, message)`** - Send message to player
+- **`force_input(player, command)`** - Force player input
+
+#### String Functions
+- **`length(string)`** - Get string length
+- **`strsub(subject, what, with [, case])`** - String substitution
+- **`index(string, substring [, case])`** - Find substring
+- **`rindex(string, substring [, case])`** - Reverse find
+- **`strcmp(str1, str2)`** - Compare strings
+- **`decode_binary(string)`** - Decode binary string
+- **`encode_binary(string)`** - Encode as binary
+- **`match(string, pattern [, case])`** - Pattern matching
+- **`rmatch(string, pattern [, case])`** - Reverse pattern match
+- **`substitute(string, subs)`** - Template substitution
+
+#### List Functions
+- **`length(list)`** - Get list length
+- **`listappend(list, value [, index])`** - Add to list
+- **`listinsert(list, value [, index])`** - Insert in list
+- **`listdelete(list, index)`** - Remove from list
+- **`listset(list, index, value)`** - Update list element
+- **`setadd(list, value)`** - Add to set (unique)
+- **`setremove(list, value)`** - Remove from set
+
+#### Time Functions
+- **`time()`** - Get current time
+- **`ctime([time])`** - Convert time to string
+- **`localtime([time])`** - Get local time components
+- **`mktime(list)`** - Create time from components
+
+#### System Functions
+- **`server_version()`** - Get server version string
+- **`server_log(message)`** - Write to server log
+- **`shutdown([message])`** - Shutdown server
+- **`dump_database()`** - Force database checkpoint
+- **`db_disk_size()`** - Get database size
+- **`memory_usage()`** - Get memory statistics
+- **`queue_info([player])`** - Get task queue info
+- **`force_task(player, verb_call)`** - Force task execution
+
+#### Task Functions
+- **`task_id()`** - Get current task ID
+- **`suspend([seconds])`** - Suspend current task
+- **`resume(task_id [, value])`** - Resume suspended task
+- **`kill_task(task_id)`** - Kill a task
+- **`tasks()`** - List all tasks
+- **`task_stack(task_id)`** - Get task call stack
+- **`set_task_perms(player)`** - Change task permissions
+- **`caller_perms()`** - Get caller permissions
+
+#### Security Functions
+- **`caller()`** - Get calling object/player
+- **`callers()`** - Get full call stack
+- **`task_perms()`** - Get task permissions
+- **`set_task_local(value)`** - Set task-local storage
+- **`task_local()`** - Get task-local storage
+
+### Phase 2: MOO Language Syntax Extensions
+
+#### Verb Definition Syntax
+```moo
+@verb object:name this none this
+@verb object:name any with/using any
+```
+
+#### Preposition Support
+Built-in prepositions: with/using, at/to, in front of, in/inside/into, on top of/on/onto/upon, out of/from inside/from, over, through, under/underneath/beneath, behind, beside, for/about, is, as, off/off of
+
+#### Error Constants (Case-Insensitive)
+- `E_NONE`, `E_TYPE`, `E_DIV`, `E_PERM`, `E_PROPNF`
+- `E_VERBNF`, `E_VARNF`, `E_INVIND`, `E_RECMOVE`, `E_MAXREC`
+- `E_RANGE`, `E_ARGS`, `E_NACC`, `E_INVARG`, `E_QUOTA`, `E_FLOAT`
+
+#### Type Constants (Case-Insensitive)  
+- `INT`, `FLOAT`, `STR`, `LIST`, `OBJ`, `ERR`
+- `NUM` (alias for INT for compatibility)
+
+#### Special Variables in Verbs
+- `this` - The object on which the verb is defined
+- `caller` - The object that called this verb
+- `player` - The player who typed the command
+- `args` - List of all arguments
+- `argstr` - Unparsed argument string
+- `verb` - The name of this verb
+- `dobjstr` - Direct object string
+- `dobj` - Direct object
+- `prepstr` - Preposition string  
+- `iobjstr` - Indirect object string
+- `iobj` - Indirect object
+
+### Phase 3: System Integration
+
+#### Login and Connection Handling
+- **`$do_login_command()`** - Handle login commands
+- **`$user_connected(player)`** - Called when player connects
+- **`$user_disconnected(player)`** - Called when player disconnects
+- **`$user_created(player)`** - Called when new player created
+- **`$user_client_disconnected(player)`** - Called on client disconnect
+
+#### Command Processing
+- **`$server_started()`** - Called when server starts
+- **`$do_command(player, command)`** - Override command processing
+- **`$handle_uncaught_error(player, error)`** - Handle errors
+- **`$verb_not_found(player, verb)`** - Handle missing verbs
+
+#### Server Options ($server_options)
+- Connection timeouts
+- Task limits (ticks, seconds)
+- Resource limits (stack depth, etc.)
+- Security settings
+
+### Phase 4: Advanced Features
+
+#### Pattern Matching
+- MOO-style pattern matching with wildcards
+- `*` matches any text, `?` matches single word
+- Pattern templates for verb argument parsing
+
+#### Scattering Assignment
+```moo
+{first, second, @rest} = some_list;
+{?name = "Anonymous", ?age = 0} = player_data;
+```
+
+#### Try-Finally Blocks
+```moo
+try
+    risky_operation();
+finally  
+    cleanup();
+endtry
+```
+
+#### Fork and Task Management
+```moo
+fork (5)
+    player:tell("5 seconds have passed!");
+endfork
+
+fork task_id (0)
+    background_processing();
+endfork
+```
+
+### Implementation Priority
+
+1. **Critical** (Required for basic MOO operation):
+   - Type system functions (`typeof`, `valid`, type conversions)
+   - Basic object functions (`create`, `parent`, `children`)
+   - Property access functions
+   - String and list manipulation
+   - Player notification (`notify`, `tell`)
+
+2. **Important** (Common MOO patterns):
+   - Verb management functions
+   - Player functions (`players`, `is_player`)
+   - Time functions
+   - Error handling
+   - Task suspension
+
+3. **Advanced** (Full compatibility):
+   - Pattern matching
+   - Fork/task management
+   - Server administration
+   - Advanced security features
+
+### Testing Strategy
+- Port LambdaCore test suite
+- Test against Cowbell/JHCore database
+- Verify verb execution and inheritance
+- Test all built-in functions
+- Validate error handling
+
+## Grammar Restructuring Plan
+
+Based on MOO grammar analysis, Echo's rust-sitter grammar should be restructured to:
+
+### Phase 1: Core Structural Changes
+1. **Separate Statement and Expression Enums**
+   - Create distinct `Statement` and `Expression` types
+   - Add `ExpressionStatement` wrapper for expressions used as statements
+   - Improves error messages and parsing clarity
+
+2. **Implement Precedence Constants**
+   - Define MOO's precedence table as constants
+   - Apply consistently across all operators
+   - Fix current precedence inconsistencies
+
+3. **Unify Pattern System**
+   - Merge `ParamPattern` and `BindingPattern` into single `Pattern` type
+   - Use same pattern structure for all contexts (parameters, bindings, destructuring)
+   - Reduces code duplication and complexity
+
+### Phase 2: Syntax Alignment
+1. **Fix List Literal Syntax**
+   - Ensure `{}` is used consistently for lists (not `[]`)
+   - Aligns with MOO conventions
+
+2. **Add Range Syntax**
+   - Implement `[start..end]` for numeric ranges
+   - Essential for list comprehensions and iterations
+
+3. **List Comprehensions**
+   - Add `{expr for var in iterable}` syntax
+   - Frequently requested MOO feature
+
+### Phase 3: Missing Features
+1. **Control Flow Enhancements**
+   - Add `elseif` clauses to if statements
+   - Implement labeled loops for break/continue
+   - Add fork statements for async execution
+
+2. **Advanced Expressions**
+   - Try expressions with `! codes` syntax
+   - Pass expressions for parent verb calls
+   - Map literals with `[key -> value]` syntax
+
+3. **Operators**
+   - Bitwise operators (`|.`, `&.`, `^.`, `<<`, `>>`)
+   - `in` operator for membership testing
+   - Complete MOO operator set
+
+### Phase 4: Error Recovery
+1. **Error Recovery Nodes**
+   - Add graceful error recovery to grammar
+   - Continue parsing after errors
+   - Better error messages with context
+
+2. **Field Names**
+   - Add field names to all AST nodes
+   - Provides context in error messages
+   - Improves debugging experience
+
+See RUST_SITTER_PATTERNS.md for detailed implementation patterns and CST_ALIGNMENT_PLAN.md for the complete migration strategy.
+
 ## Next Steps
 
-1. **Implement Functions**: Function definitions and calls with proper scoping (HIGH PRIORITY)
-2. **Begin Multithreading**: Start with basic cooperative scheduling and yield points
-3. **Advanced Object Features**: Inheritance and enhanced OOP capabilities
-4. **Performance Testing**: Benchmark against other MOO implementations
-5. **Timely Dataflow**: Distributed processing integration
+1. **Implement Grammar Restructuring**: Start with Statement/Expression separation
+2. **Add Missing Operators**: Complete MOO operator compatibility
+3. **Implement MOO Built-ins**: Start with critical type and object functions
+4. **Add Verb System**: Implement verb storage, lookup, and execution
+5. **Login System**: Handle player connections and authentication  
+6. **Import Existing MOO**: Test with Cowbell/JHCore database
+7. **Performance Testing**: Benchmark against LambdaMOO
 
 This roadmap provides a clear path from the current state to a fully-featured, production-ready MOO programming language with unique cooperative multithreading and persistent continuation capabilities.

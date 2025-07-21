@@ -1,0 +1,62 @@
+[package]
+name = "echo-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Core Echo programming language implementation with parser, evaluator, and storage"
+
+[dependencies]
+# Workspace dependencies
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+
+# Storage and serialization
+sled.workspace = true
+rkyv.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+
+# Parser
+tree-sitter.workspace = true
+
+# Additional dependencies that were in original echo-repl
+bincode.workspace = true
+crossbeam-channel.workspace = true
+rust-sitter.workspace = true
+
+# Additional core dependencies
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+indexmap = { version = "2.0", features = ["serde"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+criterion.workspace = true
+
+[build-dependencies]
+rust-sitter-tool = "0.4"
+
+[features]
+default = []
+jit = []
+reflection = []
+
+# Benchmarks temporarily disabled during crate extraction
+# [[bench]]
+# name = "evaluator_benchmarks"
+# harness = false
+
+# [[bench]]
+# name = "parser_benchmarks" 
+# harness = false

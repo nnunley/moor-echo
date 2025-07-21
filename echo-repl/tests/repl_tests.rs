@@ -38,7 +38,10 @@ fn test_repl_execute_simple_expression() {
     
     // Test simple arithmetic
     let result = repl.execute("2 + 2");
-    assert_eq!(result, Ok("4".to_string()));
+    match result {
+        Ok((value, _duration)) => assert_eq!(value, "4"),
+        Err(e) => panic!("Execution failed: {:?}", e),
+    }
 }
 
 #[test]
@@ -49,7 +52,10 @@ fn test_repl_variable_binding() {
     // Test variable binding
     repl.execute("let x = 42;").unwrap();
     let result = repl.execute("x");
-    assert_eq!(result, Ok("42".to_string()));
+    match result {
+        Ok((value, _duration)) => assert_eq!(value, "42"),
+        Err(e) => panic!("Variable lookup failed: {:?}", e),
+    }
 }
 
 #[test]
@@ -66,7 +72,7 @@ fn test_repl_object_creation() {
     
     let result = repl.execute(code);
     match &result {
-        Ok(msg) => assert!(msg.contains("object created")),
+        Ok((msg, _duration)) => assert!(msg.contains("object created")),
         Err(e) => panic!("Object creation failed: {:?}", e),
     }
 }

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echo REPL - Web UI</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        #outputContainer {
+            height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .output-line {
+            padding: 2px 0;
+            white-space: pre-wrap;
+        }
+        .output-line.error {
+            color: #dc3545;
+        }
+        .output-line.result {
+            color: #28a745;
+        }
+        .output-line.output {
+            color: #333;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        #commandInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            font-weight: 600;
+            background: #f8f9fa;
+        }
+        .table-container {
+            height: 250px;
+            overflow-y: auto;
+        }
+        #dynamicContent {
+            min-height: 150px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .dynamic-button {
+            margin: 5px;
+            padding: 8px 16px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .dynamic-button:hover {
+            background: #138496;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="title">Echo REPL v0.1.0</div>
+            <div id="connectionStatus" class="status disconnected">Disconnected</div>
+        </div>
+        
+        <!-- Output Display -->
+        <div class="card">
+            <div class="card-title">REPL Output</div>
+            <div id="outputContainer"></div>
+        </div>
+        
+        <!-- Command Input -->
+        <div class="card">
+            <div class="card-title">Command Input</div>
+            <div class="input-group">
+                <input type="text" id="commandInput" placeholder="Enter command or Echo code..." />
+                <button class="btn-primary" onclick="sendCommand()">Send</button>
+                <button class="btn-secondary" onclick="clearOutput()">Clear</button>
+            </div>
+            <div class="help-text">Use '.' prefix for REPL commands (e.g., .help, .env, .quit)</div>
+        </div>
+        
+        <!-- State Display -->
+        <div class="grid">
+            <!-- Environment Variables -->
+            <div class="card">
+                <div class="card-title">Environment Variables</div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Value</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="envTableBody">
+                            <tr><td colspan="3" style="text-align: center; color: #666;">No variables</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Objects -->
+            <div class="card">
+                <div class="card-title">Objects</div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Properties</th>
+                            </tr>
+                        </thead>
+                        <tbody id="objectTableBody">
+                            <tr><td colspan="3" style="text-align: center; color: #666;">No objects</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dynamic UI Area -->
+        <div class="card">
+            <div class="card-title">Dynamic UI</div>
+            <div id="dynamicContent">
+                <p style="color: #666;">This area can be modified from within the REPL using UI commands.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let ws = null;
+        let commandHistory = [];
+        let historyIndex = -1;
+        
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => {
+                updateConnectionStatus('Connected', 'connected');
+                addOutputLine('Connected to Echo REPL', 'output');
+                refreshState();
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                }
+            };
+            
+            ws.onclose = () => {
+                updateConnectionStatus('Disconnected', 'disconnected');
+                addOutputLine('Disconnected from Echo REPL', 'error');
+                // Attempt to reconnect after 3 seconds
+                setTimeout(initWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('Error', 'disconnected');
+            };
+        }
+        
+        function updateConnectionStatus(text, className) {
+            const status = document.getElementById('connectionStatus');
+            status.textContent = text;
+            status.className = `status ${className}`;
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'Output':
+                    addOutputLine(data.data.content, 'output');
+                    break;
+                case 'Error':
+                    addOutputLine(data.data.content, 'error');
+                    break;
+                case 'Result':
+                    addOutputLine(data.data.output, 'result');
+                    if (data.data.duration_ms > 0) {
+                        addOutputLine(`(${data.data.duration_ms}ms)`, 'output');
+                    }
+                    break;
+                case 'StateUpdate':
+                    updateState(data.data.snapshot);
+                    break;
+                case 'UiUpdate':
+                    updateDynamicUI(data.data.update);
+                    break;
+            }
+        }
+        
+        function addOutputLine(content, className) {
+            const outputContainer = document.getElementById('outputContainer');
+            const line = document.createElement('div');
+            line.className = `output-line ${className}`;
+            line.textContent = content;
+            outputContainer.appendChild(line);
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+        
+        function sendCommand() {
+            const input = document.getElementById('commandInput');
+            const command = input.value.trim();
+            
+            if (!command) return;
+            
+            // Add to history
+            commandHistory.push(command);
+            historyIndex = commandHistory.length;
+            
+            // Display the command in output
+            addOutputLine(`>> ${command}`, 'output');
+            
+            // Send to server
+            fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success && data.message) {
+                    addOutputLine(data.message, 'error');
+                }
+            })
+            .catch(err => {
+                addOutputLine(`Failed to send command: ${err}`, 'error');
+            });
+            
+            input.value = '';
+        }
+        
+        function clearOutput() {
+            const outputContainer = document.getElementById('outputContainer');
+            outputContainer.innerHTML = '';
+        }
+        
+        function refreshState() {
+            fetch('/api/state')
+                .then(res => res.json())
+                .then(data => updateState(data))
+                .catch(err => console.error('Failed to fetch state:', err));
+        }
+        
+        function updateState(snapshot) {
+            // Update environment table
+            const envTableBody = document.getElementById('envTableBody');
+            if (snapshot.environment && snapshot.environment.length > 0) {
+                envTableBody.innerHTML = '';
+                snapshot.environment.forEach(env => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${env.name}</td>
+                        <td>${env.value}</td>
+                        <td>${env.var_type}</td>
+                    `;
+                    envTableBody.appendChild(row);
+                });
+            } else {
+                envTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">No variables</td></tr>';
+            }
+            
+            // Update objects table
+            const objectTableBody = document.getElementById('objectTableBody');
+            if (snapshot.objects && snapshot.objects.length > 0) {
+                objectTableBody.innerHTML = '';
+                snapshot.objects.forEach(obj => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${obj.id}</td>
+                        <td>${obj.name}</td>
+                        <td>${obj.properties.join(', ')}</td>
+                    `;
+                    objectTableBody.appendChild(row);
+                });
+            } else {
+                objectTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #666;">No objects</td></tr>';
+            }
+        }
+        
+        function updateDynamicUI(update) {
+            const dynamicContent = document.getElementById('dynamicContent');
+            
+            switch(update.action) {
+                case 'clear':
+                    dynamicContent.innerHTML = '';
+                    break;
+                case 'add_button':
+                    const button = document.createElement('button');
+                    button.className = 'dynamic-button';
+                    button.textContent = update.data.label;
+                    button.onclick = () => {
+                        // Send command to execute the button's action
+                        fetch('/api/command', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ command: update.data.action })
+                        });
+                    };
+                    dynamicContent.appendChild(button);
+                    break;
+                case 'add_text':
+                    const text = document.createElement('p');
+                    text.textContent = update.data.text;
+                    if (update.data.style) {
+                        Object.assign(text.style, update.data.style);
+                    }
+                    dynamicContent.appendChild(text);
+                    break;
+                case 'add_div':
+                    const div = document.createElement('div');
+                    div.innerHTML = update.data.content;
+                    if (update.data.style) {
+                        Object.assign(div.style, update.data.style);
+                    }
+                    dynamicContent.appendChild(div);
+                    break;
+                case 'update':
+                    // Find element by target ID and update its properties
+                    const targetElement = document.getElementById(update.target);
+                    if (targetElement) {
+                        if (update.data.text) {
+                            targetElement.textContent = update.data.text;
+                        }
+                        if (update.data.content) {
+                            targetElement.innerHTML = update.data.content;
+                        }
+                        if (update.data.style) {
+                            Object.assign(targetElement.style, update.data.style);
+                        }
+                    }
+                    break;
+            }
+        }
+        
+        // Handle keyboard shortcuts
+        document.getElementById('commandInput').addEventListener('keydown', (event) => {
+            const input = event.target;
+            
+            if (event.key === 'Enter') {
+                sendCommand();
+            } else if (event.key === 'ArrowUp') {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = commandHistory[historyIndex];
+                }
+                event.preventDefault();
+            } else if (event.key === 'ArrowDown') {
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    input.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    input.value = '';
+                }
+                event.preventDefault();
+            }
+        });
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initWebSocket();
+            document.getElementById('commandInput').focus();
+        });
+    </script>
+</body>
+</html>

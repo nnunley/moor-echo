@@ -1,6 +1,6 @@
-use crate::evaluator::meta_object::MetaObject;
-use crate::storage::object_store::ObjectId;
-use crate::storage::EchoObject;
+use echo_repl::evaluator::meta_object::MetaObject;
+use echo_repl::storage::object_store::ObjectId;
+use echo_repl::storage::EchoObject;
 use std::collections::HashMap;
 
 #[cfg(test)]

@@ -29,6 +29,11 @@ impl Storage {
             indices,
         })
     }
+    
+    /// Get estimated size of the database in bytes
+    pub fn estimated_size(&self) -> Result<u64> {
+        self.objects.estimated_size()
+    }
 }
 
 /// Initialize the storage subsystem

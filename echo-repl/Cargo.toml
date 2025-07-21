@@ -23,6 +23,12 @@ dashmap = "5.5"
 crossbeam-channel = "0.5"
 parking_lot = "0.12"
 
+# Web UI dependencies (optional)
+axum = { version = "0.7", features = ["ws"], optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["fs"], optional = true }
+futures = { version = "0.3", optional = true }
+
 # Platform-specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
@@ -58,7 +64,5 @@ interpreter = []
 jit = ["cranelift", "cranelift-jit", "cranelift-module", "cranelift-native"]
 wasm-jit = ["wasmtime", "wasmtime-wasi", "wasm-encoder"]
 distributed = ["raft", "tonic", "prost"]
+web-ui = ["axum", "tower", "tower-http", "futures"]
 
-[[bin]]
-name = "test_property_access"
-path = "test_property_access.rs"
