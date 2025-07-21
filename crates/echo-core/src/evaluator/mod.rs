@@ -8,7 +8,7 @@ use dashmap::DashMap;
 
 use crate::ast::{EchoAst, ObjectMember, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam};
 use crate::storage::{Storage, ObjectId, EchoObject, PropertyValue};
-use crate::ui_callback::{UiEventCallback, UiEvent, UiAction, convert_ui_event};
+use crate::ui_callback::{UiEventCallback, UiEvent, UiAction};
 // TODO: Re-enable when VerbDef is added back to grammar
 // use crate::storage::object_store::{VerbDefinition, VerbPermissions, VerbSignature};
 

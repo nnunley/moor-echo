@@ -81,3 +81,7 @@ server.pid
 # Temporary test files
 test_parser.rs
 Cargo.toml.test
+
+# Old directory structure
+echo-repl/
+test_suites/

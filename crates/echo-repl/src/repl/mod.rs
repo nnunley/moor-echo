@@ -9,7 +9,7 @@
 //! - Output formatting and notifications
 
 use anyhow::Result;
-use echo_core::{EchoRuntime, Value, Parser, EchoError};
+use echo_core::{EchoRuntime, Value, Parser};
 use std::time::Instant;
 
 pub mod notifier;

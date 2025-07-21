@@ -46,6 +46,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Echo language features supported by this build
 pub fn features() -> Vec<&'static str> {
+    #[allow(unused_mut)]
     let mut features = vec!["core"];
     
     #[cfg(feature = "jit")]

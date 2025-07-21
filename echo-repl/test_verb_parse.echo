@@ -1,5 +1,0 @@
-object greeter
-    verb greet {name}
-        return "Hello, " + name + "!";
-    endverb
-endobject

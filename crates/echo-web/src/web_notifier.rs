@@ -23,6 +23,8 @@ pub enum WebEvent {
     StateUpdate { snapshot: StateSnapshot },
     /// Dynamic UI update from REPL
     UiUpdate { update: UiUpdate },
+    /// Chat message from a player
+    ChatMessage { player: String, message: String },
 }
 
 /// Snapshot of current REPL state
@@ -97,7 +99,7 @@ impl WebNotifier {
     }
 
     /// Send buffered events to a new receiver
-    pub fn send_buffered_events(&self, receiver: &broadcast::Receiver<WebEvent>) -> Vec<WebEvent> {
+    pub fn send_buffered_events(&self, _receiver: &broadcast::Receiver<WebEvent>) -> Vec<WebEvent> {
         let buffer = self.buffer.lock().unwrap();
         buffer.iter().cloned().collect()
     }
@@ -146,6 +148,14 @@ impl WebNotifier {
         self.send_event(WebEvent::Result {
             output: output.to_string(),
             duration_ms: duration.as_millis() as u64,
+        });
+    }
+
+    /// Send a chat message
+    pub fn send_chat_message(&self, player: &str, message: &str) {
+        self.send_event(WebEvent::ChatMessage {
+            player: player.to_string(),
+            message: message.to_string(),
         });
     }
 }

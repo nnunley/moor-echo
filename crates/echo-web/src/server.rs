@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use echo_core::{EchoRuntime, Value, evaluator::Value as EvaluatorValue};
+use echo_core::{EchoRuntime, Value};
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,7 +26,7 @@ use tower_http::{
     services::ServeDir,
 };
 
-use crate::web_notifier::{WebNotifier as WebReplNotifier, WebEvent as WebReplEvent};
+use crate::web_notifier::WebNotifier as WebReplNotifier;
 
 /// Web server configuration
 #[derive(Debug, Clone)]
@@ -94,6 +94,7 @@ pub struct CommandResponse {
 #[derive(Deserialize)]
 pub struct StateQuery {
     /// Optional filter for specific state components
+    #[allow(dead_code)]
     filter: Option<String>,
 }
 
@@ -362,7 +363,7 @@ async fn command_handler(
         match parts.as_slice() {
             [".help"] => CommandResponse {
                 success: true,
-                message: Some("Available commands:\n.help - Show this help\n.env - Show environment variables\n.player list - List players\n.player create <name> - Create player\n.player switch <name> - Switch player\n.player - Show current player\n.quit - Not applicable in web mode".to_string()),
+                message: Some("Available commands:\n.help - Show this help\n.env - Show environment variables\n.player list - List players\n.player create <name> - Create player\n.player switch <name> - Switch player\n.player - Show current player\n.say <message> - Send chat message to all players\n.quit - Not applicable in web mode".to_string()),
             },
             [".env"] => {
                 // Show environment variables - would need access to evaluator's environment

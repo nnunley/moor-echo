@@ -152,8 +152,8 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
     let mut file_line_iter = file_lines.as_ref().map(|lines| lines.iter());
     let mut in_eval_mode = false;
     let mut eval_buffer = String::new();
-    let mut command_history: Vec<String> = Vec::new();
-    let mut history_index = 0;
+    let _command_history: Vec<String> = Vec::new();
+    let _history_index = 0;
     
     while repl.is_running() {
         let prompt = if in_eval_mode { 

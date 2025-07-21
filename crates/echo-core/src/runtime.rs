@@ -7,11 +7,11 @@ use anyhow::Result;
 use std::sync::Arc;
 
 use crate::{
-    EchoConfig, EchoError,
+    EchoConfig,
     evaluator::{Evaluator, Value},
     parser::{Parser, create_parser},
     storage::{Storage, ObjectId},
-    ui_callback::{UiEventCallback, UiEvent, UiAction, convert_ui_event},
+    ui_callback::UiEventCallback,
 };
 
 /// High-level Echo runtime that combines parser, evaluator, and storage
@@ -162,7 +162,7 @@ impl EchoRuntime {
     
     /// Check for UI events and forward them to the callback
     fn check_ui_events(&mut self) {
-        if let Some(ref callback) = self.ui_callback {
+        if let Some(ref _callback) = self.ui_callback {
             // This is a simplified approach - in a real implementation,
             // we'd need to properly integrate with the event system
             // For now, we'll simulate UI events for testing
