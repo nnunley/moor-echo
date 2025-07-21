@@ -1,0 +1,48 @@
+// Example Echo code demonstrating web UI event bindings
+// Load this file with: .load web_ui_example.echo
+
+// Clear the dynamic UI area
+ui_clear()
+
+// Add a title
+ui_add_text("title", "Echo Web UI Event Demo", {color: "blue", fontSize: "20px"})
+
+// Add some buttons that emit events
+ui_add_button("btn_hello", "Say Hello", "emit(\"web:ui:hello\", \"World\")")
+ui_add_button("btn_time", "Show Time", "emit(\"web:ui:show_time\")")
+ui_add_button("btn_counter", "Increment Counter", "increment_counter()")
+
+// Add a divider
+ui_add_text("divider", "---", {color: "#ccc"})
+
+// Initialize a counter
+let counter = 0
+
+// Function to increment counter and update UI
+increment_counter = fn() {
+    counter = counter + 1
+    emit("web:ui:counter_update", counter)
+}
+
+// Emit an initial event to show how events work
+emit("web:ui:show_message", "UI initialized! Click the buttons to see events in action.")
+
+// You can also create event handlers in Echo that respond to events
+// (This would require implementing on_event() built-in function)
+
+// Example of creating dynamic UI based on data
+let items = ["Apple", "Banana", "Cherry"]
+ui_add_text("list_title", "Fruit List:", {fontWeight: "bold"})
+for (i = 0; i < len(items); i = i + 1) {
+    ui_add_text("item_" + str(i), "• " + items[i])
+}
+
+// Demonstrate that events can carry complex data
+let user_data = {
+    name: "Echo User",
+    level: 42,
+    skills: ["Programming", "Debugging", "Testing"]
+}
+emit("web:ui:user_data", user_data)
+
+print("Web UI example loaded! Check the Dynamic UI area in your browser.")

@@ -1,0 +1,24 @@
+// Simple UI Demo that works with current implementation
+// This demonstrates the working XMLUI features
+
+// Clear the dynamic UI area
+ui_clear()
+
+// Add a title
+ui_add_text("title", "Echo REPL UI Demo")
+
+// Add some interactive buttons
+ui_add_button("btn1", "Say Hello", "print('Hello from Echo!')")
+ui_add_button("btn2", "Clear UI", "ui_clear()")
+
+// Add some text
+ui_add_text("info", "Click the buttons to interact!")
+
+// Test variable assignment and display
+let x = 42
+ui_add_text("var_display", "The value of x is: " + str(x))
+
+// Add another button that shows the value
+ui_add_button("show_x", "Show X Value", "print('X = ' + str(x))")
+
+print("Simple UI demo loaded! Check the Dynamic UI section.")

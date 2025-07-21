@@ -34,8 +34,9 @@ dist/
 zig-cache/
 zig-out/
 
-# Example dirs
+# Example dirs (but allow echo examples)
 /examples/*/
+!/examples/echo/
 
 # Grammar volatiles
 *.wasm
@@ -63,3 +64,20 @@ benchmark-results.txt
 
 # Pre-commit
 .pre-commit-config.yaml.backup
+
+# Echo REPL databases
+echo-db/
+echo-web-db/
+**/echo-db/
+**/echo-web-db/
+test-*-db/
+
+# Server files
+server.log
+server.pid
+*.log
+*.pid
+
+# Temporary test files
+test_parser.rs
+Cargo.toml.test

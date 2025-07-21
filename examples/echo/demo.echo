@@ -1,0 +1,23 @@
+# Echo REPL Demo Script
+
+# Basic arithmetic
+2 + 2
+
+# Variable binding
+let x = 42;
+x
+
+# Object creation
+object my_room
+    property name = "Living Room";
+endobject
+
+# Player management
+.player create alice
+.player create bob
+.player list
+.player switch alice
+let alice_var = 100;
+.player switch bob
+let bob_var = 200;
+.player
