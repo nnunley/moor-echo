@@ -1,0 +1,79 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+target/
+Cargo.lock
+node_modules/
+dist/
+build/
+
+# Test artifacts
+coverage/
+tarpaulin-report.html
+cobertura.xml
+*.lcov
+
+# Documentation
+docs/build/
+*.pdf
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.pytest_cache/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Local configuration
+*.local.toml
+*.local.yaml
+*.local.yml

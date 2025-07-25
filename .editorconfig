@@ -5,35 +5,94 @@ charset = utf-8
 end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
+max_line_length = 100
 
-[*.{json,toml,yml,gyp}]
-indent_style = space
-indent_size = 2
-
-[*.js]
-indent_style = space
-indent_size = 2
-
+# Rust
 [*.rs]
 indent_style = space
 indent_size = 4
+max_line_length = 100
 
-[*.{c,cc,h}]
+# JavaScript/TypeScript
+[*.{js,jsx,ts,tsx,mjs,cjs}]
 indent_style = space
-indent_size = 4
+indent_size = 2
+quote_type = single
 
+# Web
+[*.{html,css,scss,sass,less}]
+indent_style = space
+indent_size = 2
+
+# Data/Config
+[*.{json,jsonc}]
+indent_style = space
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.toml]
+indent_style = space
+indent_size = 2
+
+[*.xml]
+indent_style = space
+indent_size = 2
+
+# Python
 [*.{py,pyi}]
 indent_style = space
 indent_size = 4
+max_line_length = 88
 
-[*.swift]
+# C/C++
+[*.{c,cc,cpp,h,hpp}]
 indent_style = space
 indent_size = 4
 
+# Shell
+[*.{sh,bash,zsh}]
+indent_style = space
+indent_size = 2
+
+# Go
 [*.go]
 indent_style = tab
 indent_size = 8
 
-[Makefile]
+# Makefiles
+[{Makefile,*.mk}]
 indent_style = tab
 indent_size = 8
+
+# Markdown
+[*.{md,mdx}]
+trim_trailing_whitespace = false
+max_line_length = 80
+
+# Git
+[{.gitignore,.gitattributes}]
+indent_style = space
+indent_size = 2
+
+# Docker
+[{Dockerfile,*.dockerfile}]
+indent_style = space
+indent_size = 4
+
+# GitHub Actions
+[.github/workflows/*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Special files
+[*.{txt,log}]
+insert_final_newline = false
+trim_trailing_whitespace = false
+
+# Tree-sitter corpus files
+[test/corpus/*.txt]
+trim_trailing_whitespace = false
+insert_final_newline = false

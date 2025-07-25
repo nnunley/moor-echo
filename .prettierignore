@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+target/
+dist/
+build/
+*.wasm
+
+# Generated files
+src/parser.c
+src/node-types.json
+src/grammar.json
+
+# Test data
+test/corpus/**/*.txt
+**/*.snap
+
+# Version control
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Cargo
+Cargo.lock
+
+# Coverage
+coverage/
+*.lcov
+tarpaulin-report.html
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Binary files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archive files
+*.tar
+*.tar.gz
+*.zip
