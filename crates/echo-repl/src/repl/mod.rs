@@ -1,24 +1,25 @@
 //! REPL (Read-Eval-Print Loop) functionality for Echo
-//! 
+//!
 //! This module provides interactive command-line interface components that wrap
 //! the core Echo runtime with user-friendly features like:
 //! - Command history and editing
-//! - Multi-line input collection  
+//! - Multi-line input collection
 //! - REPL commands (.help, .quit, etc.)
 //! - Player management
 //! - Output formatting and notifications
 
-use anyhow::Result;
-use echo_core::{EchoRuntime, Value, Parser};
 use std::time::Instant;
 
-pub mod notifier;
+use anyhow::Result;
+use echo_core::{EchoRuntime, Parser, Value};
+
 pub mod commands;
 pub mod multiline;
+pub mod notifier;
 
-pub use notifier::{ReplNotifier, DefaultNotifier};
 pub use commands::ReplCommand;
-pub use multiline::{MultiLineCollector, LineProcessResult};
+pub use multiline::{LineProcessResult, MultiLineCollector};
+pub use notifier::{DefaultNotifier, ReplNotifier};
 
 /// Interactive REPL for the Echo programming language
 pub struct Repl {
@@ -45,11 +46,11 @@ impl Repl {
             debug: false,
         })
     }
-    
+
     /// Create a new REPL with a specific storage path (for testing)
     pub fn with_storage_path<P: Into<std::path::PathBuf>>(path: P) -> Result<Self> {
         use echo_core::{EchoConfig, EchoRuntime};
-        
+
         let config = EchoConfig {
             storage_path: path.into(),
             ..Default::default()
@@ -112,57 +113,53 @@ impl Repl {
             }
             ReplCommand::Quiet => {
                 self.quiet = !self.quiet;
-                Ok(format!("Quiet mode: {}", if self.quiet { "on" } else { "off" }))
+                Ok(format!(
+                    "Quiet mode: {}",
+                    if self.quiet { "on" } else { "off" }
+                ))
             }
             ReplCommand::Debug => {
                 self.debug = !self.debug;
-                Ok(format!("Debug mode: {}", if self.debug { "on" } else { "off" }))
+                Ok(format!(
+                    "Debug mode: {}",
+                    if self.debug { "on" } else { "off" }
+                ))
             }
-            ReplCommand::CreatePlayer(name) => {
-                self.create_player(&name)
-            }
-            ReplCommand::SwitchPlayer(name) => {
-                self.switch_player(&name)
-            }
-            ReplCommand::ListPlayers => {
-                self.list_players()
-            }
-            ReplCommand::Stats => {
-                self.show_stats()
-            }
+            ReplCommand::CreatePlayer(name) => self.create_player(&name),
+            ReplCommand::SwitchPlayer(name) => self.switch_player(&name),
+            ReplCommand::ListPlayers => self.list_players(),
+            ReplCommand::Stats => self.show_stats(),
         }
     }
 
     /// Execute Echo code and return the result with timing
     pub fn execute(&mut self, code: &str) -> Result<(String, u64)> {
         let start = Instant::now();
-        
+
         match self.runtime.eval_source(code) {
             Ok(value) => {
                 let duration = start.elapsed().as_millis() as u64;
                 let output = self.format_value(&value);
                 Ok((output, duration))
             }
-            Err(e) => Err(e.into())
+            Err(e) => Err(e.into()),
         }
     }
 
     /// Execute Echo program (multi-statement) and return the result with timing
     pub fn execute_program(&mut self, code: &str) -> Result<(String, u64)> {
         let start = Instant::now();
-        
+
         match self.runtime.parse_program(code) {
-            Ok(ast) => {
-                match self.runtime.eval(&ast) {
-                    Ok(value) => {
-                        let duration = start.elapsed().as_millis() as u64;
-                        let output = self.format_value(&value);
-                        Ok((output, duration))
-                    }
-                    Err(e) => Err(e.into())
+            Ok(ast) => match self.runtime.eval(&ast) {
+                Ok(value) => {
+                    let duration = start.elapsed().as_millis() as u64;
+                    let output = self.format_value(&value);
+                    Ok((output, duration))
                 }
-            }
-            Err(e) => Err(e.into())
+                Err(e) => Err(e.into()),
+            },
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -180,7 +177,8 @@ impl Repl {
             }
             Value::Object(id) => format!("#{}", id),
             Value::Map(map) => {
-                let formatted: Vec<String> = map.iter()
+                let formatted: Vec<String> = map
+                    .iter()
                     .map(|(k, v)| format!("{}: {}", k, self.format_value(v)))
                     .collect();
                 format!("{{{}}}", formatted.join(", "))
@@ -215,7 +213,8 @@ Echo Language Features:
   - Objects: object #123 property name = "test" endobject
   - Events: emit event_name({data})
 
-Type 'help' for language help, or visit the documentation."#.to_string()
+Type 'help' for language help, or visit the documentation."#
+            .to_string()
     }
 
     /// Create a new player
@@ -225,10 +224,14 @@ Type 'help' for language help, or visit the documentation."#.to_string()
             Ok(player_id) => {
                 // Auto-switch to the newly created player
                 if let Err(e) = self.runtime.switch_player(player_id) {
-                    return Err(anyhow::anyhow!("Created player '{}' but failed to switch: {}", name, e));
+                    return Err(anyhow::anyhow!(
+                        "Created player '{}' but failed to switch: {}",
+                        name,
+                        e
+                    ));
                 }
                 Ok(format!("Created and switched to player '{}'", name))
-            },
+            }
             Err(e) => {
                 if e.to_string().contains("already exists") {
                     Err(anyhow::anyhow!("Player '{}' already exists", name))
@@ -243,7 +246,7 @@ Type 'help' for language help, or visit the documentation."#.to_string()
     fn switch_player(&mut self, name: &str) -> Result<String> {
         match self.runtime.switch_player_by_name(name) {
             Ok(_) => Ok(format!("Switched to player '{}'", name)),
-            Err(e) => Err(e.into())
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -254,14 +257,15 @@ Type 'help' for language help, or visit the documentation."#.to_string()
                 if players.is_empty() {
                     Ok("No players found.".to_string())
                 } else {
-                    let player_list = players.iter()
+                    let player_list = players
+                        .iter()
                         .map(|(name, id)| format!("  {} (#{:x})", name, id.0))
                         .collect::<Vec<_>>()
                         .join("\n");
                     Ok(format!("Players:\n{}", player_list))
                 }
             }
-            Err(e) => Err(e.into())
+            Err(e) => Err(e.into()),
         }
     }
 

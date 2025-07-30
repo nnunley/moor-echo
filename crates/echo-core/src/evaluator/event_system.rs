@@ -1,11 +1,13 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use parking_lot::RwLock;
-use anyhow::Result;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::ast::EchoAst;
-use crate::evaluator::{Evaluator, Value};
-use crate::storage::ObjectId;
+use anyhow::Result;
+use parking_lot::RwLock;
+
+use crate::{
+    ast::EchoAst,
+    evaluator::{Evaluator, Value},
+    storage::ObjectId,
+};
 
 /// Represents a registered event handler
 #[derive(Debug, Clone)]
@@ -110,7 +112,7 @@ impl EventSystem {
             .entry(event_name.clone())
             .or_insert_with(Vec::new)
             .push(handler);
-        
+
         // Sort by priority (descending)
         if let Some(handler_list) = handlers.get_mut(&event_name) {
             handler_list.sort_by(|a, b| b.priority.cmp(&a.priority));
@@ -139,33 +141,29 @@ impl EventSystem {
     }
 
     /// Emit an event and execute all matching handlers
-    pub fn emit(
-        &self,
-        evaluator: &mut Evaluator,
-        event: Event,
-    ) -> Result<EventResult> {
+    pub fn emit(&self, evaluator: &mut Evaluator, event: Event) -> Result<EventResult> {
         let handlers = self.handlers.read();
         let global_handlers = self.global_handlers.read();
-        
+
         // Collect all matching handlers
         let mut all_handlers = Vec::new();
-        
+
         // Add specific handlers for this event
         if let Some(specific_handlers) = handlers.get(&event.name) {
             all_handlers.extend(specific_handlers.iter());
         }
-        
+
         // Add wildcard handlers
         if let Some(wildcard_handlers) = handlers.get("*") {
             all_handlers.extend(wildcard_handlers.iter());
         }
-        
+
         // Add global handlers
         all_handlers.extend(global_handlers.iter());
-        
+
         // Sort by priority again (in case we mixed different lists)
         all_handlers.sort_by(|a, b| b.priority.cmp(&a.priority));
-        
+
         // Execute handlers
         let mut handled = false;
         for handler in all_handlers {
@@ -175,11 +173,15 @@ impl EventSystem {
                 EventResult::Unhandled => {}
             }
         }
-        
+
         // Notify subscriptions
         self.notify_subscriptions(&event)?;
-        
-        Ok(if handled { EventResult::Handled } else { EventResult::Unhandled })
+
+        Ok(if handled {
+            EventResult::Handled
+        } else {
+            EventResult::Unhandled
+        })
     }
 
     /// Execute a single event handler
@@ -191,21 +193,29 @@ impl EventSystem {
     ) -> Result<EventResult> {
         // Create a new environment for the handler
         let handler_env = evaluator.create_handler_environment(handler.owner);
-        
+
         // Bind event arguments to parameters
         for (i, param_name) in handler.params.iter().enumerate() {
             let value = event.args.get(i).cloned().unwrap_or(Value::Null);
             evaluator.set_variable_in_env(&handler_env, param_name, value)?;
         }
-        
+
         // Bind special event variables
-        evaluator.set_variable_in_env(&handler_env, "$event_name", Value::String(event.name.clone()))?;
-        evaluator.set_variable_in_env(&handler_env, "$event_emitter", Value::Object(event.emitter))?;
-        
+        evaluator.set_variable_in_env(
+            &handler_env,
+            "$event_name",
+            Value::String(event.name.clone()),
+        )?;
+        evaluator.set_variable_in_env(
+            &handler_env,
+            "$event_emitter",
+            Value::Object(event.emitter),
+        )?;
+
         // Execute handler body
         let prev_env = evaluator.push_environment(handler_env);
         let result = EventResult::Handled;
-        
+
         for stmt in &handler.body {
             let _value = evaluator.eval_with_player(stmt, handler.owner)?;
             // Check if handler returned false to cancel event
@@ -214,7 +224,7 @@ impl EventSystem {
             // For now, we'll just execute all statements
             // TODO: Add support for early return from event handlers
         }
-        
+
         evaluator.pop_environment(prev_env);
         Ok(result)
     }
@@ -227,16 +237,16 @@ impl EventSystem {
         let mut next_id = self.next_subscription_id.write();
         let id = *next_id;
         *next_id += 1;
-        
+
         let subscription = EventSubscription {
             id,
             event_pattern,
             callback: Arc::new(callback),
         };
-        
+
         let mut subscriptions = self.subscriptions.write();
         subscriptions.insert(id, subscription);
-        
+
         id
     }
 
@@ -249,13 +259,13 @@ impl EventSystem {
     /// Notify all subscriptions of an event
     fn notify_subscriptions(&self, event: &Event) -> Result<()> {
         let subscriptions = self.subscriptions.read();
-        
+
         for subscription in subscriptions.values() {
             if self.matches_pattern(&event.name, &subscription.event_pattern) {
                 (subscription.callback)(event)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -264,7 +274,7 @@ impl EventSystem {
         if pattern == "*" {
             return true;
         }
-        
+
         // Simple glob matching
         if pattern.ends_with('*') {
             let prefix = &pattern[..pattern.len() - 1];
@@ -280,7 +290,7 @@ impl EventSystem {
         for handler_list in handlers.values_mut() {
             handler_list.retain(|h| h.owner != object_id);
         }
-        
+
         let mut global_handlers = self.global_handlers.write();
         global_handlers.retain(|h| h.owner != object_id);
     }
@@ -295,7 +305,7 @@ impl EventSystem {
     pub fn handler_count(&self) -> usize {
         let handlers = self.handlers.read();
         let global_handlers = self.global_handlers.read();
-        
+
         handlers.values().map(|v| v.len()).sum::<usize>() + global_handlers.len()
     }
 }
@@ -313,7 +323,7 @@ mod tests {
     #[test]
     fn test_event_pattern_matching() {
         let system = EventSystem::new();
-        
+
         assert!(system.matches_pattern("player_moved", "player_moved"));
         assert!(system.matches_pattern("player_moved", "*"));
         assert!(system.matches_pattern("player_moved", "player_*"));

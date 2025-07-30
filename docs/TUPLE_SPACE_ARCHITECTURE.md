@@ -2,16 +2,20 @@
 
 ## Executive Summary
 
-This document explores a radical architectural shift for Echo that eliminates function coloring by treating all object-to-object communication as RPC through a shared tuple space. This unified communication model removes the distinction between async/sync, generator/regular, and event-emitting/imperative functions.
+This document explores a radical architectural shift for Echo that eliminates
+function coloring by treating all object-to-object communication as RPC through
+a shared tuple space. This unified communication model removes the distinction
+between async/sync, generator/regular, and event-emitting/imperative functions.
 
 ## The Function Coloring Problem
 
-Traditional languages suffer from "function colors" - incompatible function types that create viral constraints:
+Traditional languages suffer from "function colors" - incompatible function
+types that create viral constraints:
 
 ```javascript
 // Different "colors" of functions
 async function fetchData() { ... }      // Async color
-function* generateItems() { ... }       // Generator color  
+function* generateItems() { ... }       // Generator color
 function emitEvent() { emit foo; }      // Event color
 function regularCall() { ... }          // Regular color
 
@@ -63,14 +67,14 @@ All execution patterns use the same tuple primitives:
 object:method(args)
 // → put(object, "method", args, cont_id); get(cont_id)
 
-// Async operation  
+// Async operation
 async_result = object:long_operation(args)
 // → put(object, "long_operation", args, cont_id); [continue execution]
 
 // Generator
 for value in (object:generate_values())
 // → put(object, "generate_values", [], gen_id)
-// → repeatedly: get(gen_id, "yield") 
+// → repeatedly: get(gen_id, "yield")
 
 // Event emission
 emit player_moved(x, y)
@@ -91,7 +95,7 @@ Objects declare tuple patterns they can handle:
 object FileHandler {
     capability handles("file", "save", _)
     capability handles("file", "load", _)
-    
+
     on_tuple(operation, args, reply_to) {
         match (operation) {
             "save" => {
@@ -99,7 +103,7 @@ object FileHandler {
                 put(reply_to, "success", file_id)
             }
             "load" => {
-                // Load file  
+                // Load file
                 put(reply_to, "data", file_data)
             }
         }
@@ -115,7 +119,7 @@ Multiple objects can handle the same tuple pattern:
 // Primary handler
 object GameSaver {
     capability handles("game", "save", _)
-    
+
     on_tuple("save", data, reply_to) {
         file_id = save_to_disk(data)
         put(reply_to, "saved", file_id)
@@ -125,7 +129,7 @@ object GameSaver {
 // Also handles saves for backup
 object BackupSystem {
     capability handles("game", "save", _)
-    
+
     on_tuple("save", data, reply_to) {
         backup_id = save_to_cloud(data)
         // Note: doesn't reply - just observes
@@ -148,7 +152,7 @@ get(pattern...)          // Remove matching tuple (blocking)
 read(pattern...)         // Read matching tuple (non-destructive)
 take(pattern...)         // Remove matching tuple (non-blocking)
 
-// Higher-level operations  
+// Higher-level operations
 call(object, method, args)     // RPC-style call
 cast(object, method, args)     // Async send
 broadcast(event, args)         // Multi-cast event
@@ -161,7 +165,7 @@ Every object method call crosses an RPC boundary:
 ```javascript
 object Player {
     property health = 100
-    
+
     verb take_damage(amount) {
         this.health = this.health - amount
         // This property access is also RPC!
@@ -194,21 +198,21 @@ object DataProcessor {
     verb process_dataset(data) {
         // Regular call - looks synchronous
         validated = validator:check(data)
-        
+
         // Generator - also just tuples
         for item in (this:generate_items(data)) {
             // Event emission - same mechanism
             emit item_processed(item)
-            
+
             // Suspension - still just tuples
             if (should_yield()) {
                 yield  // Cooperative multitasking
             }
         }
-        
+
         // Async operation - no special syntax needed
         result = database:store(processed_items)
-        
+
         return result
     }
 }
@@ -222,14 +226,14 @@ object Frontend {
     verb handle_request(request) {
         // Looks like local call, might be remote
         auth = auth_service:verify(request.token)
-        
+
         if (auth.valid) {
             // Another potential RPC
             data = backend:fetch_data(auth.user_id)
-            
+
             // And another
             rendered = template:render(data)
-            
+
             return rendered
         }
     }
@@ -245,21 +249,21 @@ object GameEngine {
     verb simulate_frame() {
         // Broadcast to multiple handlers
         emit frame_start(frame_number)
-        
+
         // Parallel processing through tuple space
         for entity in (world.entities) {
             // Each might be handled by different processors
             put("physics", "update", entity)
         }
-        
-        // Gather results 
+
+        // Gather results
         updated_entities = []
         for i in (1..entity_count) {
             // Blocks until physics processor responds
             entity = get("physics_result", _)
             updated_entities.append(entity)
         }
-        
+
         emit frame_complete(frame_number)
     }
 }
@@ -280,6 +284,7 @@ object GameEngine {
 ### Challenge 1: Performance Overhead
 
 **Solution**: Aggressive optimization for local calls
+
 - JIT compilation can eliminate tuple overhead for hot paths
 - Batch operations reduce round trips
 - Smart caching prevents redundant operations
@@ -287,14 +292,16 @@ object GameEngine {
 ### Challenge 2: Debugging Complexity
 
 **Solution**: Rich tooling
+
 - Tuple space visualizer
-- Message flow tracer  
+- Message flow tracer
 - Causality tracking
 - Time-travel debugging
 
 ### Challenge 3: Developer Experience
 
 **Solution**: Syntactic sugar hides complexity
+
 - Method calls look normal
 - Tuple operations are implicit
 - IDE support for navigation
@@ -302,6 +309,7 @@ object GameEngine {
 ### Challenge 4: Ordering and Causality
 
 **Solution**: Logical timestamps and happens-before tracking
+
 - Vector clocks for distributed ordering
 - Causal consistency guarantees
 - Transaction support where needed
@@ -309,16 +317,19 @@ object GameEngine {
 ## Migration Path
 
 ### Phase 1: Dual Model
+
 - Support both direct calls and tuple space
 - Mark objects as "tuple-enabled"
 - Gradual migration
 
-### Phase 2: Tuple-First  
+### Phase 2: Tuple-First
+
 - All new code uses tuple space
 - Compatibility layer for old code
 - Performance optimizations
 
 ### Phase 3: Tuple-Only
+
 - Remove direct call support
 - Full distribution capabilities
 - Advanced tuple patterns
@@ -331,16 +342,16 @@ object GameEngine {
 async function game_loop() {
     while (running) {
         await emit('frame_start')
-        
+
         let updates = await Promise.all(
             entities.map(async e => await e.update())
         )
-        
+
         for (let* items of generate_items()) {
             await process(items)
             yield  // Must be generator + async!
         }
-        
+
         await emit('frame_end')
     }
 }
@@ -352,16 +363,16 @@ async function game_loop() {
 function game_loop() {
     while (running) {
         emit frame_start
-        
+
         for entity in (entities) {
             entity:update()  // Might be async, we don't care
         }
-        
+
         for items in (generate_items()) {
             process(items)
             yield  // Just a tuple operation
         }
-        
+
         emit frame_end
     }
 }
@@ -369,14 +380,20 @@ function game_loop() {
 
 ## Conclusion
 
-By treating all object communication as tuple space operations, Echo can eliminate function coloring while gaining powerful capabilities like transparent distribution, capability-based security, and unified execution semantics. The trade-offs in performance and complexity are manageable with proper implementation strategies and tooling.
+By treating all object communication as tuple space operations, Echo can
+eliminate function coloring while gaining powerful capabilities like transparent
+distribution, capability-based security, and unified execution semantics. The
+trade-offs in performance and complexity are manageable with proper
+implementation strategies and tooling.
 
-This architecture aligns with Echo's goal of being an "Event-Centered Hybrid Objects" language while solving fundamental problems that plague traditional language designs.
+This architecture aligns with Echo's goal of being an "Event-Centered Hybrid
+Objects" language while solving fundamental problems that plague traditional
+language designs.
 
 ## Next Steps
 
 1. Prototype tuple space implementation
-2. Benchmark performance characteristics  
+2. Benchmark performance characteristics
 3. Design tuple pattern language
 4. Implement capability system
 5. Build debugging tools
@@ -386,7 +403,7 @@ This architecture aligns with Echo's goal of being an "Event-Centered Hybrid Obj
 
 - Linda coordination language
 - Erlang's actor model
-- Plan 9's 9P protocol  
+- Plan 9's 9P protocol
 - E language's capability security
 - Scala's future composition
 - Go's CSP model
@@ -395,14 +412,14 @@ This architecture aligns with Echo's goal of being an "Event-Centered Hybrid Obj
 
 ```ebnf
 pattern ::= literal | variable | wildcard | constructor
-literal ::= number | string | atom  
+literal ::= number | string | atom
 variable ::= identifier
 wildcard ::= "_"
 constructor ::= name "(" pattern* ")"
 
 Examples:
 (player, "move", [x, y])      // Matches move commands
-(_, "save", data)             // Matches any save  
+(_, "save", data)             // Matches any save
 (entity(id), "update", _)     // Matches entity updates
 ("event", event_name, ...)    // Matches any event
 ```

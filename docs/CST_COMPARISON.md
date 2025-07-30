@@ -1,16 +1,15 @@
 # CST Structure Comparison: Echo vs MOO
 
-This document compares the Concrete Syntax Tree structures between Echo and MOO grammars to identify how we can align them.
+This document compares the Concrete Syntax Tree structures between Echo and MOO
+grammars to identify how we can align them.
 
 ## Overall Structure
 
 ### MOO Grammar Structure
+
 ```javascript
 // Top level
-program: choice(
-  object_definition,
-  repeat(statement)
-)
+program: choice(object_definition, repeat(statement));
 
 // Statements are separate from expressions
 statement: choice(
@@ -23,15 +22,15 @@ statement: choice(
   fork_statement,
   try_statement,
   function_statement
-)
+);
 
 // Expressions are a flat choice with precedence
-expression: choice(
-  // literals, operations, access patterns, etc.
-)
+expression: choice();
+// literals, operations, access patterns, etc.
 ```
 
 ### Echo Grammar Structure
+
 ```rust
 // Everything is an EchoAst variant
 pub enum EchoAst {
@@ -45,34 +44,34 @@ pub enum EchoAst {
 ### 1. Statement vs Expression Separation
 
 **MOO**: Clear separation between statements and expressions
+
 - Statements: control flow, assignments, blocks
 - Expressions: values that can be evaluated
 - expression_statement wraps expressions when used as statements
 
 **Echo**: Everything is EchoAst
+
 - No distinction between statements and expressions
 - Can lead to parsing ambiguities
 
 ### 2. Assignment Handling
 
 **MOO**:
+
 ```javascript
-assignment_statement: choice(
-  let_statement,
-  const_statement,
-  global_statement
-)
+assignment_statement: choice(let_statement, const_statement, global_statement);
 
 let_statement: seq(
-  keyword("let"),
-  field("target", choice($.identifier, $.binding_pattern)),
-  "=",
-  field("expression", $.expression),
-  optional(";")
-)
+  keyword('let'),
+  field('target', choice($.identifier, $.binding_pattern)),
+  '=',
+  field('expression', $.expression),
+  optional(';')
+);
 ```
 
 **Echo**:
+
 ```rust
 LocalAssignment {
     #[rust_sitter::leaf(text = "let")]
@@ -87,20 +86,22 @@ LocalAssignment {
 ### 3. Control Flow Structure
 
 **MOO If Statement**:
+
 ```javascript
 if_statement: seq(
-  keyword("if"),
-  "(",
-  field("condition", $.expression),
-  ")",
-  field("then_body", repeat($.statement)),
-  field("elseif_clauses", repeat($.elseif_clause)),
-  field("else_clause", optional($.else_clause)),
-  keyword("endif")
-)
+  keyword('if'),
+  '(',
+  field('condition', $.expression),
+  ')',
+  field('then_body', repeat($.statement)),
+  field('elseif_clauses', repeat($.elseif_clause)),
+  field('else_clause', optional($.else_clause)),
+  keyword('endif')
+);
 ```
 
 **Echo If**:
+
 ```rust
 If {
     condition: Box<EchoAst>,
@@ -112,22 +113,23 @@ If {
 
 ### 4. List Syntax
 
-**MOO**: `{1, 2, 3}` for lists
-**Echo**: Uses `{}` but parser expects `[` based on tests
+**MOO**: `{1, 2, 3}` for lists **Echo**: Uses `{}` but parser expects `[` based
+on tests
 
 ### 5. Function Definitions
 
 **MOO**:
+
 ```javascript
 function_statement: seq(
-  keyword("fn"),
-  field("name", $.identifier),
-  "(",
-  field("parameters", optional($.lambda_parameters)),
-  ")",
-  field("body", repeat($.statement)),
-  keyword("endfn")
-)
+  keyword('fn'),
+  field('name', $.identifier),
+  '(',
+  field('parameters', optional($.lambda_parameters)),
+  ')',
+  field('body', repeat($.statement)),
+  keyword('endfn')
+);
 ```
 
 **Echo**: No named function statements, only expressions
@@ -137,6 +139,7 @@ function_statement: seq(
 ### 1. Separate Statements and Expressions
 
 Create distinct types:
+
 ```rust
 pub enum Statement {
     Expression(Expression),
@@ -163,6 +166,7 @@ pub enum Expression {
 ### 2. Match MOO's Precedence Structure
 
 Use MOO's precedence table exactly:
+
 ```rust
 // In grammar definition
 const PRECEDENCES: &[(i32, Assoc, &[&str])] = &[
@@ -190,7 +194,7 @@ pub mod echo {
         ObjectDefinition(ObjectDefinition),
         Statements(Vec<Statement>),
     }
-    
+
     pub enum Statement {
         Expression(ExpressionStatement),
         Assignment(AssignmentStatement),
@@ -200,7 +204,7 @@ pub mod echo {
         For(ForStatement),
         // ... other statements
     }
-    
+
     pub struct ExpressionStatement {
         expression: Expression,
         #[rust_sitter::leaf(text = ";", optional = true)]
@@ -212,6 +216,7 @@ pub mod echo {
 ### 4. Fix List Literal Syntax
 
 Change Echo to use `{}` consistently:
+
 ```rust
 List {
     #[rust_sitter::leaf(text = "{")]  // Not "["
@@ -225,6 +230,7 @@ List {
 ### 5. Add Missing Constructs
 
 Priority additions to match MOO:
+
 1. **Range syntax**: `[1..10]`
 2. **List comprehensions**: `{expr for var in iterable}`
 3. **Try expressions**: `` `expr ! codes => fallback' ``
@@ -241,4 +247,5 @@ Priority additions to match MOO:
 4. **Phase 4**: Add missing expression types
 5. **Phase 5**: Add MOO-specific features (fork, pass, etc.)
 
-This would allow Echo to parse MOO code directly while maintaining its own extensions.
+This would allow Echo to parse MOO code directly while maintaining its own
+extensions.

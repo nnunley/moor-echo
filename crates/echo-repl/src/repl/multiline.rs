@@ -1,8 +1,8 @@
 //! Multi-line input collection for the REPL
-//! 
+//!
 //! Handles intelligent collection of multi-line Echo code, including:
 //! - Bracket/brace matching
-//! - String literal handling  
+//! - String literal handling
 //! - Statement completion detection
 //! - Prompt management
 
@@ -46,9 +46,9 @@ impl MultiLineCollector {
     /// Get the appropriate prompt for the current state
     pub fn get_prompt(&self) -> &'static str {
         if self.is_collecting() {
-            "   "  // Continuation prompt
+            "   " // Continuation prompt
         } else {
-            ">> "  // Main prompt
+            ">> " // Main prompt
         }
     }
 
@@ -132,18 +132,19 @@ impl MultiLineCollector {
                 // For now, we'll use a simple heuristic: if the line doesn't end with
                 // a semicolon and doesn't look like a complete expression, continue
                 let trimmed = self.buffer.trim();
-                
+
                 // Common patterns that suggest more input is needed
-                if trimmed.ends_with(',') || 
-                   trimmed.ends_with('=') ||
-                   trimmed.ends_with("=>") ||
-                   trimmed.ends_with("if") ||
-                   trimmed.ends_with("else") ||
-                   trimmed.ends_with("for") ||
-                   trimmed.ends_with("while") ||
-                   trimmed.ends_with("function") ||
-                   trimmed.ends_with("let") ||
-                   trimmed.ends_with("const") {
+                if trimmed.ends_with(',')
+                    || trimmed.ends_with('=')
+                    || trimmed.ends_with("=>")
+                    || trimmed.ends_with("if")
+                    || trimmed.ends_with("else")
+                    || trimmed.ends_with("for")
+                    || trimmed.ends_with("while")
+                    || trimmed.ends_with("function")
+                    || trimmed.ends_with("let")
+                    || trimmed.ends_with("const")
+                {
                     return false;
                 }
 
@@ -167,14 +168,15 @@ impl Default for MultiLineCollector {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use echo_core::create_parser;
+
+    use super::*;
 
     #[test]
     fn test_simple_complete_statement() {
         let mut collector = MultiLineCollector::new();
         let mut parser = create_parser("echo").unwrap();
-        
+
         match collector.process_line("let x = 42;", &mut parser) {
             LineProcessResult::Complete(code) => assert_eq!(code, "let x = 42;"),
             LineProcessResult::NeedMore => panic!("Expected complete statement"),
@@ -185,26 +187,26 @@ mod tests {
     fn test_multiline_object() {
         let mut collector = MultiLineCollector::new();
         let mut parser = create_parser("echo").unwrap();
-        
+
         // First line - should need more
         match collector.process_line("let obj = {", &mut parser) {
-            LineProcessResult::NeedMore => {},
+            LineProcessResult::NeedMore => {}
             LineProcessResult::Complete(_) => panic!("Expected need more"),
         }
-        
+
         // Second line - should need more
         match collector.process_line("  name: \"test\",", &mut parser) {
-            LineProcessResult::NeedMore => {},
+            LineProcessResult::NeedMore => {}
             LineProcessResult::Complete(_) => panic!("Expected need more"),
         }
-        
+
         // Third line - should be complete
         match collector.process_line("};", &mut parser) {
             LineProcessResult::Complete(code) => {
                 assert!(code.contains("let obj = {"));
                 assert!(code.contains("name: \"test\","));
                 assert!(code.contains("};"));
-            },
+            }
             LineProcessResult::NeedMore => panic!("Expected complete statement"),
         }
     }
@@ -213,7 +215,7 @@ mod tests {
     fn test_string_with_quotes() {
         let mut collector = MultiLineCollector::new();
         let mut parser = create_parser("echo").unwrap();
-        
+
         match collector.process_line("let s = \"hello world\";", &mut parser) {
             LineProcessResult::Complete(code) => assert_eq!(code, "let s = \"hello world\";"),
             LineProcessResult::NeedMore => panic!("Expected complete statement"),

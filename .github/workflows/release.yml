@@ -26,48 +26,48 @@ jobs:
       upload_url: ${{ steps.create-release.outputs.upload_url }}
       version: ${{ steps.get-version.outputs.version }}
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: Get version
-      id: get-version
-      run: |
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          VERSION="${{ github.event.inputs.version }}"
-        else
-          VERSION="${GITHUB_REF#refs/tags/}"
-        fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        
-    - name: Create Release
-      id: create-release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.get-version.outputs.version }}
-        release_name: Release ${{ steps.get-version.outputs.version }}
-        draft: true
-        prerelease: false
-        body: |
-          # Release ${{ steps.get-version.outputs.version }}
-          
-          ## What's Changed
-          
-          <!-- Add release notes here -->
-          
-          ## Installation
-          
-          ### From GitHub Release
-          Download the appropriate binary for your platform below.
-          
-          ### Using Cargo
-          ```bash
-          cargo install echo-repl --version ${{ steps.get-version.outputs.version }}
-          ```
-          
-          ## Checksums
-          
-          <!-- Checksums will be added automatically -->
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: get-version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get-version.outputs.version }}
+          release_name: Release ${{ steps.get-version.outputs.version }}
+          draft: true
+          prerelease: false
+          body: |
+            # Release ${{ steps.get-version.outputs.version }}
+
+            ## What's Changed
+
+            <!-- Add release notes here -->
+
+            ## Installation
+
+            ### From GitHub Release
+            Download the appropriate binary for your platform below.
+
+            ### Using Cargo
+            ```bash
+            cargo install echo-repl --version ${{ steps.get-version.outputs.version }}
+            ```
+
+            ## Checksums
+
+            <!-- Checksums will be added automatically -->
 
   build-release:
     name: Build Release
@@ -99,163 +99,163 @@ jobs:
             artifact_name: echo-repl
             asset_name: echo-repl-macos-arm64
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
-        
-    - name: Install Cross
-      if: matrix.use_cross
-      run: cargo install cross --version 0.2.5
-        
-    - name: Build release binary
-      run: |
-        if [[ "${{ matrix.use_cross }}" == "true" ]]; then
-          cross build --release --target ${{ matrix.target }} --package echo-repl
-        else
-          cargo build --release --target ${{ matrix.target }} --package echo-repl
-        fi
-      shell: bash
-      
-    - name: Prepare binary
-      run: |
-        cd target/${{ matrix.target }}/release
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          7z a ../../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
-        else
-          tar czf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
-        fi
-        cd ../../../
-        if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
-          shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
-        else
-          certutil -hashfile ${{ matrix.asset_name }}.zip SHA256 > ${{ matrix.asset_name }}.zip.sha256
-        fi
-      shell: bash
-      
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
-        asset_name: ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
-        asset_content_type: ${{ matrix.os == 'windows-latest' && 'application/zip' || 'application/gzip' }}
-        
-    - name: Upload Checksum
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip.sha256' || 'tar.gz.sha256' }}
-        asset_name: ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip.sha256' || 'tar.gz.sha256' }}
-        asset_content_type: text/plain
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Cross
+        if: matrix.use_cross
+        run: cargo install cross --version 0.2.5
+
+      - name: Build release binary
+        run: |
+          if [[ "${{ matrix.use_cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }} --package echo-repl
+          else
+            cargo build --release --target ${{ matrix.target }} --package echo-repl
+          fi
+        shell: bash
+
+      - name: Prepare binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            7z a ../../../${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
+          else
+            tar czf ../../../${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          fi
+          cd ../../../
+          if [[ "${{ matrix.os }}" != "windows-latest" ]]; then
+            shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+          else
+            certutil -hashfile ${{ matrix.asset_name }}.zip SHA256 > ${{ matrix.asset_name }}.zip.sha256
+          fi
+        shell: bash
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+          asset_name: ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+          asset_content_type: ${{ matrix.os == 'windows-latest' && 'application/zip' || 'application/gzip' }}
+
+      - name: Upload Checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip.sha256' || 'tar.gz.sha256' }}
+          asset_name: ${{ matrix.asset_name }}.${{ matrix.os == 'windows-latest' && 'zip.sha256' || 'tar.gz.sha256' }}
+          asset_content_type: text/plain
 
   build-docker:
     name: Build Docker Image
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=sha
-          
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          VERSION=${{ needs.create-release.outputs.version }}
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.create-release.outputs.version }}
 
   publish-crates:
     name: Publish to crates.io
     needs: [create-release, build-release]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      
-    - name: Publish echo-core
-      run: cargo publish --package echo-core --token ${{ secrets.CARGO_TOKEN }}
-      continue-on-error: true
-      
-    - name: Wait for echo-core
-      run: sleep 30
-      
-    - name: Publish echo-repl
-      run: cargo publish --package echo-repl --token ${{ secrets.CARGO_TOKEN }}
-      continue-on-error: true
-      
-    - name: Publish echo-web
-      run: cargo publish --package echo-web --token ${{ secrets.CARGO_TOKEN }}
-      continue-on-error: true
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish echo-core
+        run: cargo publish --package echo-core --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
+
+      - name: Wait for echo-core
+        run: sleep 30
+
+      - name: Publish echo-repl
+        run: cargo publish --package echo-repl --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish echo-web
+        run: cargo publish --package echo-web --token ${{ secrets.CARGO_TOKEN }}
+        continue-on-error: true
 
   finalize-release:
     name: Finalize Release
     needs: [create-release, build-release, build-docker, publish-crates]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      
-    - name: Generate changelog
-      id: changelog
-      run: |
-        # Simple changelog generation
-        echo "## Changelog" > CHANGELOG_RELEASE.md
-        git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG_RELEASE.md
-        
-    - name: Update release
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          const changelog = fs.readFileSync('CHANGELOG_RELEASE.md', 'utf8');
-          
-          const { data: release } = await github.rest.repos.getReleaseByTag({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            tag: '${{ needs.create-release.outputs.version }}'
-          });
-          
-          await github.rest.repos.updateRelease({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            release_id: release.id,
-            draft: false,
-            body: release.body + '\n\n' + changelog
-          });
+      - uses: actions/checkout@v4
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Simple changelog generation
+          echo "## Changelog" > CHANGELOG_RELEASE.md
+          git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG_RELEASE.md
+
+      - name: Update release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const changelog = fs.readFileSync('CHANGELOG_RELEASE.md', 'utf8');
+
+            const { data: release } = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: '${{ needs.create-release.outputs.version }}'
+            });
+
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.id,
+              draft: false,
+              body: release.body + '\n\n' + changelog
+            });

@@ -1,10 +1,11 @@
 //! Event system for web UI integration
-//! 
+//!
 //! Defines events and data structures for communicating between
 //! Echo runtime and web-based user interfaces.
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 /// Generic event data from Echo runtime
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,18 +57,11 @@ pub enum UiUpdate {
         properties: HashMap<String, String>,
     },
     /// Remove an element
-    Remove {
-        id: String,
-    },
+    Remove { id: String },
     /// Set focus to an element
-    Focus {
-        id: String,
-    },
+    Focus { id: String },
     /// Show/hide an element
-    SetVisible {
-        id: String,
-        visible: bool,
-    },
+    SetVisible { id: String, visible: bool },
 }
 
 impl EventData {

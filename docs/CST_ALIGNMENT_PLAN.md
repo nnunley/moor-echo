@@ -1,12 +1,14 @@
 # CST Alignment Plan: Echo → MOO
 
-This document provides a concrete plan to align Echo's CST with MOO's grammar structure.
+This document provides a concrete plan to align Echo's CST with MOO's grammar
+structure.
 
 ## Core Structural Changes
 
 ### 1. Separate Program Structure
 
 **Current Echo**:
+
 ```rust
 pub enum EchoAst {
     // Everything mixed together
@@ -14,6 +16,7 @@ pub enum EchoAst {
 ```
 
 **Target Structure (MOO-aligned)**:
+
 ```rust
 // Top-level program
 pub enum Program {
@@ -48,25 +51,25 @@ pub enum Expression {
     ObjectId(ObjectId),
     SystemProperty(String),
     Symbol(String),
-    
+
     // Operations
     Assignment(AssignmentOperation),
     Conditional(ConditionalOperation),
     Binary(BinaryOperation),
     Unary(UnaryOperation),
-    
+
     // Control flow as expressions
     Break(BreakExpression),
     Continue(ContinueExpression),
     Return(ReturnExpression),
-    
+
     // Access patterns
     PropertyAccess(PropertyAccess),
     MethodCall(MethodCall),
     IndexAccess(IndexAccess),
     Slice(Slice),
     Call(Call),
-    
+
     // Compound
     List(List),
     Map(Map),
@@ -81,15 +84,18 @@ pub enum Expression {
 ### 2. Parameter/Binding Pattern Unification
 
 **MOO** uses the same pattern for:
+
 - Lambda parameters
-- Function parameters  
+- Function parameters
 - Binding patterns in assignments
 
 **Current Echo** has separate:
+
 - `ParamPattern` for functions/verbs
 - `BindingPattern` for assignments
 
 **Solution**: Unify into a single pattern type:
+
 ```rust
 pub enum Pattern {
     Identifier(String),
@@ -110,8 +116,8 @@ pub enum PatternElement {
 
 ### 3. Fix List Literal Syntax
 
-**Current**: Echo uses `[]` in tests but `{}` in grammar
-**Target**: Use `{}` consistently to match MOO
+**Current**: Echo uses `[]` in tests but `{}` in grammar **Target**: Use `{}`
+consistently to match MOO
 
 ```rust
 // Change all list literals to use {}
@@ -171,14 +177,14 @@ Replace Echo's ad-hoc precedence with MOO's table:
 impl Expression {
     // Assignment (1, right)
     Assignment { left: LValue, right: Box<Expression> },
-    
+
     // Conditional (2, none)
     Conditional { condition: Box<Expression>, then: Box<Expression>, else: Box<Expression> },
-    
+
     // Logical (3, left)
     Or { left: Box<Expression>, right: Box<Expression> },
     And { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Comparison (4, left)
     Equal { left: Box<Expression>, right: Box<Expression> },
     NotEqual { left: Box<Expression>, right: Box<Expression> },
@@ -187,31 +193,31 @@ impl Expression {
     Greater { left: Box<Expression>, right: Box<Expression> },
     GreaterEqual { left: Box<Expression>, right: Box<Expression> },
     In { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Bitwise (5, left) - TO ADD
     BitOr { left: Box<Expression>, right: Box<Expression> },
     BitAnd { left: Box<Expression>, right: Box<Expression> },
     BitXor { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Shift (6, left) - TO ADD
     ShiftLeft { left: Box<Expression>, right: Box<Expression> },
     ShiftRight { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Arithmetic (7-8, left)
     Add { left: Box<Expression>, right: Box<Expression> },
     Subtract { left: Box<Expression>, right: Box<Expression> },
     Multiply { left: Box<Expression>, right: Box<Expression> },
     Divide { left: Box<Expression>, right: Box<Expression> },
     Modulo { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Power (9, right)
     Power { left: Box<Expression>, right: Box<Expression> },
-    
+
     // Unary (10, left)
     Not { operand: Box<Expression> },
     Negate { operand: Box<Expression> },
     BitNot { operand: Box<Expression> }, // TO ADD
-    
+
     // Access (11, none)
     PropertyAccess { object: Box<Expression>, property: String },
     MethodCall { object: Box<Expression>, method: String, args: Vec<Expression> },
@@ -223,16 +229,19 @@ impl Expression {
 ## Migration Steps
 
 ### Phase 1: Structural Refactoring
+
 1. Create separate Statement and Expression enums
 2. Update parser to produce Program instead of EchoAst
 3. Update evaluator to handle new structure
 
 ### Phase 2: Syntax Alignment
+
 1. Change list literals from `[]` to `{}`
 2. Add range syntax `[start..end]`
 3. Unify parameter and binding patterns
 
 ### Phase 3: Missing Features
+
 1. Add list comprehensions
 2. Add fork statements
 3. Add try expressions
@@ -241,12 +250,14 @@ impl Expression {
 6. Add symbol literals
 
 ### Phase 4: Operator Completion
+
 1. Add bitwise operators
 2. Add shift operators
 3. Add `in` operator
 4. Fix operator precedence
 
 ### Phase 5: Advanced Features
+
 1. Add elseif clauses
 2. Add labeled loops
 3. Add scatter/splat in lists and calls
@@ -263,6 +274,7 @@ impl Expression {
 ## Example Transformations
 
 ### Current Echo:
+
 ```rust
 EchoAst::LocalAssignment {
     target: BindingPattern::Identifier("x"),
@@ -271,6 +283,7 @@ EchoAst::LocalAssignment {
 ```
 
 ### Target (MOO-aligned):
+
 ```rust
 Statement::Let(LetStatement {
     target: Pattern::Identifier("x"),
@@ -279,9 +292,10 @@ Statement::Let(LetStatement {
 ```
 
 ### List Comprehension:
+
 ```rust
 Expression::RangeComprehension(RangeComprehension {
-    expression: Box::new(Expression::Binary(BinaryOp::Multiply, 
+    expression: Box::new(Expression::Binary(BinaryOp::Multiply,
         Box::new(Expression::Identifier("x")),
         Box::new(Expression::Integer(2))
     )),
@@ -293,4 +307,5 @@ Expression::RangeComprehension(RangeComprehension {
 })
 ```
 
-This alignment would make Echo a proper superset of MOO while maintaining its own extensions.
+This alignment would make Echo a proper superset of MOO while maintaining its
+own extensions.

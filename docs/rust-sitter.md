@@ -2,15 +2,21 @@
 
 ## Overview
 
-Rust-sitter is a Rust library that allows defining Tree-sitter grammars using Rust type annotations. This document covers conflict resolution mechanisms for handling grammar ambiguities, specifically addressing the PropertyAccess vs PropAssignment conflict.
+Rust-sitter is a Rust library that allows defining Tree-sitter grammars using
+Rust type annotations. This document covers conflict resolution mechanisms for
+handling grammar ambiguities, specifically addressing the PropertyAccess vs
+PropAssignment conflict.
 
 ## Current Conflict
 
-**Problem**: Both PropertyAccess and PropAssignment start with the same pattern `object.property`:
-- PropertyAccess: `object.property` 
+**Problem**: Both PropertyAccess and PropAssignment start with the same pattern
+`object.property`:
+
+- PropertyAccess: `object.property`
 - PropAssignment: `object.property = value`
 
-This creates an LR(1) conflict because the parser cannot determine which rule to apply until it sees whether there's an `=` token after the property access.
+This creates an LR(1) conflict because the parser cannot determine which rule to
+apply until it sees whether there's an `=` token after the property access.
 
 ## Conflict Resolution Mechanisms
 
@@ -20,11 +26,12 @@ Rust-sitter provides three precedence annotations to resolve parsing conflicts:
 
 ```rust
 #[rust_sitter::prec(n)]        // Non-associative with precedence n
-#[rust_sitter::prec_left(n)]   // Left-associative with precedence n  
+#[rust_sitter::prec_left(n)]   // Left-associative with precedence n
 #[rust_sitter::prec_right(n)]  // Right-associative with precedence n
 ```
 
 **Key Points**:
+
 - Higher precedence numbers bind more tightly
 - Default precedence is 0
 - Used to resolve conflicts at parser generation time
@@ -43,7 +50,7 @@ PropertyAccess {
     property: Box<EchoAst>,
 },
 
-// Property assignment - precedence 8  
+// Property assignment - precedence 8
 #[rust_sitter::prec(8)]
 PropAssignment {
     object: Box<EchoAst>,
@@ -56,7 +63,9 @@ PropAssignment {
 },
 ```
 
-**Issue**: PropertyAccess has higher precedence (10) than PropAssignment (8), which means the parser will prefer PropertyAccess when it encounters `object.property`, making PropAssignment unreachable.
+**Issue**: PropertyAccess has higher precedence (10) than PropAssignment (8),
+which means the parser will prefer PropertyAccess when it encounters
+`object.property`, making PropAssignment unreachable.
 
 ## Solution: Restructure Grammar to Eliminate Conflict
 
@@ -70,7 +79,8 @@ Tree-sitter supports dynamic precedence for runtime resolution:
 // prec.dynamic(0, property_access)
 ```
 
-**Note**: Rust-sitter may not directly support `prec.dynamic`. Need to check if this is available.
+**Note**: Rust-sitter may not directly support `prec.dynamic`. Need to check if
+this is available.
 
 ### Option 2: Restructure as Single Rule with Optional Assignment
 
@@ -108,7 +118,8 @@ This tells Tree-sitter to use GLR parsing for this specific conflict.
 
 ### Option 4: Lookahead-Based Rule Ordering
 
-Ensure PropAssignment is checked before PropertyAccess by making PropAssignment more specific:
+Ensure PropAssignment is checked before PropertyAccess by making PropAssignment
+more specific:
 
 ```rust
 // Property assignment (more specific - checked first)
@@ -135,7 +146,8 @@ PropertyAccess {
 
 ## Recommended Solution
 
-**Use Option 4**: Restructure precedence so PropAssignment (more specific) has higher precedence than PropertyAccess (less specific).
+**Use Option 4**: Restructure precedence so PropAssignment (more specific) has
+higher precedence than PropertyAccess (less specific).
 
 ### Implementation
 
@@ -153,7 +165,7 @@ PropAssignment {
 },
 
 // PropertyAccess gets lower precedence
-#[rust_sitter::prec_left(10)]  
+#[rust_sitter::prec_left(10)]
 PropertyAccess {
     object: Box<EchoAst>,
     #[rust_sitter::leaf(text = ".")]
@@ -162,7 +174,8 @@ PropertyAccess {
 },
 ```
 
-**Rationale**: 
+**Rationale**:
+
 - PropAssignment is more specific (requires `=` token)
 - PropertyAccess is more general (just `object.property`)
 - Tree-sitter will try the more specific rule first
@@ -224,7 +237,7 @@ fn test_property_access_vs_assignment_precedence() {
     // Property access should parse correctly
     let result = parse_echo("obj.prop");
     assert!(matches!(result.unwrap(), EchoAst::PropertyAccess { .. }));
-    
+
     // Property assignment should parse correctly
     let result = parse_echo("obj.prop = 42");
     assert!(matches!(result.unwrap(), EchoAst::PropAssignment { .. }));
@@ -239,4 +252,7 @@ fn test_property_access_vs_assignment_precedence() {
 
 ## Conclusion
 
-The PropertyAccess vs PropAssignment conflict can be resolved by adjusting precedence levels so that the more specific PropAssignment rule has higher precedence than the more general PropertyAccess rule. This follows the principle that more specific patterns should be matched before more general ones.
+The PropertyAccess vs PropAssignment conflict can be resolved by adjusting
+precedence levels so that the more specific PropAssignment rule has higher
+precedence than the more general PropertyAccess rule. This follows the principle
+that more specific patterns should be matched before more general ones.

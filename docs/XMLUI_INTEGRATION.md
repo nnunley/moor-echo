@@ -1,10 +1,14 @@
 # XML UI Integration for Echo REPL
 
-This document outlines the design for integrating XML UI (https://blog.jonudell.net/2025/07/18/introducing-xmlui/) with the Echo REPL to provide a web-based interface that can be influenced from within the REPL itself.
+This document outlines the design for integrating XML UI
+(https://blog.jonudell.net/2025/07/18/introducing-xmlui/) with the Echo REPL to
+provide a web-based interface that can be influenced from within the REPL
+itself.
 
 ## Overview
 
 The integration will create a web-based UI for the Echo REPL that:
+
 1. Displays REPL output in real-time
 2. Allows sending commands to the REPL
 3. Shows current REPL state (environment, objects, etc.)
@@ -35,11 +39,11 @@ impl ReplNotifier for WebNotifier {
     fn on_output(&self, output: &str) {
         self.send_event(WebEvent::Output(output.to_string()));
     }
-    
+
     fn on_error(&self, error: &str) {
         self.send_event(WebEvent::Error(error.to_string()));
     }
-    
+
     fn on_result(&self, output: &str, duration: Duration, quiet: bool) {
         if !quiet {
             self.send_event(WebEvent::Result {
@@ -92,8 +96,8 @@ Design XML UI components for the REPL interface:
     <VStack>
       <!-- Output Display -->
       <Card title="REPL Output" height="400px">
-        <DataSource 
-          id="replOutput" 
+        <DataSource
+          id="replOutput"
           url="/api/output"
           websocket="/ws"
           onMessage="handleWebSocketMessage">
@@ -104,25 +108,25 @@ Design XML UI components for the REPL interface:
           </VStack>
         </ScrollView>
       </Card>
-      
+
       <!-- Command Input -->
       <Card title="Command Input">
         <HStack>
-          <TextBox 
-            id="commandInput" 
+          <TextBox
+            id="commandInput"
             placeholder="Enter command..."
             onEnter="sendCommand">
           </TextBox>
           <Button onClick="sendCommand">Send</Button>
         </HStack>
       </Card>
-      
+
       <!-- State Display -->
       <HStack>
         <!-- Environment Variables -->
         <Card title="Environment" flex="1">
-          <DataSource 
-            id="environment" 
+          <DataSource
+            id="environment"
             url="/api/environment"
             refresh="onStateChange">
           </DataSource>
@@ -132,11 +136,11 @@ Design XML UI components for the REPL interface:
             <Column bindTo="type" title="Type"/>
           </Table>
         </Card>
-        
+
         <!-- Objects -->
         <Card title="Objects" flex="1">
-          <DataSource 
-            id="objects" 
+          <DataSource
+            id="objects"
             url="/api/objects"
             refresh="onStateChange">
           </DataSource>
@@ -147,19 +151,19 @@ Design XML UI components for the REPL interface:
           </Table>
         </Card>
       </HStack>
-      
+
       <!-- Dynamic UI Area -->
       <Card title="Dynamic UI" id="dynamicArea">
         <!-- This area can be modified from within the REPL -->
       </Card>
     </VStack>
   </App>
-  
+
   <Script>
     function handleWebSocketMessage(event) {
       const data = JSON.parse(event.data);
       const outputContainer = document.getElementById('outputContainer');
-      
+
       switch(data.type) {
         case 'output':
           addOutputLine(data.content, 'output');
@@ -181,20 +185,20 @@ Design XML UI components for the REPL interface:
           break;
       }
     }
-    
+
     function sendCommand() {
       const input = document.getElementById('commandInput');
       const command = input.value;
-      
+
       fetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command })
       });
-      
+
       input.value = '';
     }
-    
+
     function updateDynamicUI(update) {
       const dynamicArea = document.getElementById('dynamicArea');
       // Apply XML UI updates sent from the REPL
@@ -230,8 +234,8 @@ From within the REPL, users could:
 
 ```echo
 # Create a button in the dynamic UI
-ui_add_button("myButton", "Click Me", lambda() { 
-    print("Button clicked!"); 
+ui_add_button("myButton", "Click Me", lambda() {
+    print("Button clicked!");
     counter = counter + 1;
 })
 
@@ -267,7 +271,7 @@ ui_add_form("objectCreator", {
    - Add auto-refresh on state changes
 
 4. **Phase 4**: Dynamic UI from REPL
-   - Add ui_* built-in functions
+   - Add ui\_\* built-in functions
    - Implement UI update protocol
    - Create examples of dynamic UI manipulation
 

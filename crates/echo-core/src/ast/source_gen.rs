@@ -18,84 +18,123 @@ impl ToSource for EchoAst {
             EchoAst::String(s) => format!("\"{}\"", escape_string(s)),
             EchoAst::Boolean(b) => b.to_string(),
             EchoAst::Null => "null".to_string(),
-            
+
             // Identifiers and references
             EchoAst::Identifier(s) => s.clone(),
             EchoAst::SystemProperty(prop) => format!("${}", prop),
             EchoAst::ObjectRef(n) => format!("#{}", n),
-            
+
             // Arithmetic operations
             EchoAst::Add { left, right } => format!("{} + {}", left.to_source(), right.to_source()),
-            EchoAst::Subtract { left, right } => format!("{} - {}", left.to_source(), right.to_source()),
-            EchoAst::Multiply { left, right } => format!("{} * {}", left.to_source(), right.to_source()),
-            EchoAst::Divide { left, right } => format!("{} / {}", left.to_source(), right.to_source()),
-            EchoAst::Modulo { left, right } => format!("{} % {}", left.to_source(), right.to_source()),
-            EchoAst::Power { left, right } => format!("{} ^ {}", left.to_source(), right.to_source()),
-            
+            EchoAst::Subtract { left, right } => {
+                format!("{} - {}", left.to_source(), right.to_source())
+            }
+            EchoAst::Multiply { left, right } => {
+                format!("{} * {}", left.to_source(), right.to_source())
+            }
+            EchoAst::Divide { left, right } => {
+                format!("{} / {}", left.to_source(), right.to_source())
+            }
+            EchoAst::Modulo { left, right } => {
+                format!("{} % {}", left.to_source(), right.to_source())
+            }
+            EchoAst::Power { left, right } => {
+                format!("{} ^ {}", left.to_source(), right.to_source())
+            }
+
             // Comparison operations
-            EchoAst::Equal { left, right } => format!("{} == {}", left.to_source(), right.to_source()),
-            EchoAst::NotEqual { left, right } => format!("{} != {}", left.to_source(), right.to_source()),
-            EchoAst::LessThan { left, right } => format!("{} < {}", left.to_source(), right.to_source()),
-            EchoAst::LessEqual { left, right } => format!("{} <= {}", left.to_source(), right.to_source()),
-            EchoAst::GreaterThan { left, right } => format!("{} > {}", left.to_source(), right.to_source()),
-            EchoAst::GreaterEqual { left, right } => format!("{} >= {}", left.to_source(), right.to_source()),
-            
+            EchoAst::Equal { left, right } => {
+                format!("{} == {}", left.to_source(), right.to_source())
+            }
+            EchoAst::NotEqual { left, right } => {
+                format!("{} != {}", left.to_source(), right.to_source())
+            }
+            EchoAst::LessThan { left, right } => {
+                format!("{} < {}", left.to_source(), right.to_source())
+            }
+            EchoAst::LessEqual { left, right } => {
+                format!("{} <= {}", left.to_source(), right.to_source())
+            }
+            EchoAst::GreaterThan { left, right } => {
+                format!("{} > {}", left.to_source(), right.to_source())
+            }
+            EchoAst::GreaterEqual { left, right } => {
+                format!("{} >= {}", left.to_source(), right.to_source())
+            }
+
             // Logical operations
-            EchoAst::And { left, right } => format!("{} && {}", left.to_source(), right.to_source()),
+            EchoAst::And { left, right } => {
+                format!("{} && {}", left.to_source(), right.to_source())
+            }
             EchoAst::Or { left, right } => format!("{} || {}", left.to_source(), right.to_source()),
             EchoAst::Not { operand } => format!("!{}", operand.to_source()),
-            
+
             // Unary operations
             EchoAst::UnaryMinus { operand } => format!("-{}", operand.to_source()),
             EchoAst::UnaryPlus { operand } => format!("+{}", operand.to_source()),
-            
+
             // Property access and method calls
-            EchoAst::PropertyAccess { object, property } => format!("{}.{}", object.to_source(), property),
-            EchoAst::MethodCall { object, method, args } => {
-                let args_str = args.iter()
+            EchoAst::PropertyAccess { object, property } => {
+                format!("{}.{}", object.to_source(), property)
+            }
+            EchoAst::MethodCall {
+                object,
+                method,
+                args,
+            } => {
+                let args_str = args
+                    .iter()
                     .map(|arg| arg.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{}:{}({})", object.to_source(), method, args_str)
             }
             EchoAst::FunctionCall { name, args } => {
-                let args_str = args.iter()
+                let args_str = args
+                    .iter()
                     .map(|arg| arg.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{}({})", name, args_str)
             }
             EchoAst::Call { func, args } => {
-                let args_str = args.iter()
+                let args_str = args
+                    .iter()
                     .map(|arg| arg.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{}({})", func.to_source(), args_str)
             }
-            
+
             // Index access
             EchoAst::IndexAccess { object, index } => {
                 format!("{}[{}]", object.to_source(), index.to_source())
             }
-            
+
             // Lists and Maps
             EchoAst::List { elements } => {
-                let elements_str = elements.iter()
+                let elements_str = elements
+                    .iter()
                     .map(|elem| elem.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("[{}]", elements_str)
             }
             EchoAst::Map { entries } => {
-                let entries_str = entries.iter()
+                let entries_str = entries
+                    .iter()
                     .map(|(k, v)| format!("{}: {}", k, v.to_source()))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{{{}}}", entries_str)
             }
-            
+
             // Control flow
-            EchoAst::If { condition, then_branch, else_branch } => {
+            EchoAst::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 let mut result = format!("if ({}) ", condition.to_source());
                 for stmt in then_branch {
                     result.push_str(&format!("{} ", stmt.to_source()));
@@ -109,8 +148,12 @@ impl ToSource for EchoAst {
                 result.push_str("endif");
                 result
             }
-            
-            EchoAst::While { label, condition, body } => {
+
+            EchoAst::While {
+                label,
+                condition,
+                body,
+            } => {
                 let mut result = String::new();
                 if let Some(lbl) = label {
                     result.push_str(&format!("{}: ", lbl));
@@ -122,20 +165,29 @@ impl ToSource for EchoAst {
                 result.push_str("endwhile");
                 result
             }
-            
-            EchoAst::For { label, variable, collection, body } => {
+
+            EchoAst::For {
+                label,
+                variable,
+                collection,
+                body,
+            } => {
                 let mut result = String::new();
                 if let Some(lbl) = label {
                     result.push_str(&format!("{}: ", lbl));
                 }
-                result.push_str(&format!("for ({} in {}) ", variable, collection.to_source()));
+                result.push_str(&format!(
+                    "for ({} in {}) ",
+                    variable,
+                    collection.to_source()
+                ));
                 for stmt in body {
                     result.push_str(&format!("{} ", stmt.to_source()));
                 }
                 result.push_str("endfor");
                 result
             }
-            
+
             EchoAst::Break { label } => {
                 if let Some(lbl) = label {
                     format!("break {}", lbl)
@@ -143,7 +195,7 @@ impl ToSource for EchoAst {
                     "break".to_string()
                 }
             }
-            
+
             EchoAst::Continue { label } => {
                 if let Some(lbl) = label {
                     format!("continue {}", lbl)
@@ -151,7 +203,7 @@ impl ToSource for EchoAst {
                     "continue".to_string()
                 }
             }
-            
+
             EchoAst::Return { value } => {
                 if let Some(val) = value {
                     format!("return {}", val.to_source())
@@ -159,46 +211,68 @@ impl ToSource for EchoAst {
                     "return".to_string()
                 }
             }
-            
+
             EchoAst::Emit { event_name, args } => {
                 if args.is_empty() {
                     format!("emit {}", event_name)
                 } else {
-                    let args_str = args.iter()
+                    let args_str = args
+                        .iter()
                         .map(|arg| arg.to_source())
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!("emit {}({})", event_name, args_str)
                 }
             }
-            
+
             // Object definition
-            EchoAst::ObjectDef { name, parent, members } => {
+            EchoAst::ObjectDef {
+                name,
+                parent,
+                members,
+            } => {
                 let mut result = format!("object {}", name);
                 if let Some(p) = parent {
                     result.push_str(&format!(" extends {}", p));
                 }
                 result.push('\n');
-                
+
                 for member in members {
                     match member {
-                        ObjectMember::Property { name, value, permissions } => {
-                            result.push_str(&format!("  property {} = {}", name, value.to_source()));
+                        ObjectMember::Property {
+                            name,
+                            value,
+                            permissions,
+                        } => {
+                            result.push_str(&format!(
+                                "  property {} = {}",
+                                name,
+                                value.to_source()
+                            ));
                             if let Some(perms) = permissions {
                                 result.push_str(&format!(" {{{}+{}}}", perms.read, perms.write));
                             }
                             result.push('\n');
                         }
-                        ObjectMember::Verb { name, args, body, permissions } => {
+                        ObjectMember::Verb {
+                            name,
+                            args,
+                            body,
+                            permissions,
+                        } => {
                             result.push_str(&format!("  verb {}(", name));
-                            let args_str = args.iter()
+                            let args_str = args
+                                .iter()
                                 .map(|p| p.to_source())
                                 .collect::<Vec<_>>()
                                 .join(", ");
                             result.push_str(&args_str);
                             result.push_str(") ");
                             if let Some(perms) = permissions {
-                                result.push_str(&format!("{{{}+{}+{}}}", perms.read, perms.write, perms.execute));
+                                result.push_str(&format!(
+                                    "{{{}+{}+{}}}",
+                                    perms.read, perms.write, perms.execute
+                                ));
                             }
                             result.push('\n');
                             for stmt in body {
@@ -206,9 +280,15 @@ impl ToSource for EchoAst {
                             }
                             result.push_str("  endverb\n");
                         }
-                        ObjectMember::Method { name, args, body, return_type } => {
+                        ObjectMember::Method {
+                            name,
+                            args,
+                            body,
+                            return_type,
+                        } => {
                             result.push_str(&format!("  method {}(", name));
-                            let args_str = args.iter()
+                            let args_str = args
+                                .iter()
                                 .map(|p| p.to_source())
                                 .collect::<Vec<_>>()
                                 .join(", ");
@@ -225,7 +305,8 @@ impl ToSource for EchoAst {
                         }
                         ObjectMember::Event { name, params, body } => {
                             result.push_str(&format!("  event {}(", name));
-                            let params_str = params.iter()
+                            let params_str = params
+                                .iter()
                                 .map(|p| p.to_source())
                                 .collect::<Vec<_>>()
                                 .join(", ");
@@ -236,15 +317,22 @@ impl ToSource for EchoAst {
                             }
                             result.push_str("  endevent\n");
                         }
-                        ObjectMember::Query { name, params, clauses } => {
+                        ObjectMember::Query {
+                            name,
+                            params,
+                            clauses,
+                        } => {
                             result.push_str(&format!("  query {}", name));
                             if !params.is_empty() {
                                 result.push_str(&format!("({})", params.join(", ")));
                             }
                             result.push_str(" :-\n    ");
-                            let clauses_str = clauses.iter()
+                            let clauses_str = clauses
+                                .iter()
                                 .map(|c| {
-                                    let args_str = c.args.iter()
+                                    let args_str = c
+                                        .args
+                                        .iter()
                                         .map(|arg| match arg {
                                             QueryArg::Variable(v) => v.clone(),
                                             QueryArg::Constant(c) => c.to_source(),
@@ -261,20 +349,21 @@ impl ToSource for EchoAst {
                         }
                     }
                 }
-                
+
                 result.push_str("endobject");
                 result
             }
-            
+
             // Lambda functions
             EchoAst::Lambda { params, body } => {
-                let params_str = params.iter()
+                let params_str = params
+                    .iter()
                     .map(|p| p.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("fn {{{}}} {} endfn", params_str, body.to_source())
             }
-            
+
             // Assignment
             EchoAst::Assignment { target, value } => {
                 format!("{} = {}", target.to_source(), value.to_source())
@@ -285,9 +374,13 @@ impl ToSource for EchoAst {
             EchoAst::ConstAssignment { target, value } => {
                 format!("const {} = {}", target.to_source(), value.to_source())
             }
-            
+
             // Error handling
-            EchoAst::Try { body, catch, finally } => {
+            EchoAst::Try {
+                body,
+                catch,
+                finally,
+            } => {
                 let mut result = "try\n".to_string();
                 for stmt in body {
                     result.push_str(&format!("  {}\n", stmt.to_source()));
@@ -311,7 +404,7 @@ impl ToSource for EchoAst {
                 result.push_str("endtry");
                 result
             }
-            
+
             // Blocks and statements
             EchoAst::Block(statements) => {
                 let mut result = "{\n".to_string();
@@ -322,18 +415,18 @@ impl ToSource for EchoAst {
                 result
             }
             EchoAst::ExpressionStatement(expr) => expr.to_source(),
-            
+
             // Program (sequence of statements)
-            EchoAst::Program(statements) => {
-                statements.iter()
-                    .map(|stmt| stmt.to_source())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
-            
+            EchoAst::Program(statements) => statements
+                .iter()
+                .map(|stmt| stmt.to_source())
+                .collect::<Vec<_>>()
+                .join("\n"),
+
             // Modern Echo features
             EchoAst::Event { name, params, body } => {
-                let params_str = params.iter()
+                let params_str = params
+                    .iter()
                     .map(|p| p.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -344,23 +437,30 @@ impl ToSource for EchoAst {
                 result.push_str("endevent");
                 result
             }
-            
+
             EchoAst::Spawn { body } => format!("spawn {}", body.to_source()),
             EchoAst::Await { expr } => format!("await {}", expr.to_source()),
-            
+
             EchoAst::Match { expr, arms } => {
                 let mut result = format!("match {} {{\n", expr.to_source());
                 for arm in arms {
-                    result.push_str(&format!("  {} => {},\n", arm.pattern.to_source(), arm.body.to_source()));
+                    result.push_str(&format!(
+                        "  {} => {},\n",
+                        arm.pattern.to_source(),
+                        arm.body.to_source()
+                    ));
                 }
                 result.push('}');
                 result
             }
-            
-            EchoAst::TypedIdentifier { name, type_annotation } => {
+
+            EchoAst::TypedIdentifier {
+                name,
+                type_annotation,
+            } => {
                 format!("{}: {}", name, type_annotation.to_source())
             }
-            
+
             EchoAst::In { left, right } => {
                 format!("{} in {}", left.to_source(), right.to_source())
             }
@@ -371,7 +471,10 @@ impl ToSource for EchoAst {
 impl ToSource for LValue {
     fn to_source(&self) -> String {
         match self {
-            LValue::Binding { binding_type, pattern } => {
+            LValue::Binding {
+                binding_type,
+                pattern,
+            } => {
                 let type_str = match binding_type {
                     BindingType::Let => "let",
                     BindingType::Const => "const",
@@ -398,14 +501,16 @@ impl ToSource for BindingPattern {
         match self {
             BindingPattern::Identifier(name) => name.clone(),
             BindingPattern::List(elements) => {
-                let elements_str = elements.iter()
+                let elements_str = elements
+                    .iter()
                     .map(|elem| elem.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{{{}}}", elements_str)
             }
             BindingPattern::Object(entries) => {
-                let entries_str = entries.iter()
+                let entries_str = entries
+                    .iter()
                     .map(|(k, v)| format!("{}: {}", k, v.to_source()))
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -462,7 +567,8 @@ impl ToSource for Pattern {
             Pattern::Number(n) => n.to_string(),
             Pattern::String(s) => format!("\"{}\"", escape_string(s)),
             Pattern::Constructor { name, args } => {
-                let args_str = args.iter()
+                let args_str = args
+                    .iter()
                     .map(|arg| arg.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -478,8 +584,12 @@ impl ToSource for TypeExpression {
             TypeExpression::Named(name) => name.clone(),
             TypeExpression::Array(inner) => format!("{}[]", inner.to_source()),
             TypeExpression::Optional(inner) => format!("{}?", inner.to_source()),
-            TypeExpression::Function { params, return_type } => {
-                let params_str = params.iter()
+            TypeExpression::Function {
+                params,
+                return_type,
+            } => {
+                let params_str = params
+                    .iter()
                     .map(|p| p.to_source())
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -538,15 +648,13 @@ mod tests {
                 left: Box::new(EchoAst::Identifier("x".to_string())),
                 right: Box::new(EchoAst::Number(5)),
             }),
-            then_branch: vec![
-                EchoAst::Assignment {
-                    target: LValue::Binding {
-                        binding_type: BindingType::None,
-                        pattern: BindingPattern::Identifier("x".to_string()),
-                    },
-                    value: Box::new(EchoAst::Number(10)),
-                }
-            ],
+            then_branch: vec![EchoAst::Assignment {
+                target: LValue::Binding {
+                    binding_type: BindingType::None,
+                    pattern: BindingPattern::Identifier("x".to_string()),
+                },
+                value: Box::new(EchoAst::Number(10)),
+            }],
             else_branch: None,
         };
         let source = if_stmt.to_source();

@@ -1,0 +1,91 @@
+version: '3.8'
+
+# Development-specific overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  echo-web:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+      - target-cache:/app/target
+    environment:
+      - RUST_BACKTRACE=full
+      - RUST_LOG=debug,echo_web=trace
+      - CARGO_WATCH_CLEAR=true
+    command: cargo watch -x "run --package echo-web"
+
+  echo-repl:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+      - target-cache:/app/target
+    environment:
+      - RUST_BACKTRACE=full
+      - RUST_LOG=debug,echo_repl=trace
+
+  # Development database with initialization
+  postgres:
+    image: postgres:16-alpine
+    container_name: echo-postgres-dev
+    environment:
+      - POSTGRES_USER=echo_dev
+      - POSTGRES_PASSWORD=dev_password
+      - POSTGRES_DB=echo_dev_db
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - echo-network
+    ports:
+      - '5432:5432'
+
+  # Development Redis with persistence
+  redis:
+    image: redis:7-alpine
+    container_name: echo-redis-dev
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - echo-network
+    ports:
+      - '6379:6379'
+
+  # Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: echo-adminer
+    networks:
+      - echo-network
+    ports:
+      - '8081:8080'
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+      - ADMINER_DESIGN=pepa-linha
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: echo-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - echo-network
+    ports:
+      - '8082:8081'
+
+volumes:
+  postgres-dev-data:
+    driver: local
+  redis-dev-data:
+    driver: local

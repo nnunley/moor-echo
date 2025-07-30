@@ -1,8 +1,9 @@
 //! REPL command parsing and definitions
-//! 
-//! Handles parsing of dot-commands (.help, .quit, etc.) and player management commands.
+//!
+//! Handles parsing of dot-commands (.help, .quit, etc.) and player management
+//! commands.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 /// Available REPL commands
 #[derive(Debug, Clone)]
@@ -30,17 +31,17 @@ pub enum ReplCommand {
 /// Parse a command string into a ReplCommand
 pub fn parse_command(input: &str) -> Result<ReplCommand> {
     let trimmed = input.trim();
-    
+
     if !trimmed.starts_with('.') {
         return Err(anyhow!("Commands must start with '.'"));
     }
-    
+
     let parts: Vec<&str> = trimmed[1..].split_whitespace().collect();
-    
+
     if parts.is_empty() {
         return Err(anyhow!("Empty command"));
     }
-    
+
     match parts[0] {
         "help" | "h" => Ok(ReplCommand::Help),
         "quit" | "q" | "exit" => Ok(ReplCommand::Quit),
@@ -61,7 +62,7 @@ pub fn parse_command(input: &str) -> Result<ReplCommand> {
         }
         "players" | "list" => Ok(ReplCommand::ListPlayers),
         "stats" | "statistics" => Ok(ReplCommand::Stats),
-        _ => Err(anyhow!("Unknown command: .{}", parts[0]))
+        _ => Err(anyhow!("Unknown command: .{}", parts[0])),
     }
 }
 

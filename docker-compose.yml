@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # Echo REPL service
+  echo-repl:
+    build:
+      context: .
+      target: echo-repl
+    image: moor-echo:repl
+    container_name: echo-repl
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./test_suites:/app/test_suites:ro
+    networks:
+      - echo-network
+
+  # Echo Web service
+  echo-web:
+    build:
+      context: .
+      target: echo-web
+    image: moor-echo:web
+    container_name: echo-web
+    ports:
+      - '3000:3000'
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+      - RUST_LOG=info
+    volumes:
+      - echo-data:/app/data
+    networks:
+      - echo-network
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Development environment
+  dev:
+    build:
+      context: .
+      target: development
+    image: moor-echo:dev
+    container_name: echo-dev
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - cargo-git:/usr/local/cargo/git
+      - target-cache:/app/target
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=debug
+    ports:
+      - '3000:3000'
+      - '8080:8080'
+    networks:
+      - echo-network
+    command: /bin/bash
+
+  # Database service (if needed in future)
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: echo-postgres
+  #   environment:
+  #     - POSTGRES_USER=echo
+  #     - POSTGRES_PASSWORD=echo_password
+  #     - POSTGRES_DB=echo_db
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - echo-network
+  #   ports:
+  #     - "5432:5432"
+
+  # Redis service (if needed for caching/sessions)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: echo-redis
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - echo-network
+  #   ports:
+  #     - "6379:6379"
+
+volumes:
+  echo-data:
+    driver: local
+  cargo-cache:
+    driver: local
+  cargo-git:
+    driver: local
+  target-cache:
+    driver: local
+  # postgres-data:
+  #   driver: local
+  # redis-data:
+  #   driver: local
+
+networks:
+  echo-network:
+    driver: bridge

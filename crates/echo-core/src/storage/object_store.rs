@@ -1,12 +1,14 @@
-use anyhow::{Result, anyhow};
+use std::{collections::HashMap, path::Path};
+
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use sled::Db;
-use std::collections::HashMap;
-use std::path::Path;
 use uuid::Uuid;
+
 use crate::evaluator::meta_object::MetaObject;
 
-/// Object ID type - similar to MOO's object numbers but using UUIDs for distribution
+/// Object ID type - similar to MOO's object numbers but using UUIDs for
+/// distribution
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ObjectId(pub Uuid);
 
@@ -14,12 +16,12 @@ impl ObjectId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
-    
+
     /// System object #0 in MOO becomes a well-known UUID
     pub fn system() -> Self {
         Self(Uuid::from_u128(0))
     }
-    
+
     /// Root object #1 in MOO
     pub fn root() -> Self {
         Self(Uuid::from_u128(1))
@@ -60,9 +62,9 @@ pub enum PropertyValue {
 pub struct VerbDefinition {
     pub name: String,
     pub signature: VerbSignature,
-    pub code: String,  // Source code for display
-    pub ast: Vec<crate::ast::EchoAst>,  // The actual AST to execute
-    pub params: Vec<crate::ast::Parameter>,  // Parameters for the verb
+    pub code: String,                       // Source code for display
+    pub ast: Vec<crate::ast::EchoAst>,      // The actual AST to execute
+    pub params: Vec<crate::ast::Parameter>, // Parameters for the verb
     pub permissions: VerbPermissions,
 }
 
@@ -99,19 +101,23 @@ impl ObjectStore {
         let db = sled::open(path)?;
         Self::new_with_db(db)
     }
-    
+
     pub fn new_with_db(db: Db) -> Result<Self> {
         let objects = db.open_tree("objects")?;
         let indices = db.open_tree("indices")?;
-        
-        let store = Self { db, objects, indices };
-        
+
+        let store = Self {
+            db,
+            objects,
+            indices,
+        };
+
         // Initialize system objects if they don't exist
         store.init_system_objects()?;
-        
+
         Ok(store)
     }
-    
+
     fn init_system_objects(&self) -> Result<()> {
         // Create system object #0 if it doesn't exist
         let system_id = ObjectId::system();
@@ -119,7 +125,7 @@ impl ObjectStore {
             let mut system_properties = HashMap::new();
             // Initialize #0.system to point to #0 itself
             system_properties.insert("system".to_string(), PropertyValue::Object(system_id));
-            
+
             let system_obj = EchoObject {
                 id: system_id,
                 parent: None,
@@ -131,7 +137,7 @@ impl ObjectStore {
             };
             self.store(system_obj)?;
         }
-        
+
         // Create root object #1 if it doesn't exist
         let root_id = ObjectId::root();
         if self.get(root_id).is_err() {
@@ -146,31 +152,34 @@ impl ObjectStore {
             };
             self.store(root_obj)?;
         }
-        
+
         Ok(())
     }
-    
+
     pub fn store(&self, obj: EchoObject) -> Result<()> {
         let key = obj.id.0.as_bytes();
         let value = bincode::serialize(&obj)?;
         self.objects.insert(key, value)?;
-        
+
         // Update name index
         let name_key = format!("name:{}", obj.name);
-        self.indices.insert(name_key.as_bytes(), obj.id.0.as_bytes())?;
-        
+        self.indices
+            .insert(name_key.as_bytes(), obj.id.0.as_bytes())?;
+
         self.db.flush()?;
         Ok(())
     }
-    
+
     pub fn get(&self, id: ObjectId) -> Result<EchoObject> {
         let key = id.0.as_bytes();
-        let value = self.objects.get(key)?
+        let value = self
+            .objects
+            .get(key)?
             .ok_or_else(|| anyhow!("Object {} not found", id))?;
         let obj: EchoObject = bincode::deserialize(&value)?;
         Ok(obj)
     }
-    
+
     pub fn find_by_name(&self, name: &str) -> Result<Option<ObjectId>> {
         let name_key = format!("name:{}", name);
         if let Some(id_bytes) = self.indices.get(name_key.as_bytes())? {
@@ -180,22 +189,22 @@ impl ObjectStore {
             Ok(None)
         }
     }
-    
+
     pub fn delete(&self, id: ObjectId) -> Result<()> {
         if let Ok(obj) = self.get(id) {
             // Remove from name index
             let name_key = format!("name:{}", obj.name);
             self.indices.remove(name_key.as_bytes())?;
-            
+
             // Remove object
             let key = id.0.as_bytes();
             self.objects.remove(key)?;
-            
+
             self.db.flush()?;
         }
         Ok(())
     }
-    
+
     pub fn list_all(&self) -> Result<Vec<ObjectId>> {
         let mut ids = Vec::new();
         for item in self.objects.iter() {
@@ -205,7 +214,7 @@ impl ObjectStore {
         }
         Ok(ids)
     }
-    
+
     pub fn estimated_size(&self) -> Result<u64> {
         // Return the estimated size of the database
         Ok(self.db.size_on_disk()?)

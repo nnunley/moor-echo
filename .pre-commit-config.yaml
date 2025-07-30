@@ -13,21 +13,21 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
-        
+
       - id: cargo-clippy
         name: cargo clippy
         entry: cargo clippy --workspace --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
-        
+
       - id: cargo-check
         name: cargo check
         entry: cargo check --workspace --all-features
         language: system
         types: [rust]
         pass_filenames: false
-        
+
       - id: cargo-test
         name: cargo test
         entry: cargo test --workspace --all-features --lib --quiet
@@ -45,14 +45,14 @@ repos:
         language: system
         files: grammar\.js$
         pass_filenames: false
-        
+
       - id: tree-sitter-test
         name: tree-sitter test
         entry: tree-sitter test
         language: system
         files: ^(grammar\.js|test/corpus/.*\.txt)$
         pass_filenames: false
-        
+
       - id: tree-sitter-benchmark
         name: tree-sitter benchmark
         entry: bash -c 'tree-sitter test --stat total-only | tee benchmark-results.txt && echo "=== Performance Results ===" && grep "bytes/ms" benchmark-results.txt | tail -1'
@@ -94,14 +94,14 @@ repos:
       - id: black
         language_version: python3.12
         files: \.py$
-        
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.11
     hooks:
       - id: ruff
         args: ['--fix']
       - id: ruff-format
-        
+
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
@@ -117,7 +117,7 @@ repos:
       - id: prettier
         types_or: [javascript, jsx, ts, tsx, json, yaml, markdown]
         exclude: ^(target/|dist/|build/)
-        
+
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v8.56.0
     hooks:

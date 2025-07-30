@@ -1,5 +1,5 @@
 //! # Echo Core
-//! 
+//!
 //! Core implementation of the Echo programming language, including:
 //! - Abstract Syntax Tree (AST) definitions
 //! - Language parser and grammar
@@ -24,19 +24,16 @@ pub mod ui_callback;
 pub mod security;
 
 // Re-export commonly used types
-pub use ast::{EchoAst, LValue, BindingType, ObjectMember, LambdaParam};
+pub use ast::{BindingType, EchoAst, LValue, LambdaParam, ObjectMember};
 pub use evaluator::{
-    Evaluator, EvaluatorTrait, Value, Environment, ControlFlow,
+    event_system::{Event, EventHandler, EventResult, EventSystem},
     meta_object::MetaObject,
-    event_system::{EventSystem, Event, EventHandler, EventResult},
+    ControlFlow, Environment, Evaluator, EvaluatorTrait, Value,
 };
-pub use parser::{Parser, create_parser};
-pub use storage::{
-    Storage, ObjectId, EchoObject, PropertyValue,
-    object_store::ObjectStore,
-};
+pub use parser::{create_parser, Parser};
 pub use runtime::EchoRuntime;
-pub use ui_callback::{UiEvent, UiAction, UiEventHandler, UiEventCallback, convert_ui_event};
+pub use storage::{object_store::ObjectStore, EchoObject, ObjectId, PropertyValue, Storage};
+pub use ui_callback::{convert_ui_event, UiAction, UiEvent, UiEventCallback, UiEventHandler};
 
 // Re-export storage error from the storage module
 pub use crate::storage::StorageError;
@@ -48,13 +45,13 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn features() -> Vec<&'static str> {
     #[allow(unused_mut)]
     let mut features = vec!["core"];
-    
+
     #[cfg(feature = "jit")]
     features.push("jit");
-    
+
     #[cfg(feature = "reflection")]
     features.push("reflection");
-    
+
     features
 }
 
@@ -63,7 +60,7 @@ pub fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("echo_core=info".parse().unwrap())
+                .add_directive("echo_core=info".parse().unwrap()),
         )
         .init();
 }
@@ -101,15 +98,15 @@ pub enum EchoError {
     /// Storage-related error
     #[error("Storage error: {0}")]
     Storage(#[from] storage::StorageError),
-    
+
     /// Parser error
     #[error("Parse error: {0}")]
     Parse(#[from] anyhow::Error),
-    
+
     /// Evaluation error
     #[error("Evaluation error: {0}")]
     Evaluation(String),
-    
+
     /// Configuration error
     #[error("Configuration error: {0}")]
     Config(String),
@@ -117,4 +114,3 @@ pub enum EchoError {
 
 /// Result type for Echo core operations
 pub type Result<T> = std::result::Result<T, EchoError>;
-

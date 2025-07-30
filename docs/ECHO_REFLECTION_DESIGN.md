@@ -2,19 +2,24 @@
 
 ## Overview
 
-ECHO's reflection system provides comprehensive introspection and intercession capabilities, allowing programs to examine and modify their own structure and behavior at runtime. This design enables powerful metaprogramming patterns while maintaining security and performance.
+ECHO's reflection system provides comprehensive introspection and intercession
+capabilities, allowing programs to examine and modify their own structure and
+behavior at runtime. This design enables powerful metaprogramming patterns while
+maintaining security and performance.
 
 ## Core Concepts
 
 ### 1. Universal Meta-Object Access
 
-Every object in ECHO has an associated meta-object accessible through the `$meta` property:
+Every object in ECHO has an associated meta-object accessible through the
+`$meta` property:
 
 ```echo
 let meta = object.$meta;
 ```
 
-This meta-object serves as the gateway to all reflective operations on that object.
+This meta-object serves as the gateway to all reflective operations on that
+object.
 
 ### 2. Comprehensive Introspection
 
@@ -47,20 +52,20 @@ MetaObject {
     class: ClassName
     parent: ParentObject
     object_id: ObjectID
-    
+
     // Structural Reflection
     properties: PropertyMap
     verbs: VerbMap
     events: EventMap
     queries: QueryMap
     capabilities: CapabilitySet
-    
+
     // Behavioral Reflection
     add_property(name, spec)
     add_verb(name, spec)
     add_event_handler(event, spec)
     wrap_verb(name, wrappers)
-    
+
     // Meta-Meta Access
     $meta: MetaMetaObject
 }
@@ -69,7 +74,9 @@ MetaObject {
 ### Discovery Mechanisms
 
 #### 1. Direct Discovery
+
 Query an object directly for its components:
+
 ```echo
 player.$meta.properties     // All properties
 player.$meta.verbs         // All verbs
@@ -78,10 +85,12 @@ player.$meta.handles()     // Events this object handles
 ```
 
 #### 2. Reverse Discovery
+
 Find objects based on their capabilities:
+
 ```echo
 // Find all objects that emit PlayerMoved
-query emits_event(Object, "PlayerMoved") 
+query emits_event(Object, "PlayerMoved")
 
 // Find all objects with a specific verb
 query has_verb(Object, "examine")
@@ -91,7 +100,9 @@ query has_capability(Object, ReadProperty(#123, "secrets"))
 ```
 
 #### 3. Relationship Discovery
+
 Trace connections between objects:
+
 ```echo
 // Find all queries that reference an object
 $queries.references(object)
@@ -123,7 +134,7 @@ Some objects may have restricted reflection:
 ```echo
 object SecureVault
     meta_policy: "restricted"
-    
+
     // Only expose specific meta operations
     meta_allowed: ["properties", "has_verb"]
     meta_denied: ["verb_source", "add_verb", "wrap_verb"]
@@ -145,6 +156,7 @@ event MetaAccessDenied(object, operation, denied_to)
 ### 1. Development Tools
 
 **Object Inspector**
+
 ```echo
 fn inspect_deep(obj)
     let meta = obj.$meta;
@@ -158,10 +170,11 @@ endfn
 ```
 
 **Live Debugger**
+
 ```echo
 fn debug_verb(obj, verb_name)
     obj.$meta.wrap_verb(verb_name, {
-        before: fn(@args) 
+        before: fn(@args)
             $debugger:break(obj, verb_name, args);
         endfn
     });
@@ -171,10 +184,11 @@ endfn
 ### 2. Framework Development
 
 **ORM-Style Persistence**
+
 ```echo
 fn make_persistent(obj)
     let meta = obj.$meta;
-    
+
     // Add persistence behavior to all properties
     for prop in (meta.properties)
         meta.wrap_property(prop, {
@@ -187,10 +201,11 @@ endfn
 ```
 
 **Validation Framework**
+
 ```echo
 fn add_validation(obj, rules)
     let meta = obj.$meta;
-    
+
     for {property, rule} in (rules)
         meta.add_constraint(property, rule);
     endfor
@@ -200,16 +215,17 @@ endfn
 ### 3. Runtime Optimization
 
 **Adaptive Optimization**
+
 ```echo
 fn optimize_hot_paths(obj)
     let meta = obj.$meta;
     let profile = meta.profile(duration: 60s);
-    
+
     // Find hot verbs
     let hot_verbs = profile.verbs
         |> filter(v => v.call_count > 1000)
         |> sort_by(v => v.total_time);
-    
+
     // Apply optimizations
     for verb in (hot_verbs)
         meta.optimize_verb(verb.name, {
@@ -224,6 +240,7 @@ endfn
 ### 4. DSL Implementation
 
 **Domain-Specific Languages via MOP**
+
 ```echo
 fn create_dsl(domain_name, spec)
     let dsl_meta = {
@@ -232,7 +249,7 @@ fn create_dsl(domain_name, spec)
         events: spec.transitions,
         queries: spec.rules
     };
-    
+
     return fn(base_object)
         let meta = base_object.$meta;
         meta.apply_template(dsl_meta);
@@ -310,7 +327,7 @@ let deps = $queries.analyze("can_access", {
 });
 
 // Add query rules dynamically
-$queries.add_rule("can_access", 
+$queries.add_rule("can_access",
     "can_access(Admin, Object) :- is_admin(Admin)."
 );
 ```
@@ -330,21 +347,27 @@ endif
 ## Future Directions
 
 ### 1. Time-Travel Debugging
+
 Record meta-object changes to enable historical debugging:
+
 ```echo
 let history = obj.$meta.history(from: -1h, to: now);
 let past_state = obj.$meta.at_time(-30m);
 ```
 
 ### 2. Distributed Reflection
+
 Reflect across network boundaries:
+
 ```echo
 let remote_meta = remote_obj.$meta;
 let props = await remote_meta.properties;
 ```
 
 ### 3. AI-Assisted Metaprogramming
+
 Use LLMs to suggest meta-operations:
+
 ```echo
 let suggestions = $ai.suggest_optimizations(obj.$meta);
 let refactoring = $ai.propose_refactoring(obj.$meta, goal);
@@ -352,4 +375,8 @@ let refactoring = $ai.propose_refactoring(obj.$meta, goal);
 
 ## Conclusion
 
-ECHO's reflection and MOP design provides a powerful foundation for metaprogramming while maintaining the language's principles of clarity, safety, and performance. By making all language constructs discoverable and modifiable at runtime, ECHO enables sophisticated development tools, frameworks, and runtime optimizations that would be impossible in less reflective languages.
+ECHO's reflection and MOP design provides a powerful foundation for
+metaprogramming while maintaining the language's principles of clarity, safety,
+and performance. By making all language constructs discoverable and modifiable
+at runtime, ECHO enables sophisticated development tools, frameworks, and
+runtime optimizations that would be impossible in less reflective languages.

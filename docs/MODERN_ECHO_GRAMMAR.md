@@ -1,8 +1,10 @@
 # Modern Echo Grammar Design
 
-Since we're using MOO import via CST transformation, Echo can have a cleaner, more modern grammar:
+Since we're using MOO import via CST transformation, Echo can have a cleaner,
+more modern grammar:
 
 ## Variable Declaration & Assignment
+
 ```echo
 // Explicit variable declaration (avoids conflicts)
 let x = 42;
@@ -16,6 +18,7 @@ const PI = 3.14159;
 ```
 
 ## Object Definitions
+
 ```echo
 // Echo will retain its prototype-based inheritance model,
 // using MOO-style `object` definitions for all object creation.
@@ -23,7 +26,7 @@ const PI = 3.14159;
 object Person
     property name = "Anonymous";
     property age = 0;
-    
+
     verb greet() {
         return "Hello, " + this.name;
     }
@@ -31,6 +34,7 @@ endobject
 ```
 
 ## Control Structures
+
 ```echo
 // Modern block syntax with braces
 if (x > 10) {
@@ -56,6 +60,7 @@ while (condition) {
 ```
 
 ## Type Annotations (optional)
+
 ```echo
 let count: number = 0;
 let name: string = "Echo";
@@ -67,6 +72,7 @@ function add(a: number, b: number): number {
 ```
 
 ## Modern Features
+
 ```echo
 // String interpolation
 let message = `Hello, ${name}! You are ${age} years old.`;

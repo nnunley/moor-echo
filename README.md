@@ -1,10 +1,12 @@
 # Moor Echo Project
 
-A comprehensive implementation of the Echo programming language with modern features, real-time collaboration, and web-based interfaces.
+A comprehensive implementation of the Echo programming language with modern
+features, real-time collaboration, and web-based interfaces.
 
 ## Project Overview
 
-This repository contains a complete ecosystem for the Echo programming language, including:
+This repository contains a complete ecosystem for the Echo programming language,
+including:
 
 - **Echo REPL**: Interactive programming environment with web UI
 - **Language Implementation**: Modern parser, evaluator, and runtime
@@ -44,13 +46,17 @@ Then open your browser to: **http://localhost:8080**
 
 ### 📖 **Documentation**
 
-- **[Echo REPL README](echo-repl/README.md)** - Comprehensive guide for the main implementation
-- **[Language Design](docs/ECHO_LANGUAGE_DESIGN.md)** - Echo language specification
-- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** - Technical implementation details
+- **[Echo REPL README](echo-repl/README.md)** - Comprehensive guide for the main
+  implementation
+- **[Language Design](docs/ECHO_LANGUAGE_DESIGN.md)** - Echo language
+  specification
+- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** - Technical implementation
+  details
 
 ## Key Features
 
 ### 🎯 **Echo Language**
+
 - Dynamic object-oriented programming
 - Lambda functions with closures
 - Real-time event system
@@ -58,12 +64,14 @@ Then open your browser to: **http://localhost:8080**
 - Multi-user environments
 
 ### 🌐 **Web Interface**
+
 - Real-time collaboration between multiple users
 - Dynamic UI creation from Echo code
 - WebSocket-based event propagation
 - Interactive programming environment
 
 ### ⚡ **Performance**
+
 - Rust-based implementation for speed and safety
 - Efficient binary serialization
 - Event-driven architecture
@@ -71,15 +79,16 @@ Then open your browser to: **http://localhost:8080**
 
 ## Example Applications
 
-The repository includes several example applications showcasing different capabilities:
+The repository includes several example applications showcasing different
+capabilities:
 
-| Directory | Description |
-|-----------|-------------|
-| `echo-repl/chat_app.echo` | Real-time multi-user chat application |
-| `echo-repl/web_ui_advanced.echo` | Interactive dashboard with tabs and controls |
-| `echo-repl/dynamic_ui_builder.echo` | Dynamic form builder with live updates |
-| `examples/` | Language feature demonstrations |
-| `echo_jhcore/` | Core object library (player, room, thing classes) |
+| Directory                           | Description                                       |
+| ----------------------------------- | ------------------------------------------------- |
+| `echo-repl/chat_app.echo`           | Real-time multi-user chat application             |
+| `echo-repl/web_ui_advanced.echo`    | Interactive dashboard with tabs and controls      |
+| `echo-repl/dynamic_ui_builder.echo` | Dynamic form builder with live updates            |
+| `examples/`                         | Language feature demonstrations                   |
+| `echo_jhcore/`                      | Core object library (player, room, thing classes) |
 
 ## Architecture
 
@@ -123,11 +132,13 @@ The repository includes several example applications showcasing different capabi
 ## Development
 
 ### **Prerequisites**
+
 - Rust (latest stable)
 - Node.js (for any JavaScript tooling)
 - Web browser for testing UI features
 
 ### **Building**
+
 ```bash
 # Main implementation
 cd echo-repl
@@ -141,6 +152,7 @@ cargo build --features "web-ui jit"
 ```
 
 ### **Testing**
+
 ```bash
 # Run Rust tests
 cargo test
@@ -156,22 +168,32 @@ cargo test --test repl_tests
 ## Documentation
 
 ### **Language Documentation**
-- **[Echo Language Design](docs/ECHO_LANGUAGE_DESIGN.md)** - Language specification and design philosophy
-- **[MOO Comparison](GRAMMAR_COMPARISON.md)** - Comparison with original MOO language
-- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** - Technical implementation details
+
+- **[Echo Language Design](docs/ECHO_LANGUAGE_DESIGN.md)** - Language
+  specification and design philosophy
+- **[MOO Comparison](GRAMMAR_COMPARISON.md)** - Comparison with original MOO
+  language
+- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** - Technical implementation
+  details
 
 ### **Development Guides**
-- **[CST Alignment Plan](CST_ALIGNMENT_PLAN.md)** - Concrete syntax tree implementation
+
+- **[CST Alignment Plan](CST_ALIGNMENT_PLAN.md)** - Concrete syntax tree
+  implementation
 - **[Lambda Implementation](LAMBDA_IMPLEMENTATION.md)** - Function system design
-- **[Event System](echo-repl/src/evaluator/event_system.rs)** - Event-driven architecture
+- **[Event System](echo-repl/src/evaluator/event_system.rs)** - Event-driven
+  architecture
 
 ### **Testing Documentation**
+
 - **[Testing Guide](TESTING.md)** - Test suite organization and usage
 - **[Test Suites](test_suites/)** - Organized test collections
 
 ## Project History
 
-This project represents a modernization of the MOO (MUD Object-Oriented) programming language, originally developed for multi-user virtual environments. Echo extends MOO with:
+This project represents a modernization of the MOO (MUD Object-Oriented)
+programming language, originally developed for multi-user virtual environments.
+Echo extends MOO with:
 
 - Modern syntax and language features
 - Web-based interfaces
@@ -188,6 +210,7 @@ This project represents a modernization of the MOO (MUD Object-Oriented) program
 5. **Submit a pull request**
 
 ### **Areas for Contribution**
+
 - Language feature implementation
 - Performance optimizations
 - Web UI enhancements
@@ -197,23 +220,27 @@ This project represents a modernization of the MOO (MUD Object-Oriented) program
 
 ## License
 
-This project is open source. See individual files for specific license information.
+This project is open source. See individual files for specific license
+information.
 
 ## Roadmap
 
 ### **Short Term**
+
 - [ ] Complete MOO language compatibility
 - [ ] Enhanced error messages with source locations
 - [ ] Performance profiling and optimization
 - [ ] Extended standard library
 
 ### **Medium Term**
+
 - [ ] Visual programming interface
 - [ ] Mobile web app support
 - [ ] Plugin system for extensions
 - [ ] Cloud deployment options
 
 ### **Long Term**
+
 - [ ] Distributed object system
 - [ ] Real-time collaborative editing
 - [ ] Advanced debugging tools
@@ -223,9 +250,13 @@ This project is open source. See individual files for specific license informati
 
 ## Getting Help
 
-- **Main Documentation**: See [echo-repl/README.md](echo-repl/README.md) for detailed usage instructions
-- **Language Questions**: Check [docs/](docs/) for language design and specification
-- **Development Issues**: Review [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for technical details
-- **Examples**: Browse [examples/](examples/) and [echo_jhcore/](echo_jhcore/) for code samples
+- **Main Documentation**: See [echo-repl/README.md](echo-repl/README.md) for
+  detailed usage instructions
+- **Language Questions**: Check [docs/](docs/) for language design and
+  specification
+- **Development Issues**: Review
+  [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for technical details
+- **Examples**: Browse [examples/](examples/) and [echo_jhcore/](echo_jhcore/)
+  for code samples
 
 **Echo Project** - Bringing modern collaborative programming to virtual worlds.

@@ -1,5 +1,5 @@
 //! JIT Compiler for Echo language using Cranelift
-//! 
+//!
 //! This module provides a JIT compilation backend for the Echo language,
 //! compiling rust-sitter AST nodes to native machine code for performance.
 
@@ -22,20 +22,22 @@ impl CraneliftValue {
     pub fn new(value: cranelift::prelude::Value) -> Self {
         CraneliftValue(value)
     }
-    
+
     pub fn inner(self) -> cranelift::prelude::Value {
         self.0
     }
 }
 
-use anyhow::{Result, anyhow};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 
-use crate::ast::EchoAst;
-use crate::storage::{Storage, ObjectId};
-use super::{Value, Environment, EvaluatorTrait};
+use super::{Environment, EvaluatorTrait, Value};
+use crate::{
+    ast::EchoAst,
+    storage::{ObjectId, Storage},
+};
 
 /// JIT-compiled evaluator for Echo language
 pub struct JitEvaluator {
@@ -45,14 +47,14 @@ pub struct JitEvaluator {
     ctx: codegen::Context,
     #[cfg(feature = "jit")]
     module: JITModule,
-    
+
     storage: Arc<Storage>,
     environments: DashMap<ObjectId, Environment>,
     current_player: Option<ObjectId>,
-    
+
     // Compilation cache
     compiled_functions: HashMap<String, *const u8>,
-    
+
     // Performance metrics
     compilation_count: usize,
     execution_count: usize,
@@ -66,10 +68,10 @@ impl JitEvaluator {
         {
             let builder = JITBuilder::new(cranelift_module::default_libcall_names())?;
             let module = JITModule::new(builder);
-            
+
             let builder_context = FunctionBuilderContext::new();
             let ctx = module.make_context();
-            
+
             Ok(Self {
                 builder_context,
                 ctx,
@@ -83,7 +85,7 @@ impl JitEvaluator {
                 hot_threshold: 10, // Compile after 10 interpretations
             })
         }
-        
+
         #[cfg(not(feature = "jit"))]
         {
             Ok(Self {
@@ -97,46 +99,47 @@ impl JitEvaluator {
             })
         }
     }
-    
+
     /// Create a new player
     pub fn create_player(&mut self, name: &str) -> Result<ObjectId> {
         // Same implementation as interpreter evaluator
         let player_id = ObjectId::new();
-        
+
         // Create environment for the player
         let env = Environment {
             player_id,
             variables: HashMap::new(),
         };
         self.environments.insert(player_id, env);
-        
+
         Ok(player_id)
     }
-    
+
     /// Switch to a different player
     pub fn switch_player(&mut self, player_id: ObjectId) -> Result<()> {
         self.current_player = Some(player_id);
         Ok(())
     }
-    
+
     /// Get current player
     pub fn current_player(&self) -> Option<ObjectId> {
         self.current_player
     }
-    
+
     /// Evaluate an AST node with JIT compilation
     pub fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
-        let player_id = self.current_player
+        let player_id = self
+            .current_player
             .ok_or_else(|| anyhow!("No player selected"))?;
-            
+
         self.eval_with_player(ast, player_id)
     }
-    
+
     /// Evaluate with specific player, using JIT when beneficial
     pub fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         // Generate a key for this AST pattern
         let ast_key = self.ast_to_key(ast);
-        
+
         // Check if we should JIT compile this
         if self.should_compile(&ast_key) {
             self.compile_and_execute(ast, player_id)
@@ -145,7 +148,7 @@ impl JitEvaluator {
             self.interpret(ast, player_id)
         }
     }
-    
+
     /// Decide whether to JIT compile based on hotness
     fn should_compile(&self, _ast_key: &str) -> bool {
         #[cfg(feature = "jit")]
@@ -154,19 +157,19 @@ impl JitEvaluator {
             // In a full implementation, we'd track execution frequency
             false
         }
-        
+
         #[cfg(not(feature = "jit"))]
         {
             false
         }
     }
-    
+
     /// Generate a key for caching compiled functions
     fn ast_to_key(&self, ast: &EchoAst) -> String {
         // Simple key generation - in production, use a hash
         format!("{:?}", ast)
     }
-    
+
     /// Compile AST to machine code and execute
     #[cfg(feature = "jit")]
     fn compile_and_execute(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
@@ -174,13 +177,13 @@ impl JitEvaluator {
         // For now, fall back to interpretation
         self.interpret(ast, player_id)
     }
-    
+
     #[cfg(not(feature = "jit"))]
     fn compile_and_execute(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         // JIT feature not enabled, use interpreter
         self.interpret(ast, player_id)
     }
-    
+
     /// Interpret AST using the same logic as the main evaluator
     fn interpret(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         // For now, we'll implement a simplified interpreter
@@ -202,21 +205,26 @@ impl JitEvaluator {
             EchoAst::Add { left, right } => {
                 let left_val = self.eval_with_player(left, player_id)?;
                 let right_val = self.eval_with_player(right, player_id)?;
-                
+
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l + r)),
-                    (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{}{}", l, r))),
+                    (Value::String(l), Value::String(r)) => {
+                        Ok(Value::String(format!("{}{}", l, r)))
+                    }
                     _ => Err(anyhow!("Type error in addition")),
                 }
             }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
-                Err(anyhow!("AST node not yet implemented in JIT evaluator: {:?}", ast))
+                Err(anyhow!(
+                    "AST node not yet implemented in JIT evaluator: {:?}",
+                    ast
+                ))
             }
         }
     }
-    
+
     /// Get performance statistics
     pub fn stats(&self) -> JitStats {
         JitStats {
@@ -243,27 +251,31 @@ impl JitEvaluator {
     fn compile_ast(&mut self, ast: &EchoAst) -> Result<()> {
         // Clear previous function
         self.ctx.func.clear();
-        
+
         // Set up function signature
         let int_type = self.module.target_config().pointer_type();
-        self.ctx.func.signature.returns.push(AbiParam::new(int_type));
-        
+        self.ctx
+            .func
+            .signature
+            .returns
+            .push(AbiParam::new(int_type));
+
         // Build the function
         let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_context);
         let entry_block = builder.create_block();
         builder.append_block_params_for_function_params(entry_block);
         builder.switch_to_block(entry_block);
-        
+
         // Compile the AST
         let value = Self::compile_ast_node(ast, &mut builder)?;
         builder.ins().return_(&[value.inner()]);
-        
+
         // Finalize the function
         builder.finalize();
-        
+
         Ok(())
     }
-    
+
     /// Compile a single AST node to Cranelift IR
     fn compile_ast_node(ast: &EchoAst, builder: &mut FunctionBuilder) -> Result<CraneliftValue> {
         match ast {
@@ -277,7 +289,10 @@ impl JitEvaluator {
                 let result = builder.ins().iadd(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
             }
-            _ => Err(anyhow!("AST node not yet supported in JIT compilation: {:?}", ast)),
+            _ => Err(anyhow!(
+                "AST node not yet supported in JIT compilation: {:?}",
+                ast
+            )),
         }
     }
 }
@@ -287,23 +302,23 @@ impl EvaluatorTrait for JitEvaluator {
     fn create_player(&mut self, name: &str) -> Result<ObjectId> {
         self.create_player(name)
     }
-    
+
     fn switch_player(&mut self, player_id: ObjectId) -> Result<()> {
         self.switch_player(player_id)
     }
-    
+
     fn current_player(&self) -> Option<ObjectId> {
         self.current_player()
     }
-    
+
     fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
         self.eval(ast)
     }
-    
+
     fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         self.eval_with_player(ast, player_id)
     }
-    
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }

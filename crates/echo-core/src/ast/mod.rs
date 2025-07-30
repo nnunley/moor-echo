@@ -8,7 +8,8 @@ pub use source_gen::ToSource;
 mod source_gen_tests;
 
 use std::fmt;
-use serde::{Serialize, Deserialize};
+
+use serde::{Deserialize, Serialize};
 
 /// Binding type for variables
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -53,14 +54,14 @@ pub enum LValue {
         pattern: BindingPattern,
     },
     /// Property access: obj.prop
-    PropertyAccess { 
-        object: Box<EchoAst>, 
-        property: String 
+    PropertyAccess {
+        object: Box<EchoAst>,
+        property: String,
     },
     /// Index access: list[index]
-    IndexAccess { 
-        object: Box<EchoAst>, 
-        index: Box<EchoAst> 
+    IndexAccess {
+        object: Box<EchoAst>,
+        index: Box<EchoAst>,
     },
 }
 
@@ -72,153 +73,242 @@ pub enum EchoAst {
     String(String),
     Boolean(bool),
     Null,
-    
+
     // Identifiers and references
     Identifier(String),
-    SystemProperty(String),  // $propname
+    SystemProperty(String), // $propname
     ObjectRef(i64),         // #123
-    
+
     // Binary operations
-    Add { left: Box<EchoAst>, right: Box<EchoAst> },
-    Subtract { left: Box<EchoAst>, right: Box<EchoAst> },
-    Multiply { left: Box<EchoAst>, right: Box<EchoAst> },
-    Divide { left: Box<EchoAst>, right: Box<EchoAst> },
-    Modulo { left: Box<EchoAst>, right: Box<EchoAst> },
-    Power { left: Box<EchoAst>, right: Box<EchoAst> },
-    
+    Add {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Subtract {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Multiply {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Divide {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Modulo {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Power {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+
     // Comparison operations
-    Equal { left: Box<EchoAst>, right: Box<EchoAst> },
-    NotEqual { left: Box<EchoAst>, right: Box<EchoAst> },
-    LessThan { left: Box<EchoAst>, right: Box<EchoAst> },
-    LessEqual { left: Box<EchoAst>, right: Box<EchoAst> },
-    GreaterThan { left: Box<EchoAst>, right: Box<EchoAst> },
-    GreaterEqual { left: Box<EchoAst>, right: Box<EchoAst> },
-    In { left: Box<EchoAst>, right: Box<EchoAst> },
-    
+    Equal {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    NotEqual {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    LessThan {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    LessEqual {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    GreaterThan {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    GreaterEqual {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    In {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+
     // Logical operations
-    And { left: Box<EchoAst>, right: Box<EchoAst> },
-    Or { left: Box<EchoAst>, right: Box<EchoAst> },
-    Not { operand: Box<EchoAst> },
-    
+    And {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Or {
+        left: Box<EchoAst>,
+        right: Box<EchoAst>,
+    },
+    Not {
+        operand: Box<EchoAst>,
+    },
+
     // Unary operations
-    UnaryMinus { operand: Box<EchoAst> },
-    UnaryPlus { operand: Box<EchoAst> },
-    
+    UnaryMinus {
+        operand: Box<EchoAst>,
+    },
+    UnaryPlus {
+        operand: Box<EchoAst>,
+    },
+
     // Variable operations
-    Assignment { target: LValue, value: Box<EchoAst> },
-    LocalAssignment { target: BindingPattern, value: Box<EchoAst> },
-    ConstAssignment { target: BindingPattern, value: Box<EchoAst> },
-    
+    Assignment {
+        target: LValue,
+        value: Box<EchoAst>,
+    },
+    LocalAssignment {
+        target: BindingPattern,
+        value: Box<EchoAst>,
+    },
+    ConstAssignment {
+        target: BindingPattern,
+        value: Box<EchoAst>,
+    },
+
     // Property and method access
-    PropertyAccess { object: Box<EchoAst>, property: String },
-    MethodCall { object: Box<EchoAst>, method: String, args: Vec<EchoAst> },
-    FunctionCall { name: String, args: Vec<EchoAst> },
-    Call { func: Box<EchoAst>, args: Vec<EchoAst> }, // For lambda calls
-    
+    PropertyAccess {
+        object: Box<EchoAst>,
+        property: String,
+    },
+    MethodCall {
+        object: Box<EchoAst>,
+        method: String,
+        args: Vec<EchoAst>,
+    },
+    FunctionCall {
+        name: String,
+        args: Vec<EchoAst>,
+    },
+    Call {
+        func: Box<EchoAst>,
+        args: Vec<EchoAst>,
+    }, // For lambda calls
+
     // Index access
-    IndexAccess { object: Box<EchoAst>, index: Box<EchoAst> },
-    
+    IndexAccess {
+        object: Box<EchoAst>,
+        index: Box<EchoAst>,
+    },
+
     // Collections
-    List { elements: Vec<EchoAst> },
-    Map { entries: Vec<(String, EchoAst)> },  // Modern Echo only
-    
+    List {
+        elements: Vec<EchoAst>,
+    },
+    Map {
+        entries: Vec<(String, EchoAst)>,
+    }, // Modern Echo only
+
     // Anonymous functions (Modern Echo only)
     Lambda {
         params: Vec<LambdaParam>,
         body: Box<EchoAst>,
     },
-    
+
     // Control structures
-    If { 
-        condition: Box<EchoAst>, 
-        then_branch: Vec<EchoAst>, 
-        else_branch: Option<Vec<EchoAst>> 
+    If {
+        condition: Box<EchoAst>,
+        then_branch: Vec<EchoAst>,
+        else_branch: Option<Vec<EchoAst>>,
     },
-    While { 
+    While {
         label: Option<String>,
-        condition: Box<EchoAst>, 
-        body: Vec<EchoAst> 
+        condition: Box<EchoAst>,
+        body: Vec<EchoAst>,
     },
-    For { 
+    For {
         label: Option<String>,
-        variable: String, 
-        collection: Box<EchoAst>, 
-        body: Vec<EchoAst> 
+        variable: String,
+        collection: Box<EchoAst>,
+        body: Vec<EchoAst>,
     },
-    
+
     // Jump statements
-    Return { value: Option<Box<EchoAst>> },
-    Break { label: Option<String> },
-    Continue { label: Option<String> },
-    
+    Return {
+        value: Option<Box<EchoAst>>,
+    },
+    Break {
+        label: Option<String>,
+    },
+    Continue {
+        label: Option<String>,
+    },
+
     // Event emission
-    Emit { event_name: String, args: Vec<EchoAst> },
-    
+    Emit {
+        event_name: String,
+        args: Vec<EchoAst>,
+    },
+
     // Object definitions
-    ObjectDef { 
-        name: String, 
+    ObjectDef {
+        name: String,
         parent: Option<String>,
-        members: Vec<ObjectMember> 
+        members: Vec<ObjectMember>,
     },
-    
+
     // Error handling
-    Try { 
-        body: Vec<EchoAst>, 
+    Try {
+        body: Vec<EchoAst>,
         catch: Option<CatchClause>,
-        finally: Option<Vec<EchoAst>> 
+        finally: Option<Vec<EchoAst>>,
     },
-    
+
     // Modern Echo features (not in MOO)
     // These will only be generated by the modern Echo parser
-    Event { 
-        name: String, 
+    Event {
+        name: String,
         params: Vec<Parameter>,
-        body: Vec<EchoAst> 
+        body: Vec<EchoAst>,
     },
-    Spawn { 
-        body: Box<EchoAst> 
+    Spawn {
+        body: Box<EchoAst>,
     },
-    Await { 
-        expr: Box<EchoAst> 
+    Await {
+        expr: Box<EchoAst>,
     },
-    Match { 
-        expr: Box<EchoAst>, 
-        arms: Vec<MatchArm> 
+    Match {
+        expr: Box<EchoAst>,
+        arms: Vec<MatchArm>,
     },
-    
+
     // Type annotations (Modern Echo only)
-    TypedIdentifier { 
-        name: String, 
-        type_annotation: TypeExpression 
+    TypedIdentifier {
+        name: String,
+        type_annotation: TypeExpression,
     },
-    
+
     // Statements
     ExpressionStatement(Box<EchoAst>),
     Block(Vec<EchoAst>),
-    
+
     // Top-level program
     Program(Vec<EchoAst>),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ObjectMember {
-    Property { 
-        name: String, 
+    Property {
+        name: String,
         value: EchoAst,
-        permissions: Option<PropertyPermissions> 
+        permissions: Option<PropertyPermissions>,
     },
-    Verb { 
-        name: String, 
+    Verb {
+        name: String,
         args: Vec<Parameter>,
         body: Vec<EchoAst>,
-        permissions: Option<VerbPermissions> 
+        permissions: Option<VerbPermissions>,
     },
     // Modern Echo only
-    Method { 
-        name: String, 
+    Method {
+        name: String,
         args: Vec<Parameter>,
         return_type: Option<TypeExpression>,
-        body: Vec<EchoAst> 
+        body: Vec<EchoAst>,
     },
     Event {
         name: String,
@@ -227,7 +317,7 @@ pub enum ObjectMember {
     },
     Query {
         name: String,
-        params: Vec<String>,  // Query parameter names
+        params: Vec<String>, // Query parameter names
         clauses: Vec<QueryClause>,
     },
 }
@@ -273,12 +363,15 @@ pub enum TypeExpression {
     Named(String),
     Array(Box<TypeExpression>),
     Optional(Box<TypeExpression>),
-    Function { params: Vec<TypeExpression>, return_type: Box<TypeExpression> },
+    Function {
+        params: Vec<TypeExpression>,
+        return_type: Box<TypeExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PropertyPermissions {
-    pub read: String,   // e.g., "owner", "anyone"
+    pub read: String, // e.g., "owner", "anyone"
     pub write: String,
 }
 
@@ -306,33 +399,35 @@ pub enum QueryArg {
 impl EchoAst {
     /// Check if this AST node is an expression (vs statement)
     pub fn is_expression(&self) -> bool {
-        !matches!(self, 
-            EchoAst::LocalAssignment { .. } |
-            EchoAst::ConstAssignment { .. } |
-            EchoAst::ObjectDef { .. } |
-            EchoAst::Event { .. } |
-            EchoAst::If { .. } |
-            EchoAst::While { .. } |
-            EchoAst::For { .. } |
-            EchoAst::Return { .. } |
-            EchoAst::Break { .. } |
-            EchoAst::Continue { .. } |
-            EchoAst::Block(_) |
-            EchoAst::ExpressionStatement(_)
+        !matches!(
+            self,
+            EchoAst::LocalAssignment { .. }
+                | EchoAst::ConstAssignment { .. }
+                | EchoAst::ObjectDef { .. }
+                | EchoAst::Event { .. }
+                | EchoAst::If { .. }
+                | EchoAst::While { .. }
+                | EchoAst::For { .. }
+                | EchoAst::Return { .. }
+                | EchoAst::Break { .. }
+                | EchoAst::Continue { .. }
+                | EchoAst::Block(_)
+                | EchoAst::ExpressionStatement(_)
         )
     }
-    
+
     /// Check if this is a MOO-compatible construct
     pub fn is_moo_compatible(&self) -> bool {
-        !matches!(self,
-            EchoAst::LocalAssignment { .. } |
-            EchoAst::ConstAssignment { .. } |
-            EchoAst::Map { .. } |
-            EchoAst::Event { .. } |
-            EchoAst::Spawn { .. } |
-            EchoAst::Await { .. } |
-            EchoAst::Match { .. } |
-            EchoAst::TypedIdentifier { .. }
+        !matches!(
+            self,
+            EchoAst::LocalAssignment { .. }
+                | EchoAst::ConstAssignment { .. }
+                | EchoAst::Map { .. }
+                | EchoAst::Event { .. }
+                | EchoAst::Spawn { .. }
+                | EchoAst::Await { .. }
+                | EchoAst::Match { .. }
+                | EchoAst::TypedIdentifier { .. }
         )
     }
 }

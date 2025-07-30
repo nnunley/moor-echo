@@ -5,6 +5,7 @@
 ### Event Emission
 
 **Current Approach:**
+
 ```javascript
 // Special syntax for events
 emit player_moved
@@ -18,6 +19,7 @@ case Emit { event_name, args } => {
 ```
 
 **Tuple Space Approach:**
+
 ```javascript
 // Same as any operation
 emit player_moved
@@ -32,6 +34,7 @@ case any_operation => {
 ### Method Calls
 
 **Current Approach:**
+
 ```javascript
 // Direct object method invocation
 result = player:take_damage(10)
@@ -45,6 +48,7 @@ case MethodCall { object, method, args } => {
 ```
 
 **Tuple Space Approach:**
+
 ```javascript
 // Looks the same to programmer
 result = player:take_damage(10)
@@ -57,6 +61,7 @@ result = get(cont_123)
 ### Future: Generators
 
 **Current Approach (Would Require Colors):**
+
 ```javascript
 function* generate_items() {
     for i in (1..10) {
@@ -71,6 +76,7 @@ for item in (generate_items()) {
 ```
 
 **Tuple Space Approach (No Colors):**
+
 ```javascript
 function generate_items() {
     for i in (1..10) {
@@ -87,6 +93,7 @@ for item in (generate_items()) {
 ### Future: Async Operations
 
 **Current Approach (Would Require Colors):**
+
 ```javascript
 async function fetch_data() {
     return await database:query(sql)
@@ -99,6 +106,7 @@ async function use_data() {
 ```
 
 **Tuple Space Approach (No Colors):**
+
 ```javascript
 function fetch_data() {
     return database:query(sql)  // Just tuples
@@ -113,12 +121,14 @@ function use_data() {
 ## Key Insight
 
 The tuple space approach treats **everything** as message passing:
+
 - No special syntax for different operation types
 - No function coloring
 - Uniform execution model
 - Natural distribution
 
 But it requires:
+
 - Sophisticated runtime
 - Performance optimization
 - Good debugging tools
@@ -126,7 +136,9 @@ But it requires:
 
 ## Why This Matters
 
-Even if we don't implement tuple spaces, thinking about communication this way helps us:
+Even if we don't implement tuple spaces, thinking about communication this way
+helps us:
+
 1. Avoid introducing unnecessary function colors
 2. Design APIs that could work distributed
 3. Keep syntax uniform
@@ -135,6 +147,7 @@ Even if we don't implement tuple spaces, thinking about communication this way h
 ## Current Decision
 
 Continue with the current approach but:
+
 - Minimize special syntax
 - Avoid viral function colors
 - Design with future flexibility
@@ -149,7 +162,7 @@ async emit player_moved  // Don't combine colors!
 // BAD: Caller must know implementation
 let data = await object:method()  // Forces caller to be async
 
-// BAD: Incompatible worlds  
+// BAD: Incompatible worlds
 async function* stream_events() {  // Async generator nightmare
     while (true) {
         yield await get_event()

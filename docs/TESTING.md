@@ -48,6 +48,7 @@ The primary test runner with advanced features:
 ```
 
 Features:
+
 - Creates isolated test databases in current directory
 - Optionally runs Rust unit tests with `--rust` flag
 - Strips comments from Echo test files (since grammar doesn't support them yet)
@@ -55,7 +56,8 @@ Features:
 - Provides colored output and test summaries
 - Returns appropriate exit codes for CI/CD
 - Cleans up test databases by default (use `--no-cleanup` to preserve)
-- Supports temporary system directories with `--testing` flag for hermetic testing
+- Supports temporary system directories with `--testing` flag for hermetic
+  testing
 
 ### Shell Test Runner (`run_echo_tests.sh`)
 
@@ -93,7 +95,7 @@ let test = fn {actual, expected, name}
   if actual == expected
     pass = pass + 1
     "✓ " + name
-  else  
+  else
     fail = fail + 1
     "✗ " + name + " (got " + actual + ", wanted " + expected + ")"
   endif
@@ -110,7 +112,7 @@ test(foo(), expected, "Function test")
 if fail == 0
   "✅ All tests passed!"
 else
-  "❌ Some tests failed!"  
+  "❌ Some tests failed!"
 endif
 ```
 
@@ -133,24 +135,31 @@ test(complex_fn(5), 20, "Complex function")
 ## Test Files
 
 ### `mini_test.echo`
+
 Basic test suite covering arithmetic, lambdas, and control flow.
 
 ### `test_batch.echo`
+
 Batch-mode test file using `.eval` for multi-line support.
 
 ### `echo_test.echo`
+
 Comprehensive test using the assertion framework.
 
 ### `test_framework.echo`
+
 Reusable test framework with assertion functions (requires `.load` support).
 
 ## Known Limitations
 
-1. **No Comment Support**: The current grammar doesn't support comments, so test files with `//` comments need preprocessing.
+1. **No Comment Support**: The current grammar doesn't support comments, so test
+   files with `//` comments need preprocessing.
 
-2. **No .load Command**: The REPL doesn't have a `.load` command yet, so test framework files must be inlined.
+2. **No .load Command**: The REPL doesn't have a `.load` command yet, so test
+   framework files must be inlined.
 
-3. **Multi-line Constructs**: Complex multi-line constructs should use `.eval` mode.
+3. **Multi-line Constructs**: Complex multi-line constructs should use `.eval`
+   mode.
 
 ## Continuous Integration
 
@@ -165,6 +174,7 @@ make test
 ```
 
 The test runners return:
+
 - Exit code 0: All tests passed
 - Exit code 1: Some tests failed
 

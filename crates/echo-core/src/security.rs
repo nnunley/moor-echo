@@ -1,5 +1,5 @@
 //! Security module for Echo runtime
-//! 
+//!
 //! Provides security-related functionality including:
 //! - Access control and permissions
 //! - Resource limits and sandboxing
@@ -22,7 +22,7 @@ impl Default for SecurityPolicy {
     fn default() -> Self {
         Self {
             max_memory: 100 * 1024 * 1024, // 100MB
-            max_execution_time: 30 * 1000,  // 30 seconds
+            max_execution_time: 30 * 1000, // 30 seconds
             max_objects: 100_000,
             max_eval_depth: 1000,
         }
@@ -58,7 +58,11 @@ impl SecurityContext {
     }
 
     /// Check if a resource usage is within limits
-    pub fn check_resource_usage(&self, objects: usize, eval_depth: usize) -> Result<(), SecurityError> {
+    pub fn check_resource_usage(
+        &self,
+        objects: usize,
+        eval_depth: usize,
+    ) -> Result<(), SecurityError> {
         if objects > self.policy.max_objects {
             return Err(SecurityError::ResourceLimit {
                 resource: "objects".to_string(),
@@ -89,11 +93,11 @@ pub enum SecurityError {
         limit: usize,
         actual: usize,
     },
-    
+
     /// Access denied
     #[error("Access denied: {reason}")]
     AccessDenied { reason: String },
-    
+
     /// Security policy violation
     #[error("Security policy violation: {violation}")]
     PolicyViolation { violation: String },

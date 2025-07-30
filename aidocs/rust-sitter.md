@@ -1,27 +1,35 @@
-
-
 # Documentation for rust-sitter
 
-This document provides an overview of `rust-sitter`, a library for building parsers in Rust using Tree Sitter.
+This document provides an overview of `rust-sitter`, a library for building
+parsers in Rust using Tree Sitter.
 
 ## Introduction
 
-`rust-sitter` is a tool that simplifies the creation of efficient parsers in Rust. It leverages the power of the Tree Sitter parser generator, allowing you to define your grammar directly within your Rust code using annotations. This approach eliminates the need for a separate grammar file and automatically generates type-safe bindings for your language.
+`rust-sitter` is a tool that simplifies the creation of efficient parsers in
+Rust. It leverages the power of the Tree Sitter parser generator, allowing you
+to define your grammar directly within your Rust code using annotations. This
+approach eliminates the need for a separate grammar file and automatically
+generates type-safe bindings for your language.
 
 The key benefits of using `rust-sitter`:
 
-*   **Idiomatic Rust:** Define your grammar using familiar Rust structs and enums.
-*   **Type-Safe:** The generated parser produces a strongly-typed Abstract Syntax Tree (AST).
-*   **Efficient:** Leverages the high-performance Tree Sitter parsing library.
-*   **Great Error Recovery:** Tree Sitter is known for its ability to produce a useful CST even with syntax errors.
+- **Idiomatic Rust:** Define your grammar using familiar Rust structs and enums.
+- **Type-Safe:** The generated parser produces a strongly-typed Abstract Syntax
+  Tree (AST).
+- **Efficient:** Leverages the high-performance Tree Sitter parsing library.
+- **Great Error Recovery:** Tree Sitter is known for its ability to produce a
+  useful CST even with syntax errors.
 
 ## Core Concepts
 
-`rust-sitter` works by transforming your annotated Rust code into a Tree Sitter grammar and then generating the necessary bindings to parse that grammar into your defined data structures.
+`rust-sitter` works by transforming your annotated Rust code into a Tree Sitter
+grammar and then generating the necessary bindings to parse that grammar into
+your defined data structures.
 
 ### Grammar Definition
 
-You define the grammar of your language using Rust structs and enums, and use the `#[sitter(...)]` attribute to specify the parsing rules.
+You define the grammar of your language using Rust structs and enums, and use
+the `#[sitter(...)]` attribute to specify the parsing rules.
 
 **Example: A simple JSON-like grammar**
 
@@ -46,17 +54,23 @@ pub enum Json {
 
 In this example:
 
-*   `#[sitter(grammar = "json")]` at the top-level enum declares the name of the grammar.
-*   `#[sitter(word = "...")]` matches an exact keyword.
-*   `#[sitter(pattern = "...")]` matches a regular expression.
-*   The fields of the structs/enums define the structure of your AST.
+- `#[sitter(grammar = "json")]` at the top-level enum declares the name of the
+  grammar.
+- `#[sitter(word = "...")]` matches an exact keyword.
+- `#[sitter(pattern = "...")]` matches a regular expression.
+- The fields of the structs/enums define the structure of your AST.
 
 ### Two-Phase Process
 
 `rust-sitter` uses a two-phase process:
 
-1.  **Grammar Generation:** A procedural macro (`#[sitter(grammar = ...)]`) processes your annotated Rust code and generates a Tree Sitter grammar in JSON format.
-2.  **Parser Generation:** This grammar is then used by a `build.rs` script to generate the actual Tree Sitter parser. Another macro then generates the Rust bindings that convert the output of the Tree Sitter parser into your custom data types.
+1.  **Grammar Generation:** A procedural macro (`#[sitter(grammar = ...)]`)
+    processes your annotated Rust code and generates a Tree Sitter grammar in
+    JSON format.
+2.  **Parser Generation:** This grammar is then used by a `build.rs` script to
+    generate the actual Tree Sitter parser. Another macro then generates the
+    Rust bindings that convert the output of the Tree Sitter parser into your
+    custom data types.
 
 ## End-to-End Walkthrough: A Simple Expression Evaluator
 
@@ -100,9 +114,10 @@ pub enum Expression {
 ```
 
 Here we define our `Expression` enum with three variants:
-*   A `Number`, which is a sequence of digits.
-*   An `Add` operation, which is left-associative with precedence 1.
-*   A `Mul` operation, which is left-associative with precedence 2.
+
+- A `Number`, which is a sequence of digits.
+- An `Add` operation, which is left-associative with precedence 1.
+- A `Mul` operation, which is left-associative with precedence 2.
 
 ### 3. Build Script
 
@@ -114,7 +129,8 @@ fn main() {
 }
 ```
 
-This script tells `rust-sitter` to look for grammar definitions in `src/lib.rs` and generate the necessary parsers.
+This script tells `rust-sitter` to look for grammar definitions in `src/lib.rs`
+and generate the necessary parsers.
 
 ### 4. Using the Parser
 
@@ -151,7 +167,9 @@ fn main() {
 
 ### 5. Running the code
 
-When you run your project, `build.rs` will be executed first, generating the parser. Then, your `main` function will run, parsing the input string and printing the resulting AST.
+When you run your project, `build.rs` will be executed first, generating the
+parser. Then, your `main` function will run, parsing the input string and
+printing the resulting AST.
 
 The output will be:
 
@@ -171,10 +189,11 @@ This demonstrates how `rust-sitter` correctly handles operator precedence.
 
 `rust-sitter` also supports more advanced features:
 
-*   **Repetition:** Use `Vec<T>` to parse repeated elements.
-*   **Optional Values:** Use `Option<T>` for optional parts of your grammar.
-*   **Tokenization:** Use `#[sitter(leaf)]` to capture the text of a token.
-*   **Error Recovery:** Tree Sitter automatically handles errors, and `rust-sitter` exposes them through its `ParseError` type.
+- **Repetition:** Use `Vec<T>` to parse repeated elements.
+- **Optional Values:** Use `Option<T>` for optional parts of your grammar.
+- **Tokenization:** Use `#[sitter(leaf)]` to capture the text of a token.
+- **Error Recovery:** Tree Sitter automatically handles errors, and
+  `rust-sitter` exposes them through its `ParseError` type.
 
-For more detailed information and examples, please refer to the official `rust-sitter` repository and the introductory blog post.
-
+For more detailed information and examples, please refer to the official
+`rust-sitter` repository and the introductory blog post.

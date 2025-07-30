@@ -1,7 +1,7 @@
 //! # Echo Web
-//! 
+//!
 //! Web server and UI components for the Echo programming language.
-//! 
+//!
 //! This crate provides:
 //! - HTTP/WebSocket server for Echo REPL access
 //! - Real-time bidirectional communication
@@ -9,24 +9,20 @@
 //! - Event streaming and UI manipulation
 //! - Multi-user support and collaboration features
 
-//#![deny(missing_docs)]  // Temporarily disabled during crate extraction  
+//#![deny(missing_docs)]  // Temporarily disabled during crate extraction
 #![warn(clippy::all)]
 
-pub mod server;
-pub mod notifier;
 pub mod events;
+pub mod notifier;
+pub mod server;
 pub mod web_notifier;
 
-pub use server::{WebServer, WebServerConfig};
-pub use notifier::{WebNotifier, WebEvent};
 pub use events::{EventData, UiUpdate};
+pub use notifier::{WebEvent, WebNotifier};
+pub use server::{WebServer, WebServerConfig};
 pub use web_notifier::{
-    WebNotifier as WebReplNotifier, 
-    WebEvent as WebReplEvent, 
-    StateSnapshot, 
-    EnvironmentVar, 
-    ObjectInfo, 
-    UiUpdate as UiUpdateCommand
+    EnvironmentVar, ObjectInfo, StateSnapshot, UiUpdate as UiUpdateCommand,
+    WebEvent as WebReplEvent, WebNotifier as WebReplNotifier,
 };
 
 /// Web server version information

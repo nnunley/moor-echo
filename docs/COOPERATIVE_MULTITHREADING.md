@@ -2,21 +2,27 @@
 
 ## Overview
 
-Echo language supports cooperative multithreading with persistent continuations that survive server restarts. This enables long-running MOO-style systems where players can have suspended execution that resumes across server lifecycle events.
+Echo language supports cooperative multithreading with persistent continuations
+that survive server restarts. This enables long-running MOO-style systems where
+players can have suspended execution that resumes across server lifecycle
+events.
 
 ## Architecture
 
 ### Execution Model
 
-Players execute code cooperatively with automatic yield points and explicit suspend mechanisms:
+Players execute code cooperatively with automatic yield points and explicit
+suspend mechanisms:
 
 - **Automatic Yield Points**: At the end of each loop iteration
 - **Explicit Yield Points**: When calling builtin functions that return futures
-- **Persistent Continuations**: Execution state can be serialized to disk and resumed
+- **Persistent Continuations**: Execution state can be serialized to disk and
+  resumed
 
 ### Core Components
 
 #### 1. Execution Context
+
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct ExecutionContext {
@@ -32,6 +38,7 @@ pub struct ExecutionContext {
 ```
 
 #### 2. AST Position Tracking
+
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct AstPosition {
@@ -49,6 +56,7 @@ pub enum ExpressionState {
 ```
 
 #### 3. Stack Frame Management
+
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct StackFrame {
@@ -68,6 +76,7 @@ pub enum ScopeType {
 ```
 
 #### 4. Loop State Persistence
+
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct LoopState {
@@ -129,7 +138,8 @@ pub enum EvaluationResult {
 ### Evaluator Backend Support
 
 - **Interpreter**: Full continuation support with AST position tracking
-- **JIT (Cranelift)**: Limited support - falls back to interpreter for continuations
+- **JIT (Cranelift)**: Limited support - falls back to interpreter for
+  continuations
 - **WebAssembly JIT**: Experimental support through WASM stack inspection
 
 ## Storage Layer
@@ -174,31 +184,31 @@ const CONTINUATION_INDEX_PREFIX: &str = "cont_idx:";
 ```javascript
 // Automatic yield at end of loop iterations
 for (item in collection) {
-    // ... process item ...
-    // <- automatic yield point here
+  // ... process item ...
+  // <- automatic yield point here
 }
 
 while (condition) {
-    // ... loop body ...
-    // <- automatic yield point here
+  // ... loop body ...
+  // <- automatic yield point here
 }
 
 // Explicit yield/suspend
-suspend(5000);  // Suspend for 5 seconds
-yield;          // Yield to other players immediately
+suspend(5000); // Suspend for 5 seconds
+yield; // Yield to other players immediately
 
 // Builtin functions that return futures
-let result = await http_get("https://example.com");
-let data = await database_query("SELECT * FROM users");
+let result = await http_get('https://example.com');
+let data = await database_query('SELECT * FROM users');
 
 // Lambda functions for async callbacks
-let urls = ["https://api1.com", "https://api2.com", "https://api3.com"];
+let urls = ['https://api1.com', 'https://api2.com', 'https://api3.com'];
 let promises = urls.map((url) => http_get(url));
 let results = await Promise.all(promises);
 
 // Event handling with lambdas
 on_player_move((player, old_location, new_location) => {
-    broadcast(`${player.name} moved from ${old_location} to ${new_location}`);
+  broadcast(`${player.name} moved from ${old_location} to ${new_location}`);
 });
 ```
 
@@ -206,16 +216,16 @@ on_player_move((player, old_location, new_location) => {
 
 ```javascript
 // Wait for specific time
-wait_until(time("2024-01-01T00:00:00Z"));
+wait_until(time('2024-01-01T00:00:00Z'));
 
 // Wait for player action
-wait_for_player(player_id, "move");
+wait_for_player(player_id, 'move');
 
 // Wait for object state change
-wait_for_property(object_id, "status", "ready");
+wait_for_property(object_id, 'status', 'ready');
 
 // Wait for custom event
-wait_for_event("server_restart");
+wait_for_event('server_restart');
 ```
 
 ## Scheduler Integration
@@ -262,7 +272,7 @@ impl CooperativeScheduler {
     pub fn recover_from_restart(&mut self) -> Result<RecoveryStats> {
         let continuations = self.continuation_store.load_all_continuations()?;
         let mut stats = RecoveryStats::new();
-        
+
         for ctx in continuations {
             if self.is_valid_continuation(&ctx) {
                 self.schedule_continuation(ctx)?;
@@ -272,7 +282,7 @@ impl CooperativeScheduler {
                 stats.expired += 1;
             }
         }
-        
+
         Ok(stats)
     }
 }
@@ -319,24 +329,29 @@ impl CooperativeScheduler {
 ## Implementation Phases
 
 ### Phase 1: Basic Cooperative Multithreading
-- **✅ Partial**: Implement basic yield points in loops (TODO comments in evaluator)
+
+- **✅ Partial**: Implement basic yield points in loops (TODO comments in
+  evaluator)
 - **Pending**: Add simple scheduler with time slicing
 - **Pending**: Support for basic suspend/resume
-- **Prerequisites**: 
+- **Prerequisites**:
   - Function definitions and calls must be implemented first
   - Lambda/anonymous functions recommended for async callbacks
 
 ### Phase 2: Persistent Continuations
+
 - Add ExecutionContext serialization
 - Implement continuation storage layer
 - Support server restart recovery
 
 ### Phase 3: Advanced Features
+
 - Add wait conditions and event-driven resumption
 - Implement advanced scheduling algorithms
 - Add distributed continuation support
 
 ### Phase 4: Production Readiness
+
 - Performance optimization and tuning
 - Comprehensive testing and validation
 - Documentation and tooling

@@ -1,6 +1,8 @@
-use crate::storage::object_store::ObjectId;
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+
+use serde::{Deserialize, Serialize};
+
+use crate::storage::object_store::ObjectId;
 
 /// Unique identifier for green threads (lightweight cooperative tasks)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -20,13 +22,17 @@ pub struct MetaObject {
     pub object_id: ObjectId,
     /// List of active green threads associated with this object
     pub active_tasks: Vec<GreenThreadId>,
-    /// Metadata about object properties (will be expanded as features are implemented)
+    /// Metadata about object properties (will be expanded as features are
+    /// implemented)
     pub properties_meta: HashMap<String, PropertyMetadata>,
-    /// Metadata about object verbs (will be expanded as features are implemented)  
+    /// Metadata about object verbs (will be expanded as features are
+    /// implemented)
     pub verbs_meta: HashMap<String, VerbMetadata>,
-    /// Metadata about object events (will be expanded as features are implemented)
+    /// Metadata about object events (will be expanded as features are
+    /// implemented)
     pub events_meta: HashMap<String, EventMetadata>,
-    /// Metadata about object queries (will be expanded as features are implemented)
+    /// Metadata about object queries (will be expanded as features are
+    /// implemented)
     pub queries_meta: HashMap<String, QueryMetadata>,
 }
 
@@ -73,7 +79,7 @@ impl MetaObject {
             object_id,
             active_tasks: Vec::new(),
             properties_meta: HashMap::new(),
-            verbs_meta: HashMap::new(), 
+            verbs_meta: HashMap::new(),
             events_meta: HashMap::new(),
             queries_meta: HashMap::new(),
         }
@@ -93,14 +99,26 @@ impl MetaObject {
     pub fn remove_active_task(&mut self, task_id: &GreenThreadId) {
         self.active_tasks.retain(|id| id != task_id);
     }
-    
+
     /// Get source code for a named element (property, verb, event, or query)
     pub fn get_source_code(&self, element_type: &str, name: &str) -> Option<String> {
         match element_type {
-            "property" => self.properties_meta.get(name).and_then(|m| m.source_code.clone()),
-            "verb" => self.verbs_meta.get(name).and_then(|m| m.source_code.clone()),
-            "event" => self.events_meta.get(name).and_then(|m| m.source_code.clone()),
-            "query" => self.queries_meta.get(name).and_then(|m| m.source_code.clone()),
+            "property" => self
+                .properties_meta
+                .get(name)
+                .and_then(|m| m.source_code.clone()),
+            "verb" => self
+                .verbs_meta
+                .get(name)
+                .and_then(|m| m.source_code.clone()),
+            "event" => self
+                .events_meta
+                .get(name)
+                .and_then(|m| m.source_code.clone()),
+            "query" => self
+                .queries_meta
+                .get(name)
+                .and_then(|m| m.source_code.clone()),
             _ => None,
         }
     }

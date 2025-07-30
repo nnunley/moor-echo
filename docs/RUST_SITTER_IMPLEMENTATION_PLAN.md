@@ -1,9 +1,13 @@
 # Rust-Sitter Implementation Plan
 
 ## Overview
-This document outlines the complete plan for migrating from hand-rolled parser to rust-sitter grammar for the Echo language REPL, with eventual JIT compilation using Cranelift.
+
+This document outlines the complete plan for migrating from hand-rolled parser
+to rust-sitter grammar for the Echo language REPL, with eventual JIT compilation
+using Cranelift.
 
 ## Current Status ✅
+
 - [x] Created working rust-sitter grammar with basic AST nodes
 - [x] Grammar compiles successfully with rust-sitter-tool
 - [x] Implemented: Number, Identifier, Add, PropertyAccess
@@ -12,11 +16,14 @@ This document outlines the complete plan for migrating from hand-rolled parser t
 ## Implementation Strategy
 
 ### Phase 1: AST Migration (Current Phase)
+
 **Goal**: Migrate existing codebase to use rust-sitter generated AST types
 
 **Tasks**:
+
 1. **Create AST Compatibility Layer**
-   - Create conversion functions between old `ast::EchoAst` and new `echo::EchoAst`
+   - Create conversion functions between old `ast::EchoAst` and new
+     `echo::EchoAst`
    - Implement `From` traits for seamless conversion
    - Maintain backward compatibility during transition
 
@@ -31,9 +38,11 @@ This document outlines the complete plan for migrating from hand-rolled parser t
    - Ensure REPL integration works with new parser
 
 ### Phase 2: Grammar Expansion
+
 **Goal**: Add missing language features to rust-sitter grammar
 
 **Priority Order**:
+
 1. **Let Statements** - `let x = value;`
 2. **Method Calls** - `obj:verb(args)`
 3. **Object Definitions** - `object name ... endobject`
@@ -42,9 +51,11 @@ This document outlines the complete plan for migrating from hand-rolled parser t
 6. **Verb Definitions** - `verb "name" (...) ... endverb`
 
 ### Phase 3: Advanced Features
+
 **Goal**: Implement complex language constructs
 
 **Features**:
+
 1. **Control Flow** - `if/else`, `while`, `for`
 2. **Function Definitions** - `function name(...) ... endfunction`
 3. **List Literals** - `{1, 2, 3}`
@@ -52,9 +63,11 @@ This document outlines the complete plan for migrating from hand-rolled parser t
 5. **Error Handling** - `try/catch` blocks
 
 ### Phase 4: JIT Compilation with Cranelift
+
 **Goal**: Add Just-In-Time compilation for performance optimization
 
 **Features**:
+
 1. **Cranelift Integration** - Generate machine code from rust-sitter AST
 2. **Compilation Strategy** - Hybrid interpretation/compilation approach
 3. **Hot Path Detection** - Identify frequently executed code for JIT
@@ -64,6 +77,7 @@ This document outlines the complete plan for migrating from hand-rolled parser t
 ## Technical Architecture
 
 ### AST Conversion Strategy
+
 ```rust
 // Conversion trait for AST migration
 trait IntoRustSitter {
@@ -85,6 +99,7 @@ impl IntoRustSitter for ast::EchoAst {
 ```
 
 ### Evaluator Updates
+
 ```rust
 // Updated evaluator signature
 impl Evaluator {
@@ -103,13 +118,14 @@ impl Evaluator {
 ```
 
 ### Grammar Expansion Template
+
 ```rust
 // Template for adding new AST nodes
 #[derive(Debug, PartialEq)]
 #[rust_sitter::language]
 pub enum EchoAst {
     // Existing nodes...
-    
+
     // New node template
     NewNode {
         #[rust_sitter::leaf(text = "keyword")]
@@ -124,12 +140,14 @@ pub enum EchoAst {
 ## Testing Strategy
 
 ### Test Categories
+
 1. **Parser Tests** - Verify rust-sitter grammar parsing
 2. **Evaluator Tests** - Ensure evaluation works with new AST
 3. **Integration Tests** - Full REPL functionality
 4. **Compatibility Tests** - Old vs new behavior comparison
 
 ### Test Coverage Requirements
+
 - [ ] All existing tests pass with rust-sitter
 - [ ] New rust-sitter specific tests added
 - [ ] Property access tests work with new AST
@@ -139,18 +157,21 @@ pub enum EchoAst {
 ## Quality Gates
 
 ### Phase 1 Completion Criteria
+
 - [ ] All existing tests pass
 - [ ] No functionality regression
 - [ ] Performance maintained or improved
 - [ ] Code compiles without warnings
 
 ### Phase 2 Completion Criteria
+
 - [ ] All Echo language features implemented
 - [ ] Grammar handles complex expressions
 - [ ] Error recovery works properly
 - [ ] Documentation updated
 
 ### Phase 3 Completion Criteria
+
 - [ ] Complete Echo language support
 - [ ] Performance optimizations applied
 - [ ] Full test coverage achieved
@@ -159,16 +180,18 @@ pub enum EchoAst {
 ## Risk Mitigation
 
 ### Potential Issues
+
 1. **AST Structure Changes** - Fields renamed/restructured
-   - *Mitigation*: Comprehensive conversion layer
+   - _Mitigation_: Comprehensive conversion layer
 2. **Performance Impact** - Rust-sitter overhead
-   - *Mitigation*: Benchmark and optimize
+   - _Mitigation_: Benchmark and optimize
 3. **Error Handling** - Different error types
-   - *Mitigation*: Unified error handling layer
+   - _Mitigation_: Unified error handling layer
 4. **Breaking Changes** - API incompatibilities
-   - *Mitigation*: Gradual migration with compatibility layer
+   - _Mitigation_: Gradual migration with compatibility layer
 
 ### Rollback Strategy
+
 - Maintain old parser as fallback
 - Feature flags for rust-sitter vs old parser
 - Comprehensive test suite for regression detection
@@ -176,21 +199,25 @@ pub enum EchoAst {
 ## Implementation Timeline
 
 ### Week 1: AST Migration
+
 - Days 1-2: Create conversion layer
 - Days 3-4: Update evaluator
 - Days 5-7: Fix integration and tests
 
 ### Week 2: Grammar Expansion
+
 - Days 1-3: Add missing basic features
 - Days 4-5: Implement complex constructs
 - Days 6-7: Testing and debugging
 
 ### Week 3: Polish and Optimization
+
 - Days 1-3: Performance optimization
 - Days 4-5: Documentation updates
 - Days 6-7: Final testing and validation
 
 ## Success Metrics
+
 - Zero functionality regression
 - All tests passing
 - Performance within 10% of original
@@ -198,6 +225,7 @@ pub enum EchoAst {
 - Documentation complete
 
 ## Next Immediate Actions
+
 1. Create AST conversion functions
 2. Update evaluator for basic rust-sitter AST
 3. Fix compilation errors

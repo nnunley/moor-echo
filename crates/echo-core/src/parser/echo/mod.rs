@@ -1,23 +1,24 @@
 // Modern Echo parser implementation
 pub mod grammar;
-// The following modules were moved to grammar_development_backup/ for future reference
-// pub mod grammar_improved;
+// The following modules were moved to grammar_development_backup/ for future
+// reference pub mod grammar_improved;
 // pub mod grammar_converter_improved;
 // pub mod parser_improved;
 // #[cfg(test)]
 // pub mod test_improved_grammar;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
+
 use crate::ast::{self};
 
 // Helper function to extract parameter names from scatter expressions
 fn extract_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<Vec<String>> {
     use grammar::EchoAst as G;
-    
+
     match *scatter {
         // Simple identifier: x
         G::Identifier(name) => Ok(vec![name]),
-        
+
         // List pattern: {x, y, z}
         G::List { elements, .. } => {
             let mut params = Vec::new();
@@ -28,58 +29,69 @@ fn extract_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<Vec<Str
                 }
             }
             Ok(params)
-        },
-        
+        }
+
         // Parenthesized expression: (x) or (x, y)
         G::Paren { expr, .. } => extract_params_from_scatter(expr),
-        
+
         _ => Err(anyhow!("Invalid parameter pattern")),
     }
 }
 
-// Helper function to extract parameter names from ParamPattern (simple version for arrow functions)
+// Helper function to extract parameter names from ParamPattern (simple version
+// for arrow functions)
 fn _extract_simple_params_from_pattern(pattern: grammar::ParamPattern) -> Vec<String> {
-    use grammar::{ParamPattern as P, ParamElement as E};
-    
+    use grammar::{ParamElement as E, ParamPattern as P};
+
     match pattern {
         P::Single(elem) => match elem {
             E::Simple(ident) => vec![ident.name],
             E::Optional { name, .. } => vec![name.name],
             E::Rest { name, .. } => vec![name.name],
         },
-        P::Multiple { params, .. } => {
-            params.into_iter().map(|elem| match elem {
+        P::Multiple { params, .. } => params
+            .into_iter()
+            .map(|elem| match elem {
                 E::Simple(ident) => ident.name,
                 E::Optional { name, .. } => name.name,
                 E::Rest { name, .. } => name.name,
-            }).collect()
-        },
+            })
+            .collect(),
     }
 }
 
 // Helper function to extract full parameter info from ParamPattern
-fn extract_lambda_params_from_pattern(pattern: grammar::ParamPattern) -> Result<Vec<ast::LambdaParam>> {
-    use grammar::{ParamPattern as P, ParamElement as E};
-    
+fn extract_lambda_params_from_pattern(
+    pattern: grammar::ParamPattern,
+) -> Result<Vec<ast::LambdaParam>> {
+    use grammar::{ParamElement as E, ParamPattern as P};
+
     match pattern {
         P::Single(elem) => match elem {
             E::Simple(ident) => Ok(vec![ast::LambdaParam::Simple(ident.name)]),
             E::Optional { name, default, .. } => {
                 let default_ast = Box::new(convert_grammar_to_ast(*default)?);
-                Ok(vec![ast::LambdaParam::Optional { name: name.name, default: default_ast }])
-            },
+                Ok(vec![ast::LambdaParam::Optional {
+                    name: name.name,
+                    default: default_ast,
+                }])
+            }
             E::Rest { name, .. } => Ok(vec![ast::LambdaParam::Rest(name.name)]),
         },
-        P::Multiple { params, .. } => {
-            params.into_iter().map(|elem| match elem {
+        P::Multiple { params, .. } => params
+            .into_iter()
+            .map(|elem| match elem {
                 E::Simple(ident) => Ok(ast::LambdaParam::Simple(ident.name)),
                 E::Optional { name, default, .. } => {
                     let default_ast = Box::new(convert_grammar_to_ast(*default)?);
-                    Ok(ast::LambdaParam::Optional { name: name.name, default: default_ast })
-                },
+                    Ok(ast::LambdaParam::Optional {
+                        name: name.name,
+                        default: default_ast,
+                    })
+                }
                 E::Rest { name, .. } => Ok(ast::LambdaParam::Rest(name.name)),
-            }).collect()
-        },
+            })
+            .collect(),
     }
 }
 
@@ -93,11 +105,11 @@ impl EchoParser {
             inner: grammar::EchoParser::new()?,
         })
     }
-    
+
     pub fn parse(&mut self, input: &str) -> Result<ast::EchoAst> {
         // Parse normally using the rust-sitter generated parser
         let grammar_ast = self.inner.parse(input)?;
-        
+
         // Convert grammar AST to unified AST
         convert_grammar_to_ast(grammar_ast)
     }
@@ -107,7 +119,7 @@ impl super::Parser for EchoParser {
     fn parse(&mut self, source: &str) -> Result<ast::EchoAst> {
         self.parse(source)
     }
-    
+
     fn parse_program(&mut self, source: &str) -> Result<ast::EchoAst> {
         // Parse the entire source as a program
         match self.inner.parse(source) {
@@ -119,18 +131,18 @@ impl super::Parser for EchoParser {
                 // If parsing as a single unit fails, try parsing line by line
                 let mut statements = Vec::new();
                 let mut current_lines = Vec::new();
-                
+
                 for line in source.lines() {
                     let trimmed = line.trim();
-                    
+
                     // Skip empty lines and comments
                     if trimmed.is_empty() || trimmed.starts_with("#") {
                         continue;
                     }
-                    
+
                     current_lines.push(line);
                     let accumulated = current_lines.join("\n");
-                    
+
                     // Try to parse accumulated lines
                     match self.parse(&accumulated) {
                         Ok(stmt) => {
@@ -142,7 +154,7 @@ impl super::Parser for EchoParser {
                         }
                     }
                 }
-                
+
                 // If we have leftover lines, try to parse them
                 if !current_lines.is_empty() {
                     let remaining = current_lines.join("\n");
@@ -151,7 +163,7 @@ impl super::Parser for EchoParser {
                         Err(e) => return Err(e),
                     }
                 }
-                
+
                 // Return the result
                 if statements.is_empty() {
                     Ok(ast::EchoAst::Null)
@@ -163,7 +175,7 @@ impl super::Parser for EchoParser {
             }
         }
     }
-    
+
     fn name(&self) -> &'static str {
         "echo"
     }
@@ -171,9 +183,9 @@ impl super::Parser for EchoParser {
 
 /// Convert rust-sitter grammar AST to unified AST
 fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
-    use grammar::EchoAst as G;
     use ast::EchoAst as A;
-    
+    use grammar::EchoAst as G;
+
     Ok(match node {
         G::Number(n) => A::Number(n),
         G::Float(f) => A::Float(f),
@@ -183,27 +195,27 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         G::Identifier(s) => A::Identifier(s),
         G::SysProp(s) => A::SystemProperty(s),
         G::ObjectRef(n) => A::ObjectRef(n),
-        
+
         G::Add { left, right, .. } => A::Add {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Subtract { left, right, .. } => A::Subtract {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Multiply { left, right, .. } => A::Multiply {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Divide { left, right, .. } => A::Divide {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Modulo { left, right, .. } => A::Modulo {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
@@ -213,7 +225,7 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         // Handle the generic Assignment Expression (renamed from Assignment)
         G::AssignmentExpr { left, right, .. } => {
             // Validate that left side is a valid LValue
@@ -222,65 +234,61 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                     binding_type: ast::BindingType::None,
                     pattern: ast::BindingPattern::Identifier(name),
                 },
-                A::PropertyAccess { object, property } => ast::LValue::PropertyAccess {
-                    object,
-                    property,
-                },
-                A::IndexAccess { object, index } => ast::LValue::IndexAccess {
-                    object,
-                    index,
-                },
-                _ => return Err(anyhow!("Invalid assignment target - must be identifier, property access, or index access")),
+                A::PropertyAccess { object, property } => {
+                    ast::LValue::PropertyAccess { object, property }
+                }
+                A::IndexAccess { object, index } => ast::LValue::IndexAccess { object, index },
+                _ => {
+                    return Err(anyhow!(
+                        "Invalid assignment target - must be identifier, property access, or \
+                         index access"
+                    ))
+                }
             };
-            
+
             A::Assignment {
                 target: lvalue,
                 value: Box::new(convert_grammar_to_ast(*right)?),
             }
-        },
-        
+        }
+
         // Handle the new LocalAssignment statement
-        G::LocalAssignment { target, value, .. } => {
-            A::LocalAssignment {
-                target: convert_grammar_binding_pattern_to_ast(*target)?,
-                value: Box::new(convert_grammar_to_ast(*value)?),
-            }
+        G::LocalAssignment { target, value, .. } => A::LocalAssignment {
+            target: convert_grammar_binding_pattern_to_ast(*target)?,
+            value: Box::new(convert_grammar_to_ast(*value)?),
         },
-        
+
         // Handle the new ConstAssignment statement
-        G::ConstAssignment { target, value, .. } => {
-            A::ConstAssignment {
-                target: convert_grammar_binding_pattern_to_ast(*target)?,
-                value: Box::new(convert_grammar_to_ast(*value)?),
-            }
+        G::ConstAssignment { target, value, .. } => A::ConstAssignment {
+            target: convert_grammar_binding_pattern_to_ast(*target)?,
+            value: Box::new(convert_grammar_to_ast(*value)?),
         },
-        
-        
+
         G::Equal { left, right, .. } => A::Equal {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::NotEqual { left, right, .. } => A::NotEqual {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::LessThan { left, right, .. } => A::LessThan {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::LessEqual { left, right, .. } => A::LessEqual {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::GreaterThan { left, right, .. } => A::GreaterThan {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::GreaterEqual { left, right, .. } => A::GreaterEqual {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
@@ -291,38 +299,41 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         //     left: Box::new(convert_grammar_to_ast(*left)?),
         //     right: Box::new(convert_grammar_to_ast(*right)?),
         // },
-        
         G::And { left, right, .. } => A::And {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Or { left, right, .. } => A::Or {
             left: Box::new(convert_grammar_to_ast(*left)?),
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
-        
+
         G::Not { operand, .. } => A::Not {
             operand: Box::new(convert_grammar_to_ast(*operand)?),
         },
-        
-        G::PropertyAccess { object, property, .. } => {
-            A::PropertyAccess {
-                object: Box::new(convert_grammar_to_ast(*object)?),
-                property: property.name,
-            }
+
+        G::PropertyAccess {
+            object, property, ..
+        } => A::PropertyAccess {
+            object: Box::new(convert_grammar_to_ast(*object)?),
+            property: property.name,
         },
-        
-        G::IndexAccess { object, index, .. } => {
-            A::IndexAccess {
-                object: Box::new(convert_grammar_to_ast(*object)?),
-                index: Box::new(convert_grammar_to_ast(*index)?),
-            }
+
+        G::IndexAccess { object, index, .. } => A::IndexAccess {
+            object: Box::new(convert_grammar_to_ast(*object)?),
+            index: Box::new(convert_grammar_to_ast(*index)?),
         },
-        
-        G::MethodCall { object, method, args, .. } => {
+
+        G::MethodCall {
+            object,
+            method,
+            args,
+            ..
+        } => {
             let method_name = method.name;
-            let converted_args = args.into_iter()
+            let converted_args = args
+                .into_iter()
                 .filter(|arg| !matches!(arg, G::Comma))
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
@@ -331,18 +342,22 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                 method: method_name,
                 args: converted_args,
             }
-        },
-        
+        }
+
         G::List { elements, .. } => {
-            let converted_elements = elements.into_iter()
+            let converted_elements = elements
+                .into_iter()
                 .filter(|elem| !matches!(elem, G::Comma))
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
-            A::List { elements: converted_elements }
-        },
-        
+            A::List {
+                elements: converted_elements,
+            }
+        }
+
         G::ArrowFunction { params, body, .. } => {
-            // For arrow functions, we need to check if it's a simple identifier or a pattern
+            // For arrow functions, we need to check if it's a simple identifier or a
+            // pattern
             let lambda_params = match params.as_ref() {
                 // Single identifier like: x => ...
                 G::Identifier(name) => vec![ast::LambdaParam::Simple(name.clone())],
@@ -360,26 +375,28 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                 params: lambda_params,
                 body: Box::new(convert_grammar_to_ast(*body)?),
             }
-        },
-        
+        }
+
         G::BlockFunction { params, body, .. } => {
             // Extract full parameter info from the parameter pattern
             let lambda_params = extract_lambda_params_from_pattern(params)?;
             // Convert body to a single expression (Program)
-            let body_stmts = body.into_iter()
+            let body_stmts = body
+                .into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
             A::Lambda {
                 params: lambda_params,
                 body: Box::new(A::Program(body_stmts)),
             }
-        },
-        
+        }
+
         G::Call { func, args, .. } => {
-            let converted_args = args.into_iter()
+            let converted_args = args
+                .into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
-            
+
             // If func is an identifier, create FunctionCall; otherwise create Call
             match *func {
                 G::Identifier(name) => A::FunctionCall {
@@ -394,19 +411,19 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                     }
                 }
             }
-        },
-        
+        }
+
         G::Paren { expr, .. } => {
             // Parentheses are just for grouping, return inner expression
             convert_grammar_to_ast(*expr)?
-        },
-        
+        }
+
         G::ObjectDef { name, members, .. } => {
             let obj_name = match name.as_ref() {
                 G::Identifier(s) => s.clone(),
                 _ => anyhow::bail!("Object name must be identifier"),
             };
-            
+
             let mut converted_members = Vec::new();
             for member in members {
                 match member {
@@ -419,10 +436,13 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                             permissions: None,
                         });
                     }
-                    grammar::ObjectMember::VerbDef { name, params, body, .. } => {
+                    grammar::ObjectMember::VerbDef {
+                        name, params, body, ..
+                    } => {
                         let verb_name = name.name.clone();
                         let verb_params = convert_params_to_parameters(&params)?;
-                        let verb_body = body.into_iter()
+                        let verb_body = body
+                            .into_iter()
                             .map(convert_grammar_to_ast)
                             .collect::<Result<Vec<_>>>()?;
                         converted_members.push(ast::ObjectMember::Verb {
@@ -432,10 +452,13 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                             permissions: None,
                         });
                     }
-                    grammar::ObjectMember::EventDef { name, params, body, .. } => {
+                    grammar::ObjectMember::EventDef {
+                        name, params, body, ..
+                    } => {
                         let event_name = name.name.clone();
                         let event_params = convert_params_to_parameters(&params)?;
-                        let event_body = body.into_iter()
+                        let event_body = body
+                            .into_iter()
                             .map(convert_grammar_to_ast)
                             .collect::<Result<Vec<_>>>()?;
                         converted_members.push(ast::ObjectMember::Event {
@@ -444,23 +467,30 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                             body: event_body,
                         });
                     }
-                    grammar::ObjectMember::QueryDef { name, params, clauses, .. } => {
+                    grammar::ObjectMember::QueryDef {
+                        name,
+                        params,
+                        clauses,
+                        ..
+                    } => {
                         let query_name = name.name.clone();
                         let query_params = if let Some(p) = params {
-                            p.params.into_iter()
+                            p.params
+                                .into_iter()
                                 .filter_map(|param| match param {
                                     grammar::QueryParam::Identifier(id) => Some(id.name),
-                                    _ => None,  // Only identifiers allowed as query params
+                                    _ => None, // Only identifiers allowed as query params
                                 })
                                 .collect()
                         } else {
                             Vec::new()
                         };
-                        
-                        let query_clauses = clauses.into_iter()
+
+                        let query_clauses = clauses
+                            .into_iter()
                             .map(|clause| convert_query_clause(clause))
                             .collect::<Result<Vec<_>>>()?;
-                        
+
                         converted_members.push(ast::ObjectMember::Query {
                             name: query_name,
                             params: query_params,
@@ -469,61 +499,80 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                     }
                 }
             }
-            
+
             A::ObjectDef {
                 name: obj_name,
                 parent: None,
                 members: converted_members,
             }
-        },
-        
+        }
+
         G::Comma => {
             // Skip commas - they're just separators
             anyhow::bail!("Unexpected comma in AST conversion")
         }
-        
-        G::If { condition, then_body, else_clause, .. } => {
+
+        G::If {
+            condition,
+            then_body,
+            else_clause,
+            ..
+        } => {
             // If with optional else clause using MOO syntax
-            let then_vec = then_body.into_iter()
+            let then_vec = then_body
+                .into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
             let else_vec = if let Some(else_clause) = else_clause {
-                Some(else_clause.body.into_iter()
-                    .map(convert_grammar_to_ast)
-                    .collect::<Result<Vec<_>>>()?)
+                Some(
+                    else_clause
+                        .body
+                        .into_iter()
+                        .map(convert_grammar_to_ast)
+                        .collect::<Result<Vec<_>>>()?,
+                )
             } else {
                 None
             };
-            
+
             A::If {
                 condition: Box::new(convert_grammar_to_ast(*condition)?),
                 then_branch: then_vec,
                 else_branch: else_vec,
             }
         }
-        
-        G::While { condition, body, .. } => {
-            let body_vec = body.into_iter()
+
+        G::While {
+            condition, body, ..
+        } => {
+            let body_vec = body
+                .into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
-            
+
             A::While {
                 label: None, // Labels will be added later as separate feature
                 condition: Box::new(convert_grammar_to_ast(*condition)?),
                 body: body_vec,
             }
         }
-        
-        G::For { variable, collection, body, .. } => {
+
+        G::For {
+            variable,
+            collection,
+            body,
+            ..
+        } => {
             let var_name = match variable.as_ref() {
                 G::Identifier(s) => s.clone(),
                 _ => anyhow::bail!("For loop variable must be identifier"),
             };
-            
-            let body_vec = body.into_iter()
+
+            let body_vec = body
+                .into_iter()
                 .map(convert_grammar_to_ast)
                 .collect::<Result<Vec<_>>>()?;
-            
+
             A::For {
                 label: None, // For loops don't have labels in our grammar yet
                 variable: var_name,
@@ -531,7 +580,7 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                 body: body_vec,
             }
         }
-        
+
         G::Break { label, .. } => {
             let label_str = if let Some(label_expr) = label {
                 match label_expr.as_ref() {
@@ -541,10 +590,10 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
             } else {
                 None
             };
-            
+
             A::Break { label: label_str }
         }
-        
+
         G::Continue { label, .. } => {
             let label_str = if let Some(label_expr) = label {
                 match label_expr.as_ref() {
@@ -554,61 +603,69 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
             } else {
                 None
             };
-            
+
             A::Continue { label: label_str }
         }
-        
+
         G::Return { value, .. } => {
             let return_val = if let Some(val) = value {
                 Some(Box::new(convert_grammar_to_ast(*val)?))
             } else {
                 None
             };
-            
+
             A::Return { value: return_val }
         }
-        
-        G::Emit { event_name, args, .. } => {
+
+        G::Emit {
+            event_name, args, ..
+        } => {
             let emit_args = if let Some(emit_args) = args {
-                emit_args.args.into_iter()
+                emit_args
+                    .args
+                    .into_iter()
                     .filter(|arg| !matches!(arg, G::Comma))
                     .map(convert_grammar_to_ast)
                     .collect::<Result<Vec<_>>>()?
             } else {
                 Vec::new()
             };
-            
-            A::Emit { 
-                event_name: event_name.name, 
-                args: emit_args
+
+            A::Emit {
+                event_name: event_name.name,
+                args: emit_args,
             }
         }
     })
 }
 
-
 // Helper function for BindingPattern conversion
-fn convert_grammar_binding_pattern_to_ast(node: grammar::BindingPattern) -> Result<ast::BindingPattern> {
-    use grammar::BindingPattern as G_BP;
+fn convert_grammar_binding_pattern_to_ast(
+    node: grammar::BindingPattern,
+) -> Result<ast::BindingPattern> {
     use ast::BindingPattern as A_BP;
+    use grammar::BindingPattern as G_BP;
 
     Ok(match node {
         G_BP::Identifier(ident) => A_BP::Identifier(ident.name),
         G_BP::List { elements, .. } => {
-            let converted_elements: Result<Vec<_>> = elements.into_iter()
+            let converted_elements: Result<Vec<_>> = elements
+                .into_iter()
                 .map(|elem| convert_grammar_binding_pattern_element_to_ast(elem))
                 .collect();
             A_BP::List(converted_elements?)
-        },
+        }
         G_BP::Rest { name, .. } => A_BP::Rest(Box::new(A_BP::Identifier(name.name))),
         G_BP::Ignore => A_BP::Ignore,
     })
 }
 
 // Helper function for BindingPatternElement conversion
-fn convert_grammar_binding_pattern_element_to_ast(node: grammar::BindingPatternElement) -> Result<ast::BindingPatternElement> {
-    use grammar::BindingPatternElement as G_BPE;
+fn convert_grammar_binding_pattern_element_to_ast(
+    node: grammar::BindingPatternElement,
+) -> Result<ast::BindingPatternElement> {
     use ast::BindingPatternElement as A_BPE;
+    use grammar::BindingPatternElement as G_BPE;
 
     Ok(match node {
         G_BPE::Simple(ident) => A_BPE::Simple(ident.name),
@@ -622,39 +679,43 @@ fn convert_grammar_binding_pattern_element_to_ast(node: grammar::BindingPatternE
 
 // Helper function to convert ParamPattern to Parameter
 fn convert_params_to_parameters(params: &grammar::ParamPattern) -> Result<Vec<ast::Parameter>> {
-    use grammar::ParamPattern as G_PP;
-    use grammar::ParamElement as G_PE;
-    
+    use grammar::{ParamElement as G_PE, ParamPattern as G_PP};
+
     let elements = match params {
         G_PP::Single(elem) => vec![elem.clone()],
         G_PP::Multiple { params, .. } => params.iter().cloned().collect(),
     };
-    
-    elements.into_iter().map(|elem| {
-        Ok(match elem {
-            G_PE::Simple(ident) => ast::Parameter {
-                name: ident.name,
-                type_annotation: None,
-                default_value: None,
-            },
-            G_PE::Optional { name, default, .. } => ast::Parameter {
-                name: name.name,
-                type_annotation: None,
-                default_value: Some(convert_grammar_to_ast(*default)?),
-            },
-            G_PE::Rest { name, .. } => ast::Parameter {
-                name: format!("@{}", name.name), // Mark rest params with @
-                type_annotation: None,
-                default_value: None,
-            },
+
+    elements
+        .into_iter()
+        .map(|elem| {
+            Ok(match elem {
+                G_PE::Simple(ident) => ast::Parameter {
+                    name: ident.name,
+                    type_annotation: None,
+                    default_value: None,
+                },
+                G_PE::Optional { name, default, .. } => ast::Parameter {
+                    name: name.name,
+                    type_annotation: None,
+                    default_value: Some(convert_grammar_to_ast(*default)?),
+                },
+                G_PE::Rest { name, .. } => ast::Parameter {
+                    name: format!("@{}", name.name), // Mark rest params with @
+                    type_annotation: None,
+                    default_value: None,
+                },
+            })
         })
-    }).collect()
+        .collect()
 }
 
 // Helper function to convert query clause from grammar to AST
 fn convert_query_clause(clause: grammar::QueryClause) -> Result<ast::QueryClause> {
     let predicate = clause.predicate.name;
-    let args = clause.args.into_iter()
+    let args = clause
+        .args
+        .into_iter()
         .map(|arg| match arg {
             grammar::QueryParam::Identifier(id) => Ok(ast::QueryArg::Variable(id.name)),
             grammar::QueryParam::Number(n) => Ok(ast::QueryArg::Constant(ast::EchoAst::Number(n))),
@@ -662,12 +723,9 @@ fn convert_query_clause(clause: grammar::QueryClause) -> Result<ast::QueryClause
             grammar::QueryParam::Wildcard { .. } => Ok(ast::QueryArg::Wildcard),
         })
         .collect::<Result<Vec<_>>>()?;
-    
+
     Ok(ast::QueryClause { predicate, args })
 }
 
 // Re-export for backward compatibility
 pub use grammar::parse_echo;
-
-
-

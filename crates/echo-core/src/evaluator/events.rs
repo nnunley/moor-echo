@@ -1,6 +1,6 @@
-use crate::storage::ObjectId;
 use std::collections::HashMap;
-use crate::evaluator::Value;
+
+use crate::{evaluator::Value, storage::ObjectId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EventDefinition {

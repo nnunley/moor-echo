@@ -1,10 +1,13 @@
 # Rust-Sitter Grammar Patterns
 
-This document contains patterns and solutions for common rust-sitter grammar issues discovered during Echo language development, including MOO-inspired patterns that could improve Echo's grammar structure.
+This document contains patterns and solutions for common rust-sitter grammar
+issues discovered during Echo language development, including MOO-inspired
+patterns that could improve Echo's grammar structure.
 
 ## Optional Fields with `Option<T>`
 
-Rust-sitter supports optional fields using Rust's `Option<T>` type. This is useful for implementing optional syntax elements like else clauses, labels, etc.
+Rust-sitter supports optional fields using Rust's `Option<T>` type. This is
+useful for implementing optional syntax elements like else clauses, labels, etc.
 
 ### Basic Optional Pattern
 
@@ -55,11 +58,13 @@ While {
 ### Optional vs Alternative Patterns
 
 **Use Optional when:**
+
 - The element is truly optional (may or may not appear)
 - No ambiguity in parsing (clear when the optional part starts/ends)
 - Following established patterns (like MOO's `while [label] (condition)`)
 
 **Use Separate Variants when:**
+
 - Ambiguous parsing (conflicts between with/without optional)
 - Complex precedence rules needed
 - Different semantic meaning
@@ -77,7 +82,7 @@ If {
     // ... without else
 }
 
-// Lower precedence for if with else  
+// Lower precedence for if with else
 #[rust_sitter::prec_right(5)]
 IfElse {
     // ... with else
@@ -99,6 +104,7 @@ Break {
 ### The Dangling Else Problem
 
 Classic grammar issue with nested if statements:
+
 ```
 if (a) if (b) stmt1 else stmt2  // else belongs to inner or outer if?
 ```
@@ -152,8 +158,8 @@ List {
 
 ### 1. Optional Else Clause
 
-**Problem:** Making else optional in if statements
-**Solution:** Use `Option<ElseClause>` with separate struct
+**Problem:** Making else optional in if statements **Solution:** Use
+`Option<ElseClause>` with separate struct
 
 ```rust
 If {
@@ -172,8 +178,8 @@ pub struct ElseClause {
 
 ### 2. Optional Labels for Break/Continue
 
-**Problem:** Supporting `break` and `break label`
-**Solution:** Optional field with high precedence
+**Problem:** Supporting `break` and `break label` **Solution:** Optional field
+with high precedence
 
 ```rust
 #[rust_sitter::prec_right(9)]
@@ -186,8 +192,8 @@ Break {
 
 ### 3. MOO-Style Control Flow
 
-**Pattern:** `while [label] (condition) ... endwhile`
-**Solution:** Optional label between keyword and parentheses
+**Pattern:** `while [label] (condition) ... endwhile` **Solution:** Optional
+label between keyword and parentheses
 
 ```rust
 While {
@@ -206,16 +212,18 @@ While {
 ### Understanding Error Messages
 
 Conflict errors show:
+
 - `symbol_sequence`: What was parsed so far
-- `conflicting_lookahead`: What token caused ambiguity  
+- `conflicting_lookahead`: What token caused ambiguity
 - `possible_interpretations`: Different ways to parse
 - `possible_resolutions`: Suggested fixes
 
 Example:
+
 ```
-ConflictError { 
-  symbol_sequence: ["'if'"], 
-  conflicting_lookahead: "'('", 
+ConflictError {
+  symbol_sequence: ["'if'"],
+  conflicting_lookahead: "'('",
   possible_interpretations: [If, IfElse],
   possible_resolutions: [Precedence, AddConflict]
 }
@@ -230,7 +238,8 @@ ConflictError {
 
 ### Testing Patterns
 
-Use rust-sitter examples from https://github.com/hydro-project/rust-sitter/tree/main/example/src:
+Use rust-sitter examples from
+https://github.com/hydro-project/rust-sitter/tree/main/example/src:
 
 - `optionals.rs` - Optional field patterns
 - `arithmetic.rs` - Precedence and associativity
@@ -272,50 +281,56 @@ let else_vec = if let Some(else_clause) = else_clause {
 ## Common Pitfalls
 
 1. **Optional Conflicts:** Optional fields can create parsing ambiguity
-2. **Precedence Order:** Higher numbers bind tighter (multiplication > addition)  
+2. **Precedence Order:** Higher numbers bind tighter (multiplication > addition)
 3. **Field Visibility:** Remember to make struct fields `pub` when needed
 4. **AST Conversion:** Handle `Option<T>` in conversion functions
 5. **Error Recovery:** Optional fields may mask parsing errors
-6. **Parentheses Conflicts:** Optional elements before `(` can conflict with `Paren` expressions
+6. **Parentheses Conflicts:** Optional elements before `(` can conflict with
+   `Paren` expressions
 7. **Lookahead Issues:** Optional fields can create complex lookahead conflicts
 
 ## Advanced Conflict Resolution
 
 ### Parentheses Conflicts
 
-**Problem:** `while [label] (condition)` conflicts with `while (condition)` when label is optional
+**Problem:** `while [label] (condition)` conflicts with `while (condition)` when
+label is optional
 
 **Attempted Solutions:**
-- `add_conflict = true` on `(` token 
+
+- `add_conflict = true` on `(` token
 - Precedence rules
 - Separate variants (While vs LabeledWhile)
 
-**Working Solution:** Implement labels as a separate feature or use different syntax
+**Working Solution:** Implement labels as a separate feature or use different
+syntax
 
 ### Complex Optional Patterns
 
 When optionals create irresolvable conflicts, consider:
 
 1. **Separate Variants:** Create distinct AST nodes
-2. **Different Syntax:** Use unambiguous delimiters  
+2. **Different Syntax:** Use unambiguous delimiters
 3. **Post-Processing:** Parse permissively, validate semantically
 4. **Lexical Hints:** Use keywords to disambiguate
 
 ### Debugging Strategy
 
 1. Start with minimal grammar
-2. Add complexity incrementally  
+2. Add complexity incrementally
 3. Test each addition
 4. Document conflicts and resolutions
 5. Consider alternative syntax when stuck
 
 ## MOO-Inspired Grammar Improvements
 
-Based on analysis of the MOO grammar, here are patterns that could significantly improve Echo's rust-sitter structure:
+Based on analysis of the MOO grammar, here are patterns that could significantly
+improve Echo's rust-sitter structure:
 
 ### 1. Statement/Expression Separation
 
-**MOO Pattern:** Clear separation between statements (control flow) and expressions (values)
+**MOO Pattern:** Clear separation between statements (control flow) and
+expressions (values)
 
 ```rust
 // Instead of everything in one enum
@@ -354,13 +369,15 @@ pub enum Expression {
 ```
 
 **Benefits:**
+
 - Better error messages ("expected statement" vs "expected expression")
 - Clearer parsing rules
 - Easier to add statement-only or expression-only features
 
 ### 2. Unified Pattern System
 
-**MOO Pattern:** Same pattern structure for parameters, bindings, and destructuring
+**MOO Pattern:** Same pattern structure for parameters, bindings, and
+destructuring
 
 ```rust
 // Single Pattern type used everywhere

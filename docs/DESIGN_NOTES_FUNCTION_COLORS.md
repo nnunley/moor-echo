@@ -3,19 +3,21 @@
 ## Current Situation
 
 We've been adding different execution modes to Echo:
+
 - `emit` for events
 - `yield` for generators/coroutines (planned)
 - `async`/`await` for async operations (considered)
 - Regular imperative calls
 
-This is leading us toward the "function coloring" problem where different types of functions become incompatible.
+This is leading us toward the "function coloring" problem where different types
+of functions become incompatible.
 
 ## The Function Coloring Problem
 
 ```javascript
 // Each type of function has a different "color"
 async function fetch_data() { ... }
-function* generate_items() { ... }  
+function* generate_items() { ... }
 function emit_events() { emit something; }
 function regular_function() { ... }
 
@@ -29,9 +31,12 @@ async function caller() {
 
 ## Alternative Approach: Tuple Space Architecture
 
-See [TUPLE_SPACE_ARCHITECTURE.md](./TUPLE_SPACE_ARCHITECTURE.md) for a detailed exploration of an architecture that eliminates function colors by treating all communication as tuple space operations.
+See [TUPLE_SPACE_ARCHITECTURE.md](./TUPLE_SPACE_ARCHITECTURE.md) for a detailed
+exploration of an architecture that eliminates function colors by treating all
+communication as tuple space operations.
 
 ### Key Benefits
+
 - No function colors - everything is just tuple operations
 - Natural distribution and RPC
 - Capability-based security
@@ -45,21 +50,21 @@ object Example {
     verb process() {
         // Regular call
         result = other:method(args)
-        
+
         // What would be async
         data = database:query(sql)
-        
+
         // What would be generator
         for item in (source:items()) {
             process(item)
         }
-        
+
         // Event emission
         emit thing_happened
-        
-        // Coroutine suspension  
+
+        // Coroutine suspension
         yield
-        
+
         // All just tuple operations under the hood!
     }
 }
@@ -67,16 +72,17 @@ object Example {
 
 ## Immediate Path Forward
 
-For now, we'll continue with the current approach while keeping the tuple space architecture as a potential future direction:
+For now, we'll continue with the current approach while keeping the tuple space
+architecture as a potential future direction:
 
-1. **Current Focus**: 
+1. **Current Focus**:
    - Implement object-owned event handlers
    - Add Datalog queries
    - Complete the event system
 
 2. **Design Principles**:
    - Minimize function coloring where possible
-   - Keep syntax uniform 
+   - Keep syntax uniform
    - Don't lock ourselves into colored functions
 
 3. **Future Consideration**:
@@ -102,10 +108,14 @@ Even if we don't implement tuple spaces now, the insights inform our design:
 
 ## Related Documents
 
-- [TUPLE_SPACE_ARCHITECTURE.md](./TUPLE_SPACE_ARCHITECTURE.md) - Full exploration
+- [TUPLE_SPACE_ARCHITECTURE.md](./TUPLE_SPACE_ARCHITECTURE.md) - Full
+  exploration
 - [LANGUAGE_ROADMAP.md](./LANGUAGE_ROADMAP.md) - Current implementation plan
-- [COOPERATIVE_MULTITHREADING.md](./COOPERATIVE_MULTITHREADING.md) - Yield design
+- [COOPERATIVE_MULTITHREADING.md](./COOPERATIVE_MULTITHREADING.md) - Yield
+  design
 
 ## Decision
 
-For now, we'll proceed with the current design but remain mindful of function coloring issues. The tuple space architecture remains a compelling future direction that could solve multiple problems elegantly.
+For now, we'll proceed with the current design but remain mindful of function
+coloring issues. The tuple space architecture remains a compelling future
+direction that could solve multiple problems elegantly.

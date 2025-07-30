@@ -3,11 +3,14 @@
 //! This module provides WebNotifier which implements ReplNotifier to stream
 //! REPL events to connected web clients via WebSocket.
 
-use std::sync::{Arc, Mutex};
-use std::collections::VecDeque;
-use std::time::Duration;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use serde::{Serialize, Deserialize};
 
 /// Events that can be sent to web clients
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,7 +88,7 @@ impl WebNotifier {
     /// Create a new WebNotifier with the specified buffer size
     pub fn new(buffer_size: usize) -> Self {
         let (sender, _) = broadcast::channel(1000);
-        
+
         Self {
             sender,
             buffer: Arc::new(Mutex::new(VecDeque::with_capacity(buffer_size))),

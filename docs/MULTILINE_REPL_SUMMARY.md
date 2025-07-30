@@ -2,11 +2,13 @@
 
 ## What Was Implemented
 
-We now have automatic multi-line detection in the REPL that doesn't require `.eval` mode for simple multi-line constructs.
+We now have automatic multi-line detection in the REPL that doesn't require
+`.eval` mode for simple multi-line constructs.
 
 ### Working Multi-line Constructs
 
 ✅ **While Loops**
+
 ```echo
 while (i < 3)
   i = i + 1
@@ -14,6 +16,7 @@ endwhile
 ```
 
 ✅ **For Loops**
+
 ```echo
 for x in ({1, 2, 3})
   sum = sum + x
@@ -21,6 +24,7 @@ endfor
 ```
 
 ✅ **Object Definitions**
+
 ```echo
 object hello
   property greeting = "Hello"
@@ -28,6 +32,7 @@ endobject
 ```
 
 ✅ **Simple Block Functions** (without nested constructs)
+
 ```echo
 let mul = fn {x, y}
   x * y
@@ -35,6 +40,7 @@ endfn
 ```
 
 ✅ **If Statements** (without nested constructs)
+
 ```echo
 if (x > 0)
   "positive"
@@ -45,14 +51,18 @@ endif
 
 ### Implementation Details
 
-1. **Multi-line Collector**: Detects construct starts (`while`, `for`, `if`, `fn`, `object`)
-2. **Depth Tracking**: Tracks nesting depth to handle constructs within constructs
+1. **Multi-line Collector**: Detects construct starts (`while`, `for`, `if`,
+   `fn`, `object`)
+2. **Depth Tracking**: Tracks nesting depth to handle constructs within
+   constructs
 3. **Automatic Prompt**: Changes from `>>` to `..` when collecting lines
 4. **Ctrl+C Support**: Can cancel multi-line input with Ctrl+C
 
 ### Limitations
 
-⚠️ **Nested Block Functions**: Functions with control flow inside still need `.eval` mode:
+⚠️ **Nested Block Functions**: Functions with control flow inside still need
+`.eval` mode:
+
 ```echo
 .eval
 let factorial = fn {n}
@@ -65,7 +75,8 @@ endfn
 .
 ```
 
-This is because the parser's `parse_program` method tries to parse each line separately, which doesn't work well with deeply nested constructs.
+This is because the parser's `parse_program` method tries to parse each line
+separately, which doesn't work well with deeply nested constructs.
 
 ## Usage
 

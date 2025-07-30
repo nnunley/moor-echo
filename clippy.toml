@@ -1,0 +1,54 @@
+# Clippy lint configuration for moor-echo workspace
+msrv = "1.75.0"
+
+# Restriction lints
+warn-on-all-wildcard-imports = true
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+allow-dbg-in-tests = true
+allow-print-in-tests = true
+
+# Complexity thresholds
+cognitive-complexity-threshold = 25
+excessive-nesting-threshold = 5
+type-complexity-threshold = 250
+too-many-lines-threshold = 400
+too-many-arguments-threshold = 7
+max-fn-params-bools = 3
+max-struct-bools = 3
+max-trait-bounds = 5
+
+# Size thresholds
+enum-variant-size-threshold = 200
+large-error-threshold = 128
+trivial-copy-size-limit = 8
+
+# Style preferences
+single-char-binding-names-threshold = 4
+doc-valid-idents = [
+    "Echo",
+    "MOO",
+    "LambdaMOO",
+    "MOP",
+    "CST",
+    "AST",
+    "REPL",
+    "UI",
+    "WebSocket",
+    "WebSockets",
+    "JSON-RPC",
+    "JavaScript",
+    "TypeScript",
+    "GitHub",
+    "GitLab",
+    "CI/CD",
+]
+
+# Module inception - allow for organizing code
+allow-module-inception = true
+
+# Disallowed names
+disallowed-names = ["foo", "bar", "baz", "tmp", "temp", "test"]
+
+# Path configuration for disallowed methods/types
+# We'll configure these in the workspace Cargo.toml clippy configuration

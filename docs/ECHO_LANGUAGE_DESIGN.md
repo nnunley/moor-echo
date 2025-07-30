@@ -1,26 +1,43 @@
 # ECHO Language Design
 
-**ECHO** - *Event-Centered Hybrid Objects*
+**ECHO** - _Event-Centered Hybrid Objects_
 
-A modern, cohesive evolution of the MOO language that combines Wirthian principles with a powerful, object-centric, and multi-paradigm programming model designed for the next generation of interactive worlds.
+A modern, cohesive evolution of the MOO language that combines Wirthian
+principles with a powerful, object-centric, and multi-paradigm programming model
+designed for the next generation of interactive worlds.
 
 ## Language Philosophy
 
-ECHO represents a significant but natural evolution of MOO. It preserves the core teaching-friendly philosophy while adding powerful, composable features for building sophisticated, secure, and intelligent interactive systems.
+ECHO represents a significant but natural evolution of MOO. It preserves the
+core teaching-friendly philosophy while adding powerful, composable features for
+building sophisticated, secure, and intelligent interactive systems.
 
 ### Core Principles
 
-1.  **The Object as a Module**: The object is the fundamental unit of code, state, and logic. It encapsulates its properties, verbs, internal functions, event handlers, and declarative queries into a single, inheritable module.
-2.  **Cohesive by Design**: The language feels like one system. All structures follow established MOO conventions. A unified `define` keyword is used for simple type declarations, while major constructs like `object` are standalone blocks.
-3.  **Clear over Clever**: Syntax is explicit and self-documenting, favoring readability to empower learners. A clear distinction between player-facing `verbs` and internal `functions` clarifies programmer intent.
-4.  **Pervasive & Colorless Concurrency**: All code is non-blocking by default. The language has no `async` keyword or "function colors." Concurrency is managed transparently by the runtime, making asynchronous code as simple to write as synchronous code.
-5.  **Backward Compatible**: ECHO is a strict superset of MOO. All existing MOO code runs unchanged.
+1.  **The Object as a Module**: The object is the fundamental unit of code,
+    state, and logic. It encapsulates its properties, verbs, internal functions,
+    event handlers, and declarative queries into a single, inheritable module.
+2.  **Cohesive by Design**: The language feels like one system. All structures
+    follow established MOO conventions. A unified `define` keyword is used for
+    simple type declarations, while major constructs like `object` are
+    standalone blocks.
+3.  **Clear over Clever**: Syntax is explicit and self-documenting, favoring
+    readability to empower learners. A clear distinction between player-facing
+    `verbs` and internal `functions` clarifies programmer intent.
+4.  **Pervasive & Colorless Concurrency**: All code is non-blocking by default.
+    The language has no `async` keyword or "function colors." Concurrency is
+    managed transparently by the runtime, making asynchronous code as simple to
+    write as synchronous code.
+5.  **Backward Compatible**: ECHO is a strict superset of MOO. All existing MOO
+    code runs unchanged.
 
 ## Core Concepts
 
 ### 1. The Self-Contained Object
 
-The `object...endobject` block is the heart of the language. It bundles all related logic into one place, making code more organized, discoverable, and reusable through inheritance.
+The `object...endobject` block is the heart of the language. It bundles all
+related logic into one place, making code more organized, discoverable, and
+reusable through inheritance.
 
 ```echo
 object a_secure_document extends $thing
@@ -50,11 +67,16 @@ endobject
 
 ### 2. Unified Event & Exception Model
 
-Exceptions are treated as high-priority events, unifying error handling with the core event system.
+Exceptions are treated as high-priority events, unifying error handling with the
+core event system.
 
-*   **Errors are Objects:** `throw $PermissionError("Access denied.")` raises a structured error object.
-*   **`try...catch` is a Local Listener:** It handles errors within a specific block of code, using pattern matching on the error type.
-*   **`on error thrown` is a Global Supervisor:** An object can listen for specific errors happening anywhere in the system, allowing for powerful logging, auditing, and security monitoring.
+- **Errors are Objects:** `throw $PermissionError("Access denied.")` raises a
+  structured error object.
+- **`try...catch` is a Local Listener:** It handles errors within a specific
+  block of code, using pattern matching on the error type.
+- **`on error thrown` is a Global Supervisor:** An object can listen for
+  specific errors happening anywhere in the system, allowing for powerful
+  logging, auditing, and security monitoring.
 
 ```echo
 object a_security_auditor
@@ -67,12 +89,17 @@ endobject
 
 ### 3. Pervasive & Structured Concurrency
 
-All function calls are non-blocking. The runtime automatically and transparently manages cooperative threading.
+All function calls are non-blocking. The runtime automatically and transparently
+manages cooperative threading.
 
-*   **No `async`/`await` Keywords:** All functions are "colorless."
-*   **Implicit Await-on-Use:** A task automatically pauses when it tries to use the result of a function that hasn't completed yet.
-*   **`gather` for Efficiency:** A `gather` block tells the runtime to wait for multiple concurrent operations in parallel, ensuring efficient scatter/gather patterns.
-*   **Manual Control:** `yield()` and `sleep(seconds)` provide explicit control over the scheduler when needed.
+- **No `async`/`await` Keywords:** All functions are "colorless."
+- **Implicit Await-on-Use:** A task automatically pauses when it tries to use
+  the result of a function that hasn't completed yet.
+- **`gather` for Efficiency:** A `gather` block tells the runtime to wait for
+  multiple concurrent operations in parallel, ensuring efficient scatter/gather
+  patterns.
+- **Manual Control:** `yield()` and `sleep(seconds)` provide explicit control
+  over the scheduler when needed.
 
 ```echo
 function fetch_dashboard_data(user_id)
@@ -92,7 +119,8 @@ endfunction
 
 ### 4. Intent-Driven NLP
 
-The LLM is integrated as a first-class "sense," translating player input into structured `IntentRecognized` events. Verbs subscribe to these intents.
+The LLM is integrated as a first-class "sense," translating player input into
+structured `IntentRecognized` events. Verbs subscribe to these intents.
 
 ```echo
 object a_shopkeeper
@@ -110,7 +138,10 @@ object a_shopkeeper
     endverb
 endobject
 ```
-A player typing `"how much for the shield?"` would trigger an `IntentRecognized` event with the intent `"ask_price"`, which in turn executes the `quote_price` verb.
+
+A player typing `"how much for the shield?"` would trigger an `IntentRecognized`
+event with the intent `"ask_price"`, which in turn executes the `quote_price`
+verb.
 
 ## ECHO Language Grammar (EBNF)
 
@@ -192,13 +223,22 @@ gather_statement = "gather"
 
 ## Backward Compatibility & Migration
 
-ECHO is a strict superset of MOO. All existing MOO code runs unchanged. The migration path is gradual and non-disruptive.
+ECHO is a strict superset of MOO. All existing MOO code runs unchanged. The
+migration path is gradual and non-disruptive.
 
 1.  **Drop-in Replacement**: Existing MOO code runs as-is.
-2.  **Gradual Enhancement**: Use the `object...endobject` syntax for new objects.
-3.  **Modern Patterns**: Refactor complex logic using object-scoped event handlers, queries, and `gather` blocks.
-4.  **Full ECHO**: Leverage the complete, cohesive system, including the intent-driven NLP, for all new development.
+2.  **Gradual Enhancement**: Use the `object...endobject` syntax for new
+    objects.
+3.  **Modern Patterns**: Refactor complex logic using object-scoped event
+    handlers, queries, and `gather` blocks.
+4.  **Full ECHO**: Leverage the complete, cohesive system, including the
+    intent-driven NLP, for all new development.
 
 ## Conclusion
 
-ECHO represents a significant but natural evolution of MOO. By focusing on cohesion, clarity, and capability, it provides a powerful platform for building the next generation of sophisticated multi-user virtual environments. The language balances a gentle learning curve with the power required for complex, concurrent, and intelligent systems, ensuring that both beginners and experts can build and dream in the same world.
+ECHO represents a significant but natural evolution of MOO. By focusing on
+cohesion, clarity, and capability, it provides a powerful platform for building
+the next generation of sophisticated multi-user virtual environments. The
+language balances a gentle learning curve with the power required for complex,
+concurrent, and intelligent systems, ensuring that both beginners and experts
+can build and dream in the same world.

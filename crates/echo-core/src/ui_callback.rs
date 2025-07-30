@@ -1,19 +1,35 @@
 //! UI callback system for external UI event handling
-//! 
+//!
 //! This module provides a callback mechanism that allows external components
 //! (like web servers) to receive UI events emitted by the Echo evaluator.
 
-use crate::evaluator::Value;
 use std::collections::HashMap;
+
+use crate::evaluator::Value;
 
 /// UI update action types
 #[derive(Debug, Clone)]
 pub enum UiAction {
     Clear,
-    AddButton { id: String, label: String, action: String },
-    AddText { id: String, text: String, style: Option<HashMap<String, String>> },
-    AddDiv { id: String, content: String, style: Option<HashMap<String, String>> },
-    Update { id: String, properties: HashMap<String, Value> },
+    AddButton {
+        id: String,
+        label: String,
+        action: String,
+    },
+    AddText {
+        id: String,
+        text: String,
+        style: Option<HashMap<String, String>>,
+    },
+    AddDiv {
+        id: String,
+        content: String,
+        style: Option<HashMap<String, String>>,
+    },
+    Update {
+        id: String,
+        properties: HashMap<String, Value>,
+    },
 }
 
 /// UI event that can be sent to external handlers
@@ -42,8 +58,9 @@ pub fn convert_ui_event(action: &str, args: &[Value]) -> Option<UiAction> {
         "clear" => Some(UiAction::Clear),
         "add_button" => {
             if args.len() >= 3 {
-                if let (Value::String(id), Value::String(label), Value::String(action)) = 
-                    (&args[0], &args[1], &args[2]) {
+                if let (Value::String(id), Value::String(label), Value::String(action)) =
+                    (&args[0], &args[1], &args[2])
+                {
                     return Some(UiAction::AddButton {
                         id: id.clone(),
                         label: label.clone(),
@@ -70,7 +87,7 @@ pub fn convert_ui_event(action: &str, args: &[Value]) -> Option<UiAction> {
                     } else {
                         None
                     };
-                    
+
                     return Some(UiAction::AddText {
                         id: id.clone(),
                         text: text.clone(),
@@ -97,7 +114,7 @@ pub fn convert_ui_event(action: &str, args: &[Value]) -> Option<UiAction> {
                     } else {
                         None
                     };
-                    
+
                     return Some(UiAction::AddDiv {
                         id: id.clone(),
                         content: content.clone(),

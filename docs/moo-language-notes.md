@@ -1,18 +1,22 @@
 # MOO Language Notes
 
-This document contains notes about the MOO programming language based on the LambdaMOO Programmer's Manual and implementation details.
+This document contains notes about the MOO programming language based on the
+LambdaMOO Programmer's Manual and implementation details.
 
 ## Case Sensitivity
 
 MOO is generally **case-insensitive** for:
+
 - Keywords (`if`, `IF`, `If` are all valid)
 - Error constants (`E_TYPE`, `e_type`, `E_Type` are equivalent)
-- Variable names (according to the manual: "the case of the letters in variable names is insignificant")
+- Variable names (according to the manual: "the case of the letters in variable
+  names is insignificant")
 - Built-in function names
 
 ## Expression Hierarchy
 
-The MOO language has a well-defined operator precedence (from lowest to highest):
+The MOO language has a well-defined operator precedence (from lowest to
+highest):
 
 1. Assignment: `=` (right associative)
 2. Conditional: `? |` (ternary operator)
@@ -30,7 +34,9 @@ The MOO language has a well-defined operator precedence (from lowest to highest)
 ## Special Syntax
 
 ### Flyweight Objects
+
 Flyweight objects use angle bracket syntax:
+
 ```moo
 <#123>                    // Basic flyweight
 <#123, [prop -> value]>   // With property map
@@ -38,14 +44,18 @@ Flyweight objects use angle bracket syntax:
 ```
 
 ### Scatter Assignment
+
 MOO supports destructuring assignment:
+
 ```moo
 {a, b, c} = {1, 2, 3};              // Basic scatter
 {x, ?y = 10, @rest} = data;         // With optional and rest
 ```
 
 ### Try-Except
+
 Error handling with specific error codes:
+
 ```moo
 try
   // code that might error
@@ -59,6 +69,7 @@ endtry
 ```
 
 ### Lambda and Function Expressions
+
 ```moo
 // Lambda expression
 {x, y} => x + y
@@ -76,11 +87,13 @@ endfn
 
 ## Object Definition Syntax
 
-MOO supports an extended syntax for defining objects (not part of standard LambdaMOO):
+MOO supports an extended syntax for defining objects (not part of standard
+LambdaMOO):
+
 ```moo
 object MyObject
   property name (owner: #1, flags: "r") = "unnamed";
-  
+
   verb initialize (this none this)
     this.name = "initialized";
   endverb
@@ -100,6 +113,7 @@ endobject
 ## Comments
 
 MOO supports two comment styles:
+
 ```moo
 // Single-line comment
 /* Multi-line
@@ -108,7 +122,8 @@ MOO supports two comment styles:
 
 ## Tree-sitter AST Node Types
 
-The tree-sitter-moo parser uses semantic node types for better AST representation:
+The tree-sitter-moo parser uses semantic node types for better AST
+representation:
 
 - **`call`**: Function calls like `foo(args)`
   - Fields: `function`, `arguments`
@@ -121,4 +136,5 @@ The tree-sitter-moo parser uses semantic node types for better AST representatio
 - **`slice`**: Array/string slicing like `str[1..3]`
   - Fields: `object`, `from`, `to`
 
-These semantic nodes replaced the generic `postfix_expr` for clearer AST structure.
+These semantic nodes replaced the generic `postfix_expr` for clearer AST
+structure.

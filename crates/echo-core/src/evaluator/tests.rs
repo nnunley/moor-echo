@@ -1,6 +1,7 @@
+use tempfile::TempDir;
+
 use super::*;
 use crate::parser::create_parser;
-use tempfile::TempDir;
 
 fn create_test_evaluator() -> (Evaluator, ObjectId, TempDir) {
     let temp_dir = TempDir::new().unwrap();
@@ -14,7 +15,7 @@ fn create_test_evaluator() -> (Evaluator, ObjectId, TempDir) {
 fn test_break_in_while_loop() {
     let (mut evaluator, player_id, _temp_dir) = create_test_evaluator();
     let mut parser = create_parser("echo").unwrap();
-    
+
     // Test simple break
     let code = r#"
 let count = 0
@@ -26,17 +27,17 @@ while true
 endwhile
 count
 "#;
-    
+
     let ast = parser.parse_program(code).unwrap();
     let result = evaluator.eval_with_player(&ast, player_id).unwrap();
     assert_eq!(result, Value::Integer(3));
 }
 
-#[test] 
+#[test]
 fn test_continue_in_while_loop() {
     let (mut evaluator, player_id, _temp_dir) = create_test_evaluator();
     let mut parser = create_parser("echo").unwrap();
-    
+
     // Test continue - skip when i == 3
     let code = r#"
 let sum = 0
@@ -50,7 +51,7 @@ while i < 5
 endwhile
 sum
 "#;
-    
+
     let ast = parser.parse_program(code).unwrap();
     let result = evaluator.eval_with_player(&ast, player_id).unwrap();
     // Should be 1 + 2 + 4 + 5 = 12 (skipping 3)
@@ -61,7 +62,7 @@ sum
 fn test_break_in_for_loop() {
     let (mut evaluator, player_id, _temp_dir) = create_test_evaluator();
     let mut parser = create_parser("echo").unwrap();
-    
+
     // Test break in for loop
     let code = r#"
 let result = 0
@@ -73,7 +74,7 @@ for x in [1, 2, 3, 4, 5]
 endfor
 result
 "#;
-    
+
     let ast = parser.parse_program(code).unwrap();
     let result = evaluator.eval_with_player(&ast, player_id).unwrap();
     // Should be 1 + 2 = 3 (stops at 3)
@@ -84,8 +85,8 @@ result
 fn test_continue_in_for_loop() {
     let (mut evaluator, player_id, _temp_dir) = create_test_evaluator();
     let mut parser = create_parser("echo").unwrap();
-    
-    // Test continue in for loop  
+
+    // Test continue in for loop
     let code = r#"
 let sum = 0
 for y in [1, 2, 3, 4, 5]
@@ -96,7 +97,7 @@ for y in [1, 2, 3, 4, 5]
 endfor
 sum
 "#;
-    
+
     let ast = parser.parse_program(code).unwrap();
     let result = evaluator.eval_with_player(&ast, player_id).unwrap();
     // Should be 1 + 2 + 4 + 5 = 12 (skipping 3)
@@ -107,7 +108,7 @@ sum
 fn test_nested_loops_with_break() {
     let (mut evaluator, player_id, _temp_dir) = create_test_evaluator();
     let mut parser = create_parser("echo").unwrap();
-    
+
     // Test nested loops
     let code = r#"
 let outer = 0
@@ -125,7 +126,7 @@ while outer < 3
 endwhile
 inner_total
 "#;
-    
+
     let ast = parser.parse_program(code).unwrap();
     let result = evaluator.eval_with_player(&ast, player_id).unwrap();
     // Each outer loop iteration contributes 2 to inner_total (breaks at inner == 3)

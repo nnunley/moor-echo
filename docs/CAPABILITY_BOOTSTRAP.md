@@ -2,7 +2,9 @@
 
 ## Overview
 
-The ECHO capability system provides fine-grained security and access control. This document describes how capabilities are bootstrapped when the system starts and how they propagate through the object hierarchy.
+The ECHO capability system provides fine-grained security and access control.
+This document describes how capabilities are bootstrapped when the system starts
+and how they propagate through the object hierarchy.
 
 ## Core Capability Concepts
 
@@ -60,11 +62,11 @@ object $system
         // Grant root_class basic capabilities
         grant CreateObject($root_class) to $root_class;
         grant ReadProperty($root_class, any) to $all;
-        
+
         // Grant player creation capabilities
         grant CreateObject($player) to $player_creator;
         grant GrantCapability(ReadProperty, any) to $player_creator;
-        
+
         // Grant room capabilities
         grant ExecuteVerb($room, "look") to $all;
         grant ReadProperty($room, "name") to $all;
@@ -81,17 +83,17 @@ When a new player is created:
 object $player_creator
     function create_player(name)
         let new_player = create_object($player);
-        
+
         // Grant basic player capabilities
         grant ReadProperty(new_player, any) to new_player;
         grant WriteProperty(new_player, "password") to new_player;
         grant ExecuteVerb(new_player, "look") to new_player;
         grant ExecuteVerb(new_player, "say") to new_player;
-        
+
         // Grant interaction capabilities
         grant ReadProperty(any, "name") to new_player;
         grant ReadProperty(any, "description") to new_player;
-        
+
         return new_player;
     endfunction
 endobject
@@ -104,12 +106,12 @@ When objects are created, they inherit capabilities from their parent:
 ```echo
 function create_object_with_capabilities(parent)
     let obj = create_object(parent);
-    
+
     // Copy parent's grantable capabilities
     for cap in parent.$grantable_capabilities
         grant cap to obj;
     endfor
-    
+
     return obj;
 endfunction
 ```
@@ -117,19 +119,24 @@ endfunction
 ## Capability Hierarchy
 
 ### 1. Universal Capabilities
+
 - `ReadProperty(object, "name")` - Everyone can read names
 - `ExecuteVerb(object, "look")` - Everyone can look at objects
 
 ### 2. Owner Capabilities
+
 - `WriteProperty(owned_object, any)` - Owners can modify their objects
-- `GrantCapability(any, owned_object)` - Owners can grant capabilities on their objects
+- `GrantCapability(any, owned_object)` - Owners can grant capabilities on their
+  objects
 
 ### 3. Wizard Capabilities
+
 - `CreateObject(any)` - Wizards can create any object type
 - `GrantCapability(any, any)` - Wizards can grant any capability
 - `ExecuteVerb(any, any)` - Wizards can execute any verb
 
 ### 4. System Capabilities
+
 - `ModifySystemObject()` - Only system can modify system objects
 - `ShutdownSystem()` - Only system can shut down
 - `BootstrapCapabilities()` - Only system can bootstrap
@@ -167,7 +174,7 @@ impl Evaluator {
         // Walk up the inheritance chain if needed
         // Check wildcard grants
     }
-    
+
     fn execute_verb(&mut self, obj: ObjectId, verb: &str, args: &[Value]) -> Result<Value> {
         // Check verb's required capabilities
         let verb_def = self.get_verb(obj, verb)?;
@@ -176,7 +183,7 @@ impl Evaluator {
                 return Err(anyhow!("Permission denied: missing capability {}", required_cap));
             }
         }
-        
+
         // Execute verb
         self.eval_verb_body(&verb_def.body, args)
     }
@@ -197,13 +204,13 @@ impl Evaluator {
 object secure_vault extends $thing
     property contents = [];
     property access_list = [];
-    
+
     secure verb "open" (this, none, none)
         requires AccessVault(this)
         caller:tell("The vault opens.");
         this.is_open = true;
     endverb
-    
+
     secure function add_access(player)
         requires GrantCapability(AccessVault(this), player)
         grant AccessVault(this) to player;

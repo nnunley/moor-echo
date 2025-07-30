@@ -1,5 +1,5 @@
 //! Web-based notifier implementation
-//! 
+//!
 //! Provides a REPL notifier that streams events to connected web clients
 //! via WebSocket or server-sent events.
 
@@ -104,7 +104,8 @@ pub fn format_web_value(value: &Value) -> String {
         }
         Value::Object(id) => format!("#{}", id),
         Value::Map(map) => {
-            let formatted: Vec<String> = map.iter()
+            let formatted: Vec<String> = map
+                .iter()
                 .map(|(k, v)| format!("{}: {}", k, format_web_value(v)))
                 .collect();
             format!("{{{}}}", formatted.join(", "))
