@@ -67,3 +67,7 @@ reflection = []
 # [[bench]]
 # name = "parser_benchmarks" 
 # harness = false
+
+[[bench]]
+name = "jit_benchmark"
+harness = false

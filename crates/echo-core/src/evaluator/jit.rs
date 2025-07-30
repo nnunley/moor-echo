@@ -28,6 +28,22 @@ impl CraneliftValue {
     }
 }
 
+#[cfg(feature = "jit")]
+use cranelift::prelude::Variable;
+use cranelift::codegen::ir::StackSlot;
+
+/// Compilation context for tracking variables during JIT compilation
+#[cfg(feature = "jit")]
+#[derive(Default)]
+struct CompilationContext {
+    /// Map from variable names to Cranelift variables
+    variables: HashMap<String, Variable>,
+    /// Next available variable index
+    next_var_index: usize,
+    /// Map from variable names to stack slots (for spilled variables)
+    stack_slots: HashMap<String, StackSlot>,
+}
+
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -767,6 +783,98 @@ impl JitEvaluator {
                 // Expression statement just evaluates the expression
                 self.eval_with_player(expr, player_id)
             }
+            EchoAst::Match { expr, arms } => {
+                // Evaluate the expression to match against
+                let match_value = self.eval_with_player(expr, player_id)?;
+                
+                // Try each pattern in order
+                for arm in arms {
+                    if self.match_pattern(&arm.pattern, &match_value, player_id)? {
+                        // Pattern matches, check guard if present
+                        if let Some(guard) = &arm.guard {
+                            let guard_result = self.eval_with_player(guard, player_id)?;
+                            match guard_result {
+                                Value::Boolean(true) => {
+                                    // Guard passed, execute body
+                                    return self.eval_with_player(&arm.body, player_id);
+                                }
+                                Value::Boolean(false) => {
+                                    // Guard failed, continue to next arm
+                                    continue;
+                                }
+                                _ => return Err(anyhow!("Match guard must evaluate to boolean")),
+                            }
+                        } else {
+                            // No guard, execute body
+                            return self.eval_with_player(&arm.body, player_id);
+                        }
+                    }
+                }
+                
+                // No patterns matched
+                Err(anyhow!("Match expression: no patterns matched"))
+            }
+            EchoAst::Try { body, catch, finally } => {
+                // Execute try body
+                let mut result = Ok(Value::Null);
+                
+                // Execute each statement in the try body
+                for stmt in body {
+                    match self.eval_with_player(stmt, player_id) {
+                        Ok(val) => result = Ok(val),
+                        Err(e) => {
+                            // Error occurred, handle with catch if present
+                            if let Some(catch_clause) = catch {
+                                // If there's an error variable, bind it to the error message
+                                if let Some(error_var) = &catch_clause.error_var {
+                                    // Create a temporary environment binding for error variable
+                                    let original_value = if let Some(mut env) = self.environments.get_mut(&player_id) {
+                                        env.variables.insert(error_var.clone(), Value::String(e.to_string()))
+                                    } else {
+                                        None
+                                    };
+                                    
+                                    // Execute catch body
+                                    let mut catch_result = Value::Null;
+                                    for catch_stmt in &catch_clause.body {
+                                        catch_result = self.eval_with_player(catch_stmt, player_id)?;
+                                    }
+                                    result = Ok(catch_result);
+                                    
+                                    // Restore original value if it existed
+                                    if let Some(mut env) = self.environments.get_mut(&player_id) {
+                                        if let Some(orig_val) = original_value {
+                                            env.variables.insert(error_var.clone(), orig_val);
+                                        } else {
+                                            env.variables.remove(error_var);
+                                        }
+                                    }
+                                } else {
+                                    // No error variable, just execute catch body
+                                    let mut catch_result = Value::Null;
+                                    for catch_stmt in &catch_clause.body {
+                                        catch_result = self.eval_with_player(catch_stmt, player_id)?;
+                                    }
+                                    result = Ok(catch_result);
+                                }
+                            } else {
+                                // No catch clause, propagate error
+                                result = Err(e);
+                            }
+                            break;
+                        }
+                    }
+                }
+                
+                // Execute finally block if present
+                if let Some(finally_stmts) = finally {
+                    for finally_stmt in finally_stmts {
+                        let _ = self.eval_with_player(finally_stmt, player_id)?;
+                    }
+                }
+                
+                result
+            }
             EchoAst::Program(statements) => {
                 // Program is like a block at the top level
                 let mut result = Value::Null;
@@ -782,6 +890,42 @@ impl JitEvaluator {
                     "AST node not yet implemented in JIT evaluator: {:?}",
                     ast
                 ))
+            }
+        }
+    }
+
+    /// Match a pattern against a value
+    fn match_pattern(&mut self, pattern: &crate::ast::Pattern, value: &Value, player_id: ObjectId) -> Result<bool> {
+        use crate::ast::Pattern;
+        
+        match pattern {
+            Pattern::Wildcard => Ok(true), // Wildcard matches everything
+            Pattern::Identifier(name) => {
+                // Identifier pattern captures the value
+                let mut env = self.environments.entry(player_id)
+                    .or_insert_with(|| Environment {
+                        player_id,
+                        variables: HashMap::new(),
+                        const_bindings: HashSet::new(),
+                    });
+                env.variables.insert(name.clone(), value.clone());
+                Ok(true)
+            }
+            Pattern::Number(n) => {
+                match value {
+                    Value::Integer(val) => Ok(*val == *n),
+                    _ => Ok(false),
+                }
+            }
+            Pattern::String(s) => {
+                match value {
+                    Value::String(val) => Ok(val == s),
+                    _ => Ok(false),
+                }
+            }
+            Pattern::Constructor { .. } => {
+                // Constructor patterns not yet implemented
+                Err(anyhow!("Constructor patterns not yet implemented"))
             }
         }
     }
@@ -843,8 +987,9 @@ impl JitEvaluator {
             builder.switch_to_block(entry_block);
             builder.seal_block(entry_block); // Seal the entry block
 
-            // Compile the AST
-            let value = Self::compile_ast_node(ast, &mut builder)?;
+            // Compile the AST with a fresh compilation context
+            let mut compile_ctx = CompilationContext::default();
+            let value = Self::compile_ast_node(ast, &mut builder, &mut compile_ctx)?;
             builder.ins().return_(&[value.inner()]);
 
             // Seal all blocks and finalize the function
@@ -861,7 +1006,7 @@ impl JitEvaluator {
     }
 
     /// Compile a single AST node to Cranelift IR
-    fn compile_ast_node(ast: &EchoAst, builder: &mut FunctionBuilder) -> Result<CraneliftValue> {
+    fn compile_ast_node(ast: &EchoAst, builder: &mut FunctionBuilder, ctx: &mut CompilationContext) -> Result<CraneliftValue> {
         match ast {
             EchoAst::Number(n) => {
                 let imm = builder.ins().iconst(types::I64, *n);
@@ -872,13 +1017,11 @@ impl JitEvaluator {
                 // For now, fall back to interpreter
                 return Err(anyhow!("Float literals require type system support, falling back to interpreter"));
             }
-            EchoAst::Boolean(_) => {
-                // Boolean literals require type system support because:
-                // 1. Our JIT functions return i64, not a tagged union type
-                // 2. We can't distinguish between integer 0/1 and boolean false/true
-                // 3. Comparisons work because they return 0/1 as integers
-                // For now, fall back to interpreter
-                return Err(anyhow!("Boolean literals require type system support, falling back to interpreter"));
+            EchoAst::Boolean(b) => {
+                // Represent booleans as integers: false = 0, true = 1
+                let val = if *b { 1 } else { 0 };
+                let imm = builder.ins().iconst(types::I64, val);
+                Ok(CraneliftValue::new(imm))
             }
             EchoAst::Null => {
                 // Null compilation requires type system changes
@@ -891,33 +1034,33 @@ impl JitEvaluator {
                 return Err(anyhow!("String literals require heap allocation, falling back to interpreter"));
             }
             EchoAst::Add { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 let result = builder.ins().iadd(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
             }
             EchoAst::Subtract { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 let result = builder.ins().isub(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
             }
             EchoAst::Multiply { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 let result = builder.ins().imul(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
             }
             EchoAst::Divide { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Use signed division
                 let result = builder.ins().sdiv(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
             }
             EchoAst::Modulo { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Use signed remainder
                 let result = builder.ins().srem(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
@@ -932,53 +1075,53 @@ impl JitEvaluator {
                 return Err(anyhow!("Power operation requires runtime library support, falling back to interpreter"));
             }
             EchoAst::UnaryMinus { operand } => {
-                let operand_val = Self::compile_ast_node(operand, builder)?;
+                let operand_val = Self::compile_ast_node(operand, builder, ctx)?;
                 let zero = builder.ins().iconst(types::I64, 0);
                 let result = builder.ins().isub(zero, operand_val.inner());
                 Ok(CraneliftValue::new(result))
             }
             EchoAst::UnaryPlus { operand } => {
                 // Unary plus is a no-op, just return the operand
-                Self::compile_ast_node(operand, builder)
+                Self::compile_ast_node(operand, builder, ctx)
             }
             EchoAst::Equal { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare integers for equality
                 let cmp = builder.ins().icmp(IntCC::Equal, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
             }
             EchoAst::NotEqual { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare integers for inequality
                 let cmp = builder.ins().icmp(IntCC::NotEqual, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
             }
             EchoAst::LessThan { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare signed integers
                 let cmp = builder.ins().icmp(IntCC::SignedLessThan, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
             }
             EchoAst::LessEqual { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare signed integers
                 let cmp = builder.ins().icmp(IntCC::SignedLessThanOrEqual, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
             }
             EchoAst::GreaterThan { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare signed integers
                 let cmp = builder.ins().icmp(IntCC::SignedGreaterThan, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
             }
             EchoAst::GreaterEqual { left, right } => {
-                let left_val = Self::compile_ast_node(left, builder)?;
-                let right_val = Self::compile_ast_node(right, builder)?;
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
                 // Compare signed integers
                 let cmp = builder.ins().icmp(IntCC::SignedGreaterThanOrEqual, left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(cmp))
@@ -987,36 +1130,86 @@ impl JitEvaluator {
                 // In operator requires runtime support for lists/strings
                 return Err(anyhow!("In operator requires runtime support, falling back to interpreter"));
             }
-            EchoAst::And { .. } => {
-                // Logical AND requires control flow for short-circuit evaluation
-                // For now, fall back to interpreter
-                return Err(anyhow!("Logical AND requires control flow support, falling back to interpreter"));
+            EchoAst::And { left, right } => {
+                // Short-circuit AND: if left is false, don't evaluate right
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                
+                // Create blocks for short-circuit evaluation
+                let eval_right_block = builder.create_block();
+                let merge_block = builder.create_block();
+                
+                // Add a block parameter to the merge block to receive the result
+                builder.append_block_param(merge_block, types::I64);
+                
+                // If left is false (0), short-circuit to merge with false (0)
+                let zero = builder.ins().iconst(types::I64, 0);
+                let is_false = builder.ins().icmp(IntCC::Equal, left_val.inner(), zero);
+                builder.ins().brif(is_false, merge_block, &[zero], eval_right_block, &[]);
+                
+                // Evaluate right side
+                builder.switch_to_block(eval_right_block);
+                builder.seal_block(eval_right_block);
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
+                builder.ins().jump(merge_block, &[right_val.inner()]);
+                
+                // Continue at merge block
+                builder.switch_to_block(merge_block);
+                builder.seal_block(merge_block);
+                
+                // The result is the block parameter
+                let results = builder.block_params(merge_block);
+                Ok(CraneliftValue::new(results[0]))
             }
-            EchoAst::Or { .. } => {
-                // Logical OR requires control flow for short-circuit evaluation
-                // For now, fall back to interpreter
-                return Err(anyhow!("Logical OR requires control flow support, falling back to interpreter"));
+            EchoAst::Or { left, right } => {
+                // Short-circuit OR: if left is true, don't evaluate right
+                let left_val = Self::compile_ast_node(left, builder, ctx)?;
+                
+                // Create blocks for short-circuit evaluation
+                let eval_right_block = builder.create_block();
+                let merge_block = builder.create_block();
+                
+                // Add a block parameter to the merge block to receive the result
+                builder.append_block_param(merge_block, types::I64);
+                
+                // If left is true (non-zero), short-circuit to merge with true (1)
+                let zero = builder.ins().iconst(types::I64, 0);
+                let one = builder.ins().iconst(types::I64, 1);
+                let is_true = builder.ins().icmp(IntCC::NotEqual, left_val.inner(), zero);
+                builder.ins().brif(is_true, merge_block, &[one], eval_right_block, &[]);
+                
+                // Evaluate right side
+                builder.switch_to_block(eval_right_block);
+                builder.seal_block(eval_right_block);
+                let right_val = Self::compile_ast_node(right, builder, ctx)?;
+                builder.ins().jump(merge_block, &[right_val.inner()]);
+                
+                // Continue at merge block
+                builder.switch_to_block(merge_block);
+                builder.seal_block(merge_block);
+                
+                // The result is the block parameter
+                let results = builder.block_params(merge_block);
+                Ok(CraneliftValue::new(results[0]))
             }
             EchoAst::Not { operand } => {
-                // Check if operand is a boolean literal (which would fall back)
-                match operand.as_ref() {
-                    EchoAst::Boolean(_) => {
-                        return Err(anyhow!("NOT with boolean literal requires type system support, falling back to interpreter"));
-                    }
-                    _ => {
-                        // NOT is simple - just invert the boolean
-                        let operand_val = Self::compile_ast_node(operand, builder)?;
-                        // In Cranelift, booleans are represented as integers (0 or 1)
-                        // NOT can be implemented as XOR with 1
-                        let one = builder.ins().iconst(types::I64, 1);
-                        let result = builder.ins().bxor(operand_val.inner(), one);
-                        Ok(CraneliftValue::new(result))
-                    }
-                }
+                // NOT is simple - just invert the boolean
+                let operand_val = Self::compile_ast_node(operand, builder, ctx)?;
+                // In Cranelift, booleans are represented as integers (0 or 1)
+                // NOT can be implemented as XOR with 1
+                let one = builder.ins().iconst(types::I64, 1);
+                let result = builder.ins().bxor(operand_val.inner(), one);
+                Ok(CraneliftValue::new(result))
             }
-            EchoAst::Identifier(_) => {
-                // Variable reads require runtime environment access
-                return Err(anyhow!("Variable reads require runtime support, falling back to interpreter"));
+            EchoAst::Identifier(name) => {
+                // Look up the variable in our compilation context
+                if let Some(&var) = ctx.variables.get(name) {
+                    // Use the Cranelift variable
+                    let val = builder.use_var(var);
+                    Ok(CraneliftValue::new(val))
+                } else {
+                    // Variable not found - this shouldn't happen if we're compiling correctly
+                    return Err(anyhow!("Unknown variable '{}' during compilation", name));
+                }
             }
             EchoAst::SystemProperty(_) => {
                 // System property access requires runtime storage lookup
@@ -1030,17 +1223,99 @@ impl JitEvaluator {
                 // Variable assignment requires runtime environment access
                 return Err(anyhow!("Variable assignment requires runtime support, falling back to interpreter"));
             }
-            EchoAst::LocalAssignment { .. } => {
-                // Local assignment requires runtime environment access
-                return Err(anyhow!("Local assignment requires runtime support, falling back to interpreter"));
+            EchoAst::LocalAssignment { target, value } => {
+                // For now, only support simple identifier patterns
+                if let BindingPattern::Identifier(name) = target {
+                    // Compile the value expression
+                    let val = Self::compile_ast_node(value, builder, ctx)?;
+                    
+                    // Create or update the variable
+                    let var = if let Some(&existing_var) = ctx.variables.get(name) {
+                        existing_var
+                    } else {
+                        // Create a new variable
+                        let var_idx = ctx.next_var_index;
+                        ctx.next_var_index += 1;
+                        let var = Variable::new(var_idx);
+                        
+                        // Declare the variable in the function
+                        builder.declare_var(var, types::I64);
+                        
+                        // Store it in our context
+                        ctx.variables.insert(name.clone(), var);
+                        var
+                    };
+                    
+                    // Define the variable with the value
+                    builder.def_var(var, val.inner());
+                    
+                    // Return the value (assignments are expressions in Echo)
+                    Ok(val)
+                } else {
+                    return Err(anyhow!("Complex binding patterns not yet supported in JIT"));
+                }
             }
             EchoAst::ConstAssignment { .. } => {
                 // Const assignment requires runtime environment access
                 return Err(anyhow!("Const assignment requires runtime support, falling back to interpreter"));
             }
-            EchoAst::If { .. } => {
-                // If statements require control flow branching
-                return Err(anyhow!("If statements require control flow support, falling back to interpreter"));
+            EchoAst::If { condition, then_branch, else_branch } => {
+                // Compile the condition
+                let cond_val = Self::compile_ast_node(condition, builder, ctx)?;
+                
+                // Create blocks for then and else branches
+                let then_block = builder.create_block();
+                let else_block = builder.create_block();
+                let merge_block = builder.create_block();
+                
+                // Add a block parameter to the merge block to receive the result
+                builder.append_block_param(merge_block, types::I64);
+                
+                // Branch based on condition (non-zero is true)
+                let zero = builder.ins().iconst(types::I64, 0);
+                let is_false = builder.ins().icmp(IntCC::Equal, cond_val.inner(), zero);
+                builder.ins().brif(is_false, else_block, &[], then_block, &[]);
+                
+                // Compile then branch
+                builder.switch_to_block(then_block);
+                builder.seal_block(then_block);
+                
+                // Compile then body - for now just support single expressions
+                let then_val = if then_branch.len() == 1 {
+                    Self::compile_ast_node(&then_branch[0], builder, ctx)?
+                } else if then_branch.is_empty() {
+                    // Empty branch returns 0
+                    CraneliftValue::new(builder.ins().iconst(types::I64, 0))
+                } else {
+                    return Err(anyhow!("Multi-statement if branches not yet supported in JIT"));
+                };
+                builder.ins().jump(merge_block, &[then_val.inner()]);
+                
+                // Compile else branch
+                builder.switch_to_block(else_block);
+                builder.seal_block(else_block);
+                
+                let else_val = if let Some(else_body) = else_branch {
+                    if else_body.len() == 1 {
+                        Self::compile_ast_node(&else_body[0], builder, ctx)?
+                    } else if else_body.is_empty() {
+                        CraneliftValue::new(builder.ins().iconst(types::I64, 0))
+                    } else {
+                        return Err(anyhow!("Multi-statement else branches not yet supported in JIT"));
+                    }
+                } else {
+                    // No else branch returns 0
+                    CraneliftValue::new(builder.ins().iconst(types::I64, 0))
+                };
+                builder.ins().jump(merge_block, &[else_val.inner()]);
+                
+                // Continue at merge block
+                builder.switch_to_block(merge_block);
+                builder.seal_block(merge_block);
+                
+                // The result is the block parameter
+                let results = builder.block_params(merge_block);
+                Ok(CraneliftValue::new(results[0]))
             }
             EchoAst::While { .. } => {
                 // While loops require control flow branching and loops
@@ -1098,9 +1373,32 @@ impl JitEvaluator {
                 // Expression statements are just wrappers
                 return Err(anyhow!("Expression statements require wrapper handling, falling back to interpreter"));
             }
-            EchoAst::Program(..) => {
-                // Programs are top-level containers
-                return Err(anyhow!("Program nodes require top-level handling, falling back to interpreter"));
+            EchoAst::Match { .. } => {
+                // Match expressions can be compiled by unrolling to if statements
+                // However, they require control flow support for complex guard expressions
+                // For now, fall back to interpreter which has full match support
+                return Err(anyhow!("Match expressions require control flow support, falling back to interpreter"));
+            }
+            EchoAst::Try { .. } => {
+                // Try/catch requires exception handling support which is complex to implement in Cranelift
+                // Would need to integrate with system exception handling or implement custom error propagation
+                // For now, fall back to interpreter which has full try/catch support
+                return Err(anyhow!("Try/catch expressions require exception handling support, falling back to interpreter"));
+            }
+            EchoAst::Program(stmts) => {
+                // Compile a sequence of statements
+                if stmts.is_empty() {
+                    // Empty program returns 0
+                    Ok(CraneliftValue::new(builder.ins().iconst(types::I64, 0)))
+                } else {
+                    // Compile each statement in sequence
+                    let mut last_val = CraneliftValue::new(builder.ins().iconst(types::I64, 0));
+                    for stmt in stmts {
+                        last_val = Self::compile_ast_node(stmt, builder, ctx)?;
+                    }
+                    // Return the value of the last statement
+                    Ok(last_val)
+                }
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",

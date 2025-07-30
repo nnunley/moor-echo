@@ -91,6 +91,15 @@ mod jit_block_tests;
 mod jit_program_tests;
 
 #[cfg(test)]
+mod jit_match_tests;
+
+#[cfg(test)]
+mod jit_try_catch_tests;
+
+#[cfg(test)]
+mod jit_integration_test;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]
