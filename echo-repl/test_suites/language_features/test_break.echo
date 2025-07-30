@@ -1,5 +1,0 @@
-let c = 0; while c < 10; c = c + 1; if c == 3; break; endif; endwhile; c
-let s = 0; let i = 0; while i < 5; i = i + 1; if i == 3; continue; endif; s = s + i; endwhile; s
-let r = 0; for x in [1, 2, 3, 4, 5]; if x == 3; break; endif; r = r + x; endfor; r
-let t = 0; for y in [1, 2, 3, 4, 5]; if y == 3; continue; endif; t = t + y; endfor; t
-EOF < /dev/null

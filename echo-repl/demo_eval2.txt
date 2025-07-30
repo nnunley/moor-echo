@@ -1,8 +1,0 @@
-.eval
-object test
-property a = 5;
-property b = 10
-endobject
-test.a + test.b
-.
-.quit

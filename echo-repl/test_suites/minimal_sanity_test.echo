@@ -1,9 +1,0 @@
-let x = 10
-let y = 20
-let sum = x + y
-
-if sum == 30
-    "Basic math works!"
-else
-    "Basic math failed"
-endif
