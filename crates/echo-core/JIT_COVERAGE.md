@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (40 out of ~50+)
+### ✅ Supported AST Nodes (47 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -206,6 +206,41 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Lambda { params, body }
     ```
 
+41. **SystemProperty** - System property access (interpreter only)
+    ```rust
+    EchoAst::SystemProperty(String)
+    ```
+
+42. **ObjectRef** - Object reference (interpreter only)
+    ```rust
+    EchoAst::ObjectRef(i64)
+    ```
+
+43. **LocalAssignment** - Local variable assignment (interpreter only)
+    ```rust
+    EchoAst::LocalAssignment { target, value }
+    ```
+
+44. **ConstAssignment** - Constant assignment (interpreter only)
+    ```rust
+    EchoAst::ConstAssignment { target, value }
+    ```
+
+45. **Block** - Block statements (interpreter only)
+    ```rust
+    EchoAst::Block(Vec<EchoAst>)
+    ```
+
+46. **ExpressionStatement** - Expression statement wrapper (interpreter only)
+    ```rust
+    EchoAst::ExpressionStatement(Box<EchoAst>)
+    ```
+
+47. **Program** - Top-level program node (interpreter only)
+    ```rust
+    EchoAst::Program(Vec<EchoAst>)
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -216,8 +251,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 
 #### Identifiers & References
 - [x] Identifier (interpreter only)
-- [ ] SystemProperty ($propname)
-- [ ] ObjectRef (#123)
+- [x] SystemProperty ($propname) (interpreter only)
+- [x] ObjectRef (#123) (interpreter only)
 
 #### Arithmetic Operations
 - [x] Subtract
@@ -244,8 +279,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 
 #### Variable Operations
 - [x] Assignment (interpreter only)
-- [ ] LocalAssignment
-- [ ] ConstAssignment
+- [x] LocalAssignment (interpreter only)
+- [x] ConstAssignment (interpreter only)
 
 #### Property & Method Access
 - [x] PropertyAccess (interpreter only)
@@ -278,15 +313,15 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [ ] Await
 - [ ] Match
 - [ ] TypedIdentifier
-- [ ] ExpressionStatement
-- [ ] Block
-- [ ] Program
+- [x] ExpressionStatement (interpreter only)
+- [x] Block (interpreter only)
+- [x] Program (interpreter only)
 
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 40 (15 fully compiled, 25 fall back to interpreter)
-- **Coverage**: ~80%
+- **JIT Supported**: 47 (15 fully compiled, 32 fall back to interpreter)
+- **Coverage**: ~94%
 
 ## Current Limitations
 

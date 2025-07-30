@@ -36,10 +36,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 
-use super::{Environment, EvaluatorTrait, Value};
+use super::{Environment, EvaluatorTrait, Value, property_value_to_value};
 use crate::{
-    ast::{EchoAst, LValue, BindingType, BindingPattern, LambdaParam},
-    storage::{ObjectId, Storage},
+    ast::{EchoAst, LValue, BindingType, BindingPattern, BindingPatternElement, LambdaParam},
+    storage::{ObjectId, Storage, PropertyValue},
 };
 
 /// JIT-compiled evaluator for Echo language
@@ -257,6 +257,12 @@ impl JitEvaluator {
     pub fn current_player(&self) -> Option<ObjectId> {
         self.current_player
     }
+    
+    /// Get reference to storage for testing
+    #[cfg(test)]
+    pub fn storage(&self) -> &Arc<Storage> {
+        &self.storage
+    }
 
     /// Evaluate an AST node with JIT compilation
     pub fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
@@ -324,7 +330,11 @@ impl JitEvaluator {
             | EchoAst::Or { .. }
             | EchoAst::Not { .. }
             | EchoAst::Identifier(_)
+            | EchoAst::SystemProperty(_)
+            | EchoAst::ObjectRef(_)
             | EchoAst::Assignment { .. }
+            | EchoAst::LocalAssignment { .. }
+            | EchoAst::ConstAssignment { .. }
             | EchoAst::If { .. }
             | EchoAst::While { .. }
             | EchoAst::For { .. }
@@ -337,7 +347,10 @@ impl JitEvaluator {
             | EchoAst::FunctionCall { .. }
             | EchoAst::MethodCall { .. }
             | EchoAst::Call { .. }
-            | EchoAst::Lambda { .. } => {
+            | EchoAst::Lambda { .. }
+            | EchoAst::Block(..)
+            | EchoAst::ExpressionStatement { .. }
+            | EchoAst::Program(..) => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -389,6 +402,14 @@ impl JitEvaluator {
                 } else {
                     Err(anyhow!("No environment for player"))
                 }
+            }
+            EchoAst::SystemProperty(prop_name) => {
+                // Delegate to the main evaluator's implementation
+                self.fallback_eval_system_property(prop_name)
+            }
+            EchoAst::ObjectRef(n) => {
+                // Delegate to the main evaluator's implementation
+                self.fallback_eval_object_ref(n)
             }
             EchoAst::Add { left, right } => {
                 let left_val = self.eval_with_player(left, player_id)?;
@@ -720,6 +741,40 @@ impl JitEvaluator {
             EchoAst::Lambda { params, body } => {
                 self.eval_lambda(params, body.as_ref(), player_id)
             }
+            EchoAst::LocalAssignment { target, value } => {
+                // Evaluate value first
+                let val = self.eval_with_player(value, player_id)?;
+                // Bind the pattern
+                self.bind_pattern(target, &val, player_id, &BindingType::Let)?;
+                Ok(val)
+            }
+            EchoAst::ConstAssignment { target, value } => {
+                // Evaluate value first  
+                let val = self.eval_with_player(value, player_id)?;
+                // Bind the pattern
+                self.bind_pattern(target, &val, player_id, &BindingType::Const)?;
+                Ok(val)
+            }
+            EchoAst::Block(statements) => {
+                // Evaluate block of statements
+                let mut result = Value::Null;
+                for stmt in statements {
+                    result = self.eval_with_player(stmt, player_id)?;
+                }
+                Ok(result)
+            }
+            EchoAst::ExpressionStatement(expr) => {
+                // Expression statement just evaluates the expression
+                self.eval_with_player(expr, player_id)
+            }
+            EchoAst::Program(statements) => {
+                // Program is like a block at the top level
+                let mut result = Value::Null;
+                for stmt in statements {
+                    result = self.eval_with_player(stmt, player_id)?;
+                }
+                Ok(result)
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -963,9 +1018,25 @@ impl JitEvaluator {
                 // Variable reads require runtime environment access
                 return Err(anyhow!("Variable reads require runtime support, falling back to interpreter"));
             }
+            EchoAst::SystemProperty(_) => {
+                // System property access requires runtime storage lookup
+                return Err(anyhow!("System property access requires runtime storage, falling back to interpreter"));
+            }
+            EchoAst::ObjectRef(_) => {
+                // Object references require runtime object resolution
+                return Err(anyhow!("Object references require runtime lookup, falling back to interpreter"));
+            }
             EchoAst::Assignment { .. } => {
                 // Variable assignment requires runtime environment access
                 return Err(anyhow!("Variable assignment requires runtime support, falling back to interpreter"));
+            }
+            EchoAst::LocalAssignment { .. } => {
+                // Local assignment requires runtime environment access
+                return Err(anyhow!("Local assignment requires runtime support, falling back to interpreter"));
+            }
+            EchoAst::ConstAssignment { .. } => {
+                // Const assignment requires runtime environment access
+                return Err(anyhow!("Const assignment requires runtime support, falling back to interpreter"));
             }
             EchoAst::If { .. } => {
                 // If statements require control flow branching
@@ -1018,6 +1089,18 @@ impl JitEvaluator {
             EchoAst::Lambda { .. } => {
                 // Lambda creation requires runtime closure allocation
                 return Err(anyhow!("Lambda creation requires runtime allocation, falling back to interpreter"));
+            }
+            EchoAst::Block(..) => {
+                // Block statements require sequential evaluation
+                return Err(anyhow!("Block statements require sequential evaluation, falling back to interpreter"));
+            }
+            EchoAst::ExpressionStatement { .. } => {
+                // Expression statements are just wrappers
+                return Err(anyhow!("Expression statements require wrapper handling, falling back to interpreter"));
+            }
+            EchoAst::Program(..) => {
+                // Programs are top-level containers
+                return Err(anyhow!("Program nodes require top-level handling, falling back to interpreter"));
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
@@ -1424,6 +1507,142 @@ impl JitEvaluator {
             body: body.clone(),
             captured_env,
         })
+    }
+    
+    /// Bind a pattern to a value in the current environment
+    fn bind_pattern(
+        &mut self,
+        pattern: &BindingPattern,
+        value: &Value,
+        player_id: ObjectId,
+        binding_type: &BindingType,
+    ) -> Result<()> {
+            
+        match pattern {
+            BindingPattern::Identifier(name) => {
+                // Simple binding
+                let mut env = self.environments.entry(player_id)
+                    .or_insert_with(|| Environment {
+                        player_id,
+                        variables: HashMap::new(),
+                        const_bindings: HashSet::new(),
+                    });
+                env.variables.insert(name.clone(), value.clone());
+                Ok(())
+            }
+            BindingPattern::Object(bindings) => {
+                // Object destructuring
+                match value {
+                    Value::Map(map) => {
+                        for (key, sub_pattern) in bindings {
+                            if let Some(val) = map.get(key) {
+                                self.bind_pattern(sub_pattern, val, player_id, binding_type)?;
+                            } else {
+                                return Err(anyhow!("Property '{}' not found in object", key));
+                            }
+                        }
+                        Ok(())
+                    }
+                    _ => Err(anyhow!("Cannot destructure non-object value")),
+                }
+            }
+            BindingPattern::List(elements) => {
+                // List destructuring
+                match value {
+                    Value::List(list) => {
+                        for (i, element) in elements.iter().enumerate() {
+                            match element {
+                                BindingPatternElement::Simple(name) => {
+                                    if i < list.len() {
+                                        let mut env = self.environments.entry(player_id)
+                                            .or_insert_with(|| Environment {
+                                                player_id,
+                                                variables: HashMap::new(),
+                                                const_bindings: HashSet::new(),
+                                            });
+                                        env.variables.insert(name.clone(), list[i].clone());
+                                    } else {
+                                        return Err(anyhow!("List index {} out of bounds", i));
+                                    }
+                                }
+                                BindingPatternElement::Optional { name, default } => {
+                                    let val = if i < list.len() {
+                                        list[i].clone()
+                                    } else {
+                                        self.eval_with_player(default, player_id)?
+                                    };
+                                    let mut env = self.environments.entry(player_id)
+                                        .or_insert_with(|| Environment {
+                                            player_id,
+                                            variables: HashMap::new(),
+                                            const_bindings: HashSet::new(),
+                                        });
+                                    env.variables.insert(name.clone(), val);
+                                }
+                                BindingPatternElement::Rest(name) => {
+                                    // Collect remaining elements
+                                    let rest = list[i..].to_vec();
+                                    let mut env = self.environments.entry(player_id)
+                                        .or_insert_with(|| Environment {
+                                            player_id,
+                                            variables: HashMap::new(),
+                                            const_bindings: HashSet::new(),
+                                        });
+                                    env.variables.insert(name.clone(), Value::List(rest));
+                                    break;
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    _ => Err(anyhow!("Cannot destructure non-list value")),
+                }
+            }
+            BindingPattern::Rest(sub_pattern) => {
+                // Rest pattern delegates to sub-pattern
+                self.bind_pattern(sub_pattern, value, player_id, binding_type)
+            }
+            BindingPattern::Ignore => {
+                // Ignore pattern - do nothing
+                Ok(())
+            }
+        }
+    }
+    
+    /// Evaluate system property using storage
+    fn fallback_eval_system_property(&self, prop_name: &str) -> Result<Value> {
+        // $propname resolves to #0.propname property
+        let system_obj = self.storage.objects.get(ObjectId::system())?;
+        if let Some(prop_val) = system_obj.properties.get(prop_name) {
+            Ok(property_value_to_value(prop_val.clone())?)
+        } else {
+            Err(anyhow!("System property '{}' not found", prop_name))
+        }
+    }
+    
+    /// Evaluate object reference
+    fn fallback_eval_object_ref(&self, n: &i64) -> Result<Value> {
+        // Object reference like #0 or #1
+        if *n == 0 {
+            return Ok(Value::Object(ObjectId::system()));
+        } else if *n == 1 {
+            return Ok(Value::Object(ObjectId::root()));
+        }
+        
+        // Check if there's an object_map property on the system object
+        let system_obj = self.storage.objects.get(ObjectId::system())?;
+        
+        if let Some(PropertyValue::Map(object_map)) = system_obj.properties.get("object_map") {
+            // Try to find the object reference in the map  
+            // Maps in PropertyValue store String keys, so convert the number to a string
+            let key = n.to_string();
+            if let Some(value) = object_map.get(&key) {
+                return Ok(property_value_to_value(value.clone())?);
+            }
+        }
+        
+        // Default: return error as we can't create arbitrary object IDs
+        Err(anyhow!("Object reference #{} not found", n))
     }
 }
 

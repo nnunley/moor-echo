@@ -79,6 +79,18 @@ mod jit_access_tests;
 mod jit_function_tests;
 
 #[cfg(test)]
+mod jit_reference_tests;
+
+#[cfg(test)]
+mod jit_assignment_tests;
+
+#[cfg(test)]
+mod jit_block_tests;
+
+#[cfg(test)]
+mod jit_program_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]
