@@ -2,9 +2,9 @@
 
 ## Current JIT Support Status
 
-As of the current implementation, the JIT compiler has **very minimal coverage** of the Echo AST. Here's the breakdown:
+As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (9 out of ~50+)
+### ✅ Supported AST Nodes (14 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -51,16 +51,41 @@ As of the current implementation, the JIT compiler has **very minimal coverage**
    EchoAst::UnaryPlus { operand }
    ```
 
+10. **Float** - Floating point literals (falls back to interpreter)
+    ```rust
+    EchoAst::Float(f64)
+    ```
+
+11. **String** - String literals (falls back to interpreter)
+    ```rust
+    EchoAst::String(String)
+    ```
+
+12. **Boolean** - Boolean literals (falls back to interpreter)
+    ```rust
+    EchoAst::Boolean(bool)
+    ```
+
+13. **Null** - Null literal (falls back to interpreter)
+    ```rust
+    EchoAst::Null
+    ```
+
+14. **Identifier** - Variable read (interpreter only)
+    ```rust
+    EchoAst::Identifier(String)
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
-- [ ] Float
-- [ ] String
-- [ ] Boolean
-- [ ] Null
+- [x] Float (falls back to interpreter)
+- [x] String (falls back to interpreter) 
+- [x] Boolean (falls back to interpreter)
+- [x] Null (falls back to interpreter)
 
 #### Identifiers & References
-- [ ] Identifier
+- [x] Identifier (interpreter only)
 - [ ] SystemProperty ($propname)
 - [ ] ObjectRef (#123)
 
@@ -130,8 +155,8 @@ As of the current implementation, the JIT compiler has **very minimal coverage**
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 9
-- **Coverage**: ~18%
+- **JIT Supported**: 14 (9 fully compiled, 5 fall back to interpreter)
+- **Coverage**: ~28%
 
 ## Current Limitations
 
@@ -165,7 +190,7 @@ To make the JIT useful, the following should be prioritized:
 
 ### Phase 1: Basic Expressions
 1. ~~Other arithmetic operations (Subtract, Multiply, Divide)~~ ✓ COMPLETED
-2. Boolean literals and operations
+2. ~~Boolean literals and operations~~ ✓ COMPLETED (literals fall back to interpreter)
 3. Comparison operations
 4. Variable reads (Identifier)
 

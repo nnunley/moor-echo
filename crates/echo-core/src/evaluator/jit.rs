@@ -281,6 +281,10 @@ impl JitEvaluator {
         // More complex AST nodes will fall back to interpretation
         match ast {
             EchoAst::Number(_) 
+            | EchoAst::Float(_)
+            | EchoAst::String(_)
+            | EchoAst::Boolean(_)
+            | EchoAst::Null
             | EchoAst::Add { .. } 
             | EchoAst::Subtract { .. }
             | EchoAst::Multiply { .. }
@@ -328,6 +332,8 @@ impl JitEvaluator {
             EchoAst::Number(n) => Ok(Value::Integer(*n)),
             EchoAst::Float(f) => Ok(Value::Float(*f)),
             EchoAst::String(s) => Ok(Value::String(s.clone())),
+            EchoAst::Boolean(b) => Ok(Value::Boolean(*b)),
+            EchoAst::Null => Ok(Value::Null),
             EchoAst::Identifier(s) => {
                 if let Some(env) = self.environments.get(&player_id) {
                     if let Some(value) = env.variables.get(s) {
@@ -345,6 +351,7 @@ impl JitEvaluator {
 
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l + r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l + r)),
                     (Value::String(l), Value::String(r)) => {
                         Ok(Value::String(format!("{}{}", l, r)))
                     }
@@ -357,6 +364,7 @@ impl JitEvaluator {
 
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l - r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l - r)),
                     _ => Err(anyhow!("Type error in subtraction")),
                 }
             }
@@ -366,6 +374,7 @@ impl JitEvaluator {
 
                 match (&left_val, &right_val) {
                     (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l * r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l * r)),
                     _ => Err(anyhow!("Type error in multiplication")),
                 }
             }
@@ -379,6 +388,13 @@ impl JitEvaluator {
                             Err(anyhow!("Division by zero"))
                         } else {
                             Ok(Value::Integer(l / r))
+                        }
+                    }
+                    (Value::Float(l), Value::Float(r)) => {
+                        if *r == 0.0 {
+                            Err(anyhow!("Division by zero"))
+                        } else {
+                            Ok(Value::Float(l / r))
                         }
                     }
                     _ => Err(anyhow!("Type error in division")),
@@ -396,6 +412,13 @@ impl JitEvaluator {
                             Ok(Value::Integer(l % r))
                         }
                     }
+                    (Value::Float(l), Value::Float(r)) => {
+                        if *r == 0.0 {
+                            Err(anyhow!("Modulo by zero"))
+                        } else {
+                            Ok(Value::Float(l % r))
+                        }
+                    }
                     _ => Err(anyhow!("Type error in modulo")),
                 }
             }
@@ -411,6 +434,9 @@ impl JitEvaluator {
                             let result = (*l as f64).powi(*r as i32) as i64;
                             Ok(Value::Integer(result))
                         }
+                    }
+                    (Value::Float(l), Value::Float(r)) => {
+                        Ok(Value::Float(l.powf(*r)))
                     }
                     _ => Err(anyhow!("Type error in power")),
                 }
@@ -518,6 +544,26 @@ impl JitEvaluator {
             EchoAst::Number(n) => {
                 let imm = builder.ins().iconst(types::I64, *n);
                 Ok(CraneliftValue::new(imm))
+            }
+            EchoAst::Float(_) => {
+                // Float compilation requires type system changes
+                // For now, fall back to interpreter
+                return Err(anyhow!("Float literals require type system support, falling back to interpreter"));
+            }
+            EchoAst::Boolean(_) => {
+                // Boolean compilation requires type system changes
+                // For now, fall back to interpreter
+                return Err(anyhow!("Boolean literals require type system support, falling back to interpreter"));
+            }
+            EchoAst::Null => {
+                // Null compilation requires type system changes
+                // For now, fall back to interpreter
+                return Err(anyhow!("Null literal requires type system support, falling back to interpreter"));
+            }
+            EchoAst::String(_) => {
+                // String compilation is complex - requires heap allocation
+                // For now, fall back to interpreter
+                return Err(anyhow!("String literals require heap allocation, falling back to interpreter"));
             }
             EchoAst::Add { left, right } => {
                 let left_val = Self::compile_ast_node(left, builder)?;

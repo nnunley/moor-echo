@@ -55,6 +55,9 @@ mod jit_tests;
 mod jit_arithmetic_tests;
 
 #[cfg(test)]
+mod jit_literal_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]
