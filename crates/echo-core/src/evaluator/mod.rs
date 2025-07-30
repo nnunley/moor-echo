@@ -52,6 +52,9 @@ mod player_tests;
 mod jit_tests;
 
 #[cfg(test)]
+mod jit_arithmetic_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]

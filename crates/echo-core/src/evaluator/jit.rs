@@ -280,8 +280,16 @@ impl JitEvaluator {
         // For now, we only support compiling simple expressions
         // More complex AST nodes will fall back to interpretation
         match ast {
-            EchoAst::Number(_) | EchoAst::Add { .. } => {
-                // These are the only AST types we support compiling so far
+            EchoAst::Number(_) 
+            | EchoAst::Add { .. } 
+            | EchoAst::Subtract { .. }
+            | EchoAst::Multiply { .. }
+            | EchoAst::Divide { .. }
+            | EchoAst::Modulo { .. }
+            | EchoAst::Power { .. }
+            | EchoAst::UnaryMinus { .. }
+            | EchoAst::UnaryPlus { .. } => {
+                // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
                         // Compilation succeeded, but we need more infrastructure
@@ -292,7 +300,9 @@ impl JitEvaluator {
                     }
                     Err(e) => {
                         // Compilation failed, fall back to interpretation
-                        eprintln!("JIT compilation failed: {}", e);
+                        if !e.to_string().contains("falling back to interpreter") {
+                            eprintln!("JIT compilation failed: {}", e);
+                        }
                         self.interpret(ast, player_id)
                     }
                 }
@@ -316,6 +326,7 @@ impl JitEvaluator {
         // In a full implementation, this would be identical to the main evaluator
         match ast {
             EchoAst::Number(n) => Ok(Value::Integer(*n)),
+            EchoAst::Float(f) => Ok(Value::Float(*f)),
             EchoAst::String(s) => Ok(Value::String(s.clone())),
             EchoAst::Identifier(s) => {
                 if let Some(env) = self.environments.get(&player_id) {
@@ -339,6 +350,82 @@ impl JitEvaluator {
                     }
                     _ => Err(anyhow!("Type error in addition")),
                 }
+            }
+            EchoAst::Subtract { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l - r)),
+                    _ => Err(anyhow!("Type error in subtraction")),
+                }
+            }
+            EchoAst::Multiply { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Integer(l * r)),
+                    _ => Err(anyhow!("Type error in multiplication")),
+                }
+            }
+            EchoAst::Divide { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => {
+                        if *r == 0 {
+                            Err(anyhow!("Division by zero"))
+                        } else {
+                            Ok(Value::Integer(l / r))
+                        }
+                    }
+                    _ => Err(anyhow!("Type error in division")),
+                }
+            }
+            EchoAst::Modulo { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => {
+                        if *r == 0 {
+                            Err(anyhow!("Modulo by zero"))
+                        } else {
+                            Ok(Value::Integer(l % r))
+                        }
+                    }
+                    _ => Err(anyhow!("Type error in modulo")),
+                }
+            }
+            EchoAst::Power { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => {
+                        if *r < 0 {
+                            Err(anyhow!("Negative exponent not supported for integers"))
+                        } else {
+                            let result = (*l as f64).powi(*r as i32) as i64;
+                            Ok(Value::Integer(result))
+                        }
+                    }
+                    _ => Err(anyhow!("Type error in power")),
+                }
+            }
+            EchoAst::UnaryMinus { operand } => {
+                let val = self.eval_with_player(operand, player_id)?;
+                match val {
+                    Value::Integer(n) => Ok(Value::Integer(-n)),
+                    Value::Float(f) => Ok(Value::Float(-f)),
+                    _ => Err(anyhow!("Type error in unary minus")),
+                }
+            }
+            EchoAst::UnaryPlus { operand } => {
+                // Unary plus is a no-op
+                self.eval_with_player(operand, player_id)
             }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
@@ -390,7 +477,6 @@ impl JitEvaluator {
         {
             let ctx = self.ctx.as_mut().ok_or_else(|| anyhow!("JIT context not available"))?;
             let module = self.module.as_ref().ok_or_else(|| anyhow!("JIT module not available"))?;
-            let builder_context = self.builder_context.as_mut().ok_or_else(|| anyhow!("JIT builder context not available"))?;
 
             // Clear previous function
             ctx.func.clear();
@@ -399,8 +485,11 @@ impl JitEvaluator {
             let int_type = module.target_config().pointer_type();
             ctx.func.signature.returns.push(AbiParam::new(int_type));
 
+            // Create a fresh builder context for each compilation
+            let mut fresh_builder_context = FunctionBuilderContext::new();
+            
             // Build the function
-            let mut builder = FunctionBuilder::new(&mut ctx.func, builder_context);
+            let mut builder = FunctionBuilder::new(&mut ctx.func, &mut fresh_builder_context);
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
@@ -435,6 +524,51 @@ impl JitEvaluator {
                 let right_val = Self::compile_ast_node(right, builder)?;
                 let result = builder.ins().iadd(left_val.inner(), right_val.inner());
                 Ok(CraneliftValue::new(result))
+            }
+            EchoAst::Subtract { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                let result = builder.ins().isub(left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(result))
+            }
+            EchoAst::Multiply { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                let result = builder.ins().imul(left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(result))
+            }
+            EchoAst::Divide { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Use signed division
+                let result = builder.ins().sdiv(left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(result))
+            }
+            EchoAst::Modulo { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Use signed remainder
+                let result = builder.ins().srem(left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(result))
+            }
+            EchoAst::Power { .. } => {
+                // Power operation is complex and requires runtime library support
+                // For now, we fall back to the interpreter
+                // A full implementation would need to:
+                // 1. Link with libm for pow() function
+                // 2. Handle integer overflow
+                // 3. Support negative exponents
+                return Err(anyhow!("Power operation requires runtime library support, falling back to interpreter"));
+            }
+            EchoAst::UnaryMinus { operand } => {
+                let operand_val = Self::compile_ast_node(operand, builder)?;
+                let zero = builder.ins().iconst(types::I64, 0);
+                let result = builder.ins().isub(zero, operand_val.inner());
+                Ok(CraneliftValue::new(result))
+            }
+            EchoAst::UnaryPlus { operand } => {
+                // Unary plus is a no-op, just return the operand
+                Self::compile_ast_node(operand, builder)
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
