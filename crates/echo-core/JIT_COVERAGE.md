@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (34 out of ~50+)
+### ✅ Supported AST Nodes (36 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -176,6 +176,16 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Map { entries }
     ```
 
+35. **PropertyAccess** - Property access on objects/maps (interpreter only)
+    ```rust
+    EchoAst::PropertyAccess { object, property }
+    ```
+
+36. **IndexAccess** - Index access on lists/maps/strings (interpreter only)
+    ```rust
+    EchoAst::IndexAccess { object, index }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -218,11 +228,11 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [ ] ConstAssignment
 
 #### Property & Method Access
-- [ ] PropertyAccess
+- [x] PropertyAccess (interpreter only)
 - [ ] MethodCall
 - [ ] FunctionCall
 - [ ] Call (lambda calls)
-- [ ] IndexAccess
+- [x] IndexAccess (interpreter only)
 
 #### Collections
 - [x] List (interpreter only)
@@ -255,8 +265,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 34 (15 fully compiled, 19 fall back to interpreter)
-- **Coverage**: ~68%
+- **JIT Supported**: 36 (15 fully compiled, 21 fall back to interpreter)
+- **Coverage**: ~72%
 
 ## Current Limitations
 

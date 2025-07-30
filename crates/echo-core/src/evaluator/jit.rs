@@ -331,7 +331,9 @@ impl JitEvaluator {
             | EchoAst::Return { .. }
             | EchoAst::Break { .. }
             | EchoAst::Continue { .. }
-            | EchoAst::Map { .. } => {
+            | EchoAst::Map { .. }
+            | EchoAst::PropertyAccess { .. }
+            | EchoAst::IndexAccess { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -696,6 +698,12 @@ impl JitEvaluator {
                 }
                 Ok(Value::Map(map))
             }
+            EchoAst::PropertyAccess { object, property } => {
+                self.eval_property_access(object, property, player_id)
+            }
+            EchoAst::IndexAccess { object, index } => {
+                self.eval_index_access(object, index, player_id)
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -971,6 +979,14 @@ impl JitEvaluator {
                 // Maps require runtime allocation and dynamic typing
                 return Err(anyhow!("Maps require runtime allocation, falling back to interpreter"));
             }
+            EchoAst::PropertyAccess { .. } => {
+                // Property access requires runtime object lookup
+                return Err(anyhow!("Property access requires runtime lookup, falling back to interpreter"));
+            }
+            EchoAst::IndexAccess { .. } => {
+                // Index access requires runtime bounds checking and type dispatch
+                return Err(anyhow!("Index access requires runtime support, falling back to interpreter"));
+            }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
                 ast
@@ -1177,6 +1193,66 @@ impl JitEvaluator {
                 Ok(Value::Null)
             }
             _ => Err(anyhow!("For loop requires a list")),
+        }
+    }
+    
+    /// Evaluate property access
+    fn eval_property_access(
+        &mut self,
+        object: &EchoAst,
+        property: &str,
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let obj_val = self.eval_with_player(object, player_id)?;
+        
+        match obj_val {
+            Value::Object(_obj_id) => {
+                // For real objects, we'd need to access storage
+                // For now, return an error
+                Err(anyhow!("Object property access not yet implemented"))
+            }
+            Value::Map(map) => {
+                // For maps, property access is like string key access
+                map.get(property)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("Property '{}' not found", property))
+            }
+            _ => Err(anyhow!("Cannot access property on non-object value")),
+        }
+    }
+    
+    /// Evaluate index access
+    fn eval_index_access(
+        &mut self,
+        object: &EchoAst,
+        index: &EchoAst,
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let obj_val = self.eval_with_player(object, player_id)?;
+        let index_val = self.eval_with_player(index, player_id)?;
+        
+        match (&obj_val, &index_val) {
+            (Value::List(items), Value::Integer(i)) => {
+                if *i < 0 || *i as usize >= items.len() {
+                    Err(anyhow!("List index out of bounds"))
+                } else {
+                    Ok(items[*i as usize].clone())
+                }
+            }
+            (Value::Map(map), Value::String(key)) => {
+                map.get(key)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("Key '{}' not found in map", key))
+            }
+            (Value::String(s), Value::Integer(i)) => {
+                if *i < 0 || *i as usize >= s.len() {
+                    Err(anyhow!("String index out of bounds"))
+                } else {
+                    // Return single character as string
+                    Ok(Value::String(s.chars().nth(*i as usize).unwrap().to_string()))
+                }
+            }
+            _ => Err(anyhow!("Invalid index access")),
         }
     }
 }
