@@ -16,8 +16,13 @@ fn format_object_member(member: &ObjectMember) -> String {
             name,
             value,
             permissions,
+            required_capabilities,
         } => {
             let mut result = format!("  property {} = {}", name, value.to_source());
+            if !required_capabilities.is_empty() {
+                result.push_str(" requires ");
+                result.push_str(&required_capabilities.join(", "));
+            }
             if let Some(perms) = permissions {
                 result.push_str(&format!(" {{{}+{}}}", perms.read, perms.write));
             }

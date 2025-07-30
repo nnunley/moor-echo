@@ -461,13 +461,22 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
             let mut converted_members = Vec::new();
             for member in members {
                 match member {
-                    grammar::ObjectMember::PropertyDef { name, value, .. } => {
+                    grammar::ObjectMember::PropertyDef { name, value, requires_clause, .. } => {
                         let prop_name = name.name.clone();
                         let prop_value = convert_grammar_to_ast(*value)?;
+                        
+                        // Extract required capabilities from requires clause
+                        let required_capabilities = if let Some(clause) = requires_clause {
+                            vec![clause.capability.name.name]
+                        } else {
+                            Vec::new()
+                        };
+                        
                         converted_members.push(ast::ObjectMember::Property {
                             name: prop_name,
                             value: prop_value,
                             permissions: None,
+                            required_capabilities,
                         });
                     }
                     grammar::ObjectMember::VerbDef {

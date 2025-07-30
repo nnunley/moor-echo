@@ -47,6 +47,7 @@ pub struct EchoObject {
     pub parent: Option<ObjectId>,
     pub name: String,
     pub properties: HashMap<String, PropertyValue>,
+    pub property_capabilities: HashMap<String, Vec<String>>,
     pub verbs: HashMap<String, VerbDefinition>,
     pub queries: HashMap<String, String>,
     pub meta: crate::evaluator::meta_object::MetaObject,
@@ -63,6 +64,7 @@ pub enum PropertyValue {
     List(Vec<PropertyValue>),
     Map(HashMap<String, PropertyValue>),
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerbDefinition {
@@ -138,6 +140,7 @@ impl ObjectStore {
                 parent: None,
                 name: "$system".to_string(),
                 properties: system_properties,
+                property_capabilities: HashMap::new(),
                 verbs: HashMap::new(),
                 queries: HashMap::new(),
                 meta: MetaObject::new(system_id),
@@ -153,6 +156,7 @@ impl ObjectStore {
                 parent: Some(system_id),
                 name: "$root".to_string(),
                 properties: HashMap::new(),
+                property_capabilities: HashMap::new(),
                 verbs: HashMap::new(),
                 queries: HashMap::new(),
                 meta: MetaObject::new(root_id),

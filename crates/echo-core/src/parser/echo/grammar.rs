@@ -590,6 +590,7 @@ pub mod echo {
             #[rust_sitter::leaf(text = "=", add_conflict = true)]
             _equals: (),
             value: Box<EchoAst>,
+            requires_clause: Option<RequiresClause>,
         },
         VerbDef {
             #[rust_sitter::leaf(text = "verb")]

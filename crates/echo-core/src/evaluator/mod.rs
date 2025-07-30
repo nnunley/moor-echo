@@ -323,6 +323,7 @@ impl Evaluator {
                 );
                 props
             },
+            property_capabilities: HashMap::new(),
             verbs: HashMap::new(),
             queries: HashMap::new(),
             meta: MetaObject::new(player_id),
@@ -1592,6 +1593,50 @@ impl Evaluator {
             let obj = self.storage.objects.get(obj_id)?;
 
             if let Some(prop_val) = obj.properties.get(property) {
+                // Check if property has capability requirements
+                if let Some(required_capabilities) = obj.property_capabilities.get(property) {
+                    // Get the calling player object to check their capabilities
+                    let player_obj = self.storage.objects.get(player_id).unwrap_or_else(|_| {
+                        // If player object not found, create a minimal object with no capabilities
+                        crate::storage::object_store::EchoObject {
+                            id: player_id,
+                            parent: None,
+                            name: format!("player_{}", player_id),
+                            properties: std::collections::HashMap::new(),
+                            property_capabilities: std::collections::HashMap::new(),
+                            verbs: std::collections::HashMap::new(),
+                            queries: std::collections::HashMap::new(),
+                            meta: crate::evaluator::meta_object::MetaObject::new(player_id),
+                        }
+                    });
+
+                    // Check each required capability
+                    for capability in required_capabilities {
+                        let has_capability = match player_obj.properties.get("capabilities") {
+                            Some(crate::storage::object_store::PropertyValue::List(caps)) => {
+                                caps.iter().any(|cap| match cap {
+                                    crate::storage::object_store::PropertyValue::String(cap_name) => {
+                                        cap_name == capability
+                                    }
+                                    _ => false,
+                                })
+                            }
+                            Some(crate::storage::object_store::PropertyValue::String(cap_name)) => {
+                                cap_name == capability
+                            }
+                            _ => false,
+                        };
+
+                        if !has_capability {
+                            return Err(anyhow!(
+                                "Capability '{}' required to access property '{}'",
+                                capability,
+                                property
+                            ));
+                        }
+                    }
+                }
+                
                 Ok(property_value_to_value(prop_val.clone())?)
             } else {
                 Err(anyhow!("Property '{}' not found on object", property))
@@ -1621,11 +1666,19 @@ impl Evaluator {
         &mut self,
         prop_name: &str,
         value: &EchoAst,
+        required_capabilities: &[String],
         player_id: ObjectId,
         properties: &mut HashMap<String, PropertyValue>,
+        property_capabilities: &mut HashMap<String, Vec<String>>,
     ) -> Result<()> {
         let val = self.eval_with_player(value, player_id)?;
         properties.insert(prop_name.to_string(), value_to_property_value(val)?);
+        
+        // Store required capabilities if any
+        if !required_capabilities.is_empty() {
+            property_capabilities.insert(prop_name.to_string(), required_capabilities.to_vec());
+        }
+        
         Ok(())
     }
 
@@ -1826,6 +1879,7 @@ impl Evaluator {
     ) -> Result<Value> {
         let obj_id = ObjectId::new();
         let mut properties = HashMap::new();
+        let mut property_capabilities = HashMap::new();
         let mut verbs = HashMap::new();
 
         // Process object members
@@ -1834,9 +1888,10 @@ impl Evaluator {
                 ObjectMember::Property {
                     name: prop_name,
                     value,
+                    required_capabilities,
                     ..
                 } => {
-                    self.process_property_member(prop_name, value, player_id, &mut properties)?;
+                    self.process_property_member(prop_name, value, required_capabilities, player_id, &mut properties, &mut property_capabilities)?;
                 }
                 ObjectMember::Verb {
                     name: verb_name,
@@ -1879,6 +1934,7 @@ impl Evaluator {
             parent: parent_id,
             name: name.to_string(),
             properties,
+            property_capabilities,
             verbs,
             queries: HashMap::new(),
             meta: MetaObject::new(obj_id),
@@ -2642,6 +2698,7 @@ impl Evaluator {
                     parent: None,
                     name: format!("player_{}", player_id),
                     properties: std::collections::HashMap::new(),
+                    property_capabilities: std::collections::HashMap::new(),
                     verbs: std::collections::HashMap::new(),
                     queries: std::collections::HashMap::new(),
                     meta: crate::evaluator::meta_object::MetaObject::new(player_id),

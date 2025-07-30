@@ -296,6 +296,7 @@ pub enum ObjectMember {
         name: String,
         value: EchoAst,
         permissions: Option<PropertyPermissions>,
+        required_capabilities: Vec<String>,
     },
     Verb {
         name: String,
