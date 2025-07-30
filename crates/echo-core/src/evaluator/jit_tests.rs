@@ -122,4 +122,43 @@ mod tests {
             Err(e) => panic!("Unexpected compilation error: {}", e),
         }
     }
+
+    #[test]
+    fn test_jit_compilation_count() {
+        let mut jit = create_test_jit();
+        
+        // Skip test if JIT is not enabled
+        if !jit.is_jit_enabled() {
+            println!("Skipping compilation count test - JIT not enabled");
+            return;
+        }
+        
+        // Create a player
+        let player_id = jit.create_player("test_player").unwrap();
+        jit.switch_player(player_id).unwrap();
+        
+        // Initial stats should show 0 compilations
+        let initial_stats = jit.stats();
+        assert_eq!(initial_stats.compilation_count, 0);
+        
+        // Evaluate a number (should trigger compilation)
+        let ast = EchoAst::Number(42);
+        let _ = jit.eval(&ast).unwrap();
+        
+        // Check that compilation count increased
+        let stats_after = jit.stats();
+        assert_eq!(stats_after.compilation_count, 1, "Expected compilation count to increase");
+        
+        // Evaluate an addition (should trigger another compilation)
+        let add_ast = EchoAst::Add {
+            left: Box::new(EchoAst::Number(10)),
+            right: Box::new(EchoAst::Number(32)),
+        };
+        let _ = jit.eval(&add_ast).unwrap();
+        
+        // Check that compilation count increased again
+        // Note: Add compiles itself and its left/right operands, so we expect 4 total
+        let final_stats = jit.stats();
+        assert_eq!(final_stats.compilation_count, 4, "Expected compilation count to be 4 (1 number + 1 add + 2 operands)");
+    }
 }

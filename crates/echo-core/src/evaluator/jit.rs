@@ -119,24 +119,40 @@ impl JitEvaluator {
     
     #[cfg(feature = "jit")]
     fn try_create_jit(_storage: Arc<Storage>) -> Result<(FunctionBuilderContext, codegen::Context, JITModule)> {
+        use cranelift::prelude::settings;
+        use cranelift_native;
         use std::panic::{catch_unwind, AssertUnwindSafe};
         
         // Cranelift has platform-specific limitations that may cause panics
         // Specifically, macOS ARM64 has PLT issues that prevent JIT from working
-        // TODO: Investigate workarounds like those discussed in wasmtime#2735
-        // Catch the panic and convert to a proper error
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            let builder = JITBuilder::new(cranelift_module::default_libcall_names())?;
+        // Apply workaround: disable is_pic flag as discussed in wasmtime#2735
+        let result = catch_unwind(AssertUnwindSafe(|| -> Result<(FunctionBuilderContext, codegen::Context, JITModule)> {
+            // Configure flags with macOS ARM64 workaround
+            let mut flag_builder = settings::builder();
+            flag_builder.set("use_colocated_libcalls", "false").unwrap();
+            flag_builder.set("is_pic", "false").unwrap(); // Workaround for macOS ARM64
+            
+            // Build ISA with custom flags
+            let isa_builder = cranelift_native::builder()
+                .map_err(|msg| anyhow!("Host machine is not supported: {}", msg))?;
+            
+            let isa = isa_builder
+                .finish(settings::Flags::new(flag_builder))
+                .map_err(|e| anyhow!("Failed to create ISA: {}", e))?;
+            
+            // Create JIT module with custom ISA
+            let builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
             let module = JITModule::new(builder);
             let builder_context = FunctionBuilderContext::new();
             let ctx = module.make_context();
-            Result::<_, anyhow::Error>::Ok((builder_context, ctx, module))
+            
+            Ok((builder_context, ctx, module))
         }));
         
         match result {
             Ok(Ok(tuple)) => Ok(tuple),
             Ok(Err(e)) => Err(e),
-            Err(_) => Err(anyhow!("Cranelift JIT initialization failed - likely due to PLT limitations on macOS ARM64 (see https://github.com/bytecodealliance/wasmtime/issues/2735)")),
+            Err(_) => Err(anyhow!("Cranelift JIT initialization failed - unexpected panic")),
         }
     }
 
@@ -185,7 +201,7 @@ impl JitEvaluator {
     #[cfg(feature = "jit")]
     fn is_jit_supported() -> bool {
         // Cranelift supports x86_64 and aarch64 architectures
-        // However, macOS ARM64 has PLT (Procedure Linkage Table) limitations
+        // macOS ARM64 has PLT limitations but we apply the is_pic=false workaround
         // See: https://github.com/bytecodealliance/wasmtime/issues/2735
         cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64")
     }
@@ -248,8 +264,8 @@ impl JitEvaluator {
     /// Decide whether to JIT compile based on hotness
     fn should_compile(&self, _ast_key: &str) -> bool {
         // Only compile if JIT is enabled and supported
-        // For now, always use interpreter until the JIT backend is more complete
-        self.jit_enabled && false
+        // Enable JIT compilation for testing now that it works
+        self.jit_enabled
     }
 
     /// Generate a key for caching compiled functions
@@ -261,9 +277,31 @@ impl JitEvaluator {
     /// Compile AST to machine code and execute
     #[cfg(feature = "jit")]
     fn compile_and_execute(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
-        // This is where we'd implement the actual JIT compilation
-        // For now, fall back to interpretation
-        self.interpret(ast, player_id)
+        // For now, we only support compiling simple expressions
+        // More complex AST nodes will fall back to interpretation
+        match ast {
+            EchoAst::Number(_) | EchoAst::Add { .. } => {
+                // These are the only AST types we support compiling so far
+                match self.compile_ast(ast) {
+                    Ok(()) => {
+                        // Compilation succeeded, but we need more infrastructure
+                        // to actually execute the compiled code
+                        // For now, fall back to interpretation
+                        self.compilation_count += 1;
+                        self.interpret(ast, player_id)
+                    }
+                    Err(e) => {
+                        // Compilation failed, fall back to interpretation
+                        eprintln!("JIT compilation failed: {}", e);
+                        self.interpret(ast, player_id)
+                    }
+                }
+            }
+            _ => {
+                // Unsupported AST node, use interpreter
+                self.interpret(ast, player_id)
+            }
+        }
     }
 
     #[cfg(not(feature = "jit"))]
@@ -366,12 +404,14 @@ impl JitEvaluator {
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
+            builder.seal_block(entry_block); // Seal the entry block
 
             // Compile the AST
             let value = Self::compile_ast_node(ast, &mut builder)?;
             builder.ins().return_(&[value.inner()]);
 
-            // Finalize the function
+            // Seal all blocks and finalize the function
+            builder.seal_all_blocks();
             builder.finalize();
 
             Ok(())
