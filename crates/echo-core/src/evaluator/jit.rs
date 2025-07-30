@@ -330,7 +330,8 @@ impl JitEvaluator {
             | EchoAst::For { .. }
             | EchoAst::Return { .. }
             | EchoAst::Break { .. }
-            | EchoAst::Continue { .. } => {
+            | EchoAst::Continue { .. }
+            | EchoAst::Map { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -686,6 +687,15 @@ impl JitEvaluator {
                 // Continue should be handled by loop context
                 Err(anyhow!("Continue used outside of loop"))
             }
+            EchoAst::Map { entries } => {
+                // Evaluate map entries
+                let mut map = std::collections::HashMap::new();
+                for (key, value_ast) in entries {
+                    let value = self.eval_with_player(value_ast, player_id)?;
+                    map.insert(key.clone(), value);
+                }
+                Ok(Value::Map(map))
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -956,6 +966,10 @@ impl JitEvaluator {
             EchoAst::Continue { .. } => {
                 // Continue statements require loop context  
                 return Err(anyhow!("Continue statements require loop context, falling back to interpreter"));
+            }
+            EchoAst::Map { .. } => {
+                // Maps require runtime allocation and dynamic typing
+                return Err(anyhow!("Maps require runtime allocation, falling back to interpreter"));
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",

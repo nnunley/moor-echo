@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (33 out of ~50+)
+### ✅ Supported AST Nodes (34 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -171,6 +171,11 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Continue { label }
     ```
 
+34. **Map** - Map/dictionary literals (interpreter only)
+    ```rust
+    EchoAst::Map { entries }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -221,7 +226,7 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 
 #### Collections
 - [x] List (interpreter only)
-- [ ] Map
+- [x] Map (interpreter only)
 
 #### Functions
 - [ ] Lambda
@@ -250,8 +255,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 33 (15 fully compiled, 18 fall back to interpreter)
-- **Coverage**: ~66%
+- **JIT Supported**: 34 (15 fully compiled, 19 fall back to interpreter)
+- **Coverage**: ~68%
 
 ## Current Limitations
 
