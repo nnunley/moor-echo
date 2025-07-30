@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (25 out of ~50+)
+### ✅ Supported AST Nodes (30 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -131,6 +131,31 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Not { operand }
     ```
 
+26. **Assignment** - Variable assignment (interpreter only)
+    ```rust
+    EchoAst::Assignment { target, value }
+    ```
+
+27. **If** - Conditional statements (interpreter only)
+    ```rust
+    EchoAst::If { condition, then_branch, else_branch }
+    ```
+
+28. **While** - While loops (interpreter only)
+    ```rust
+    EchoAst::While { label, condition, body }
+    ```
+
+29. **For** - For loops (interpreter only)
+    ```rust
+    EchoAst::For { label, variable, collection, body }
+    ```
+
+30. **Block** - Block statements (interpreter only)
+    ```rust
+    EchoAst::Block(Vec<EchoAst>)
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -168,7 +193,7 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [x] Not (partial - works with comparisons)
 
 #### Variable Operations
-- [ ] Assignment
+- [x] Assignment (interpreter only)
 - [ ] LocalAssignment
 - [ ] ConstAssignment
 
@@ -187,9 +212,9 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [ ] Lambda
 
 #### Control Flow
-- [ ] If
-- [ ] While
-- [ ] For
+- [x] If (interpreter only)
+- [x] While (interpreter only)
+- [x] For (interpreter only)
 - [ ] Return
 - [ ] Break
 - [ ] Continue
@@ -210,8 +235,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 25 (15 fully compiled, 10 fall back to interpreter)
-- **Coverage**: ~50%
+- **JIT Supported**: 30 (15 fully compiled, 15 fall back to interpreter)
+- **Coverage**: ~60%
 
 ## Current Limitations
 

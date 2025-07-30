@@ -38,7 +38,7 @@ use dashmap::DashMap;
 
 use super::{Environment, EvaluatorTrait, Value};
 use crate::{
-    ast::EchoAst,
+    ast::{EchoAst, LValue, BindingType, BindingPattern},
     storage::{ObjectId, Storage},
 };
 
@@ -65,6 +65,24 @@ pub struct JitEvaluator {
     
     // Whether JIT is actually enabled/supported
     jit_enabled: bool,
+}
+
+/// Control flow result for handling break/continue/return
+enum ControlFlow {
+    None(Value),
+    Return(Value),
+    Break(Option<String>),
+    Continue(Option<String>),
+}
+
+impl ControlFlow {
+    fn into_value(self) -> Result<Value> {
+        match self {
+            ControlFlow::None(v) | ControlFlow::Return(v) => Ok(v),
+            ControlFlow::Break(_) => Err(anyhow!("Break used outside of loop")),
+            ControlFlow::Continue(_) => Err(anyhow!("Continue used outside of loop")),
+        }
+    }
 }
 
 impl JitEvaluator {
@@ -304,7 +322,12 @@ impl JitEvaluator {
             | EchoAst::In { .. }
             | EchoAst::And { .. }
             | EchoAst::Or { .. }
-            | EchoAst::Not { .. } => {
+            | EchoAst::Not { .. }
+            | EchoAst::Identifier(_)
+            | EchoAst::Assignment { .. }
+            | EchoAst::If { .. }
+            | EchoAst::While { .. }
+            | EchoAst::For { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -607,6 +630,43 @@ impl JitEvaluator {
                     _ => Err(anyhow!("Type error in NOT operation")),
                 }
             }
+            EchoAst::Assignment { target, value } => {
+                let val = self.eval_with_player(value, player_id)?;
+                
+                // For now, only support simple identifier assignment
+                match target {
+                    LValue::Binding { binding_type, pattern } => {
+                        match pattern {
+                            BindingPattern::Identifier(name) => {
+                                // Get or create environment for the player
+                                if let Some(mut env) = self.environments.get_mut(&player_id) {
+                                    env.variables.insert(name.clone(), val.clone());
+                                    if matches!(binding_type, BindingType::Const) {
+                                        env.const_bindings.insert(name.clone());
+                                    }
+                                } else {
+                                    return Err(anyhow!("No environment for player"));
+                                }
+                                Ok(val)
+                            }
+                            _ => Err(anyhow!("Complex binding patterns not yet supported")),
+                        }
+                    }
+                    _ => Err(anyhow!("Complex assignment targets not yet supported")),
+                }
+            }
+            EchoAst::If { condition, then_branch, else_branch } => {
+                // Fallback to interpreter for If statements
+                self.eval_if(condition, then_branch, else_branch, player_id)
+            }
+            EchoAst::While { condition, body, .. } => {
+                // Fallback to interpreter for While loops
+                self.eval_while(condition, body, player_id)
+            }
+            EchoAst::For { variable, collection, body, .. } => {
+                // Fallback to interpreter for For loops
+                self.eval_for(variable, collection, body, player_id)
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -846,6 +906,26 @@ impl JitEvaluator {
                     }
                 }
             }
+            EchoAst::Identifier(_) => {
+                // Variable reads require runtime environment access
+                return Err(anyhow!("Variable reads require runtime support, falling back to interpreter"));
+            }
+            EchoAst::Assignment { .. } => {
+                // Variable assignment requires runtime environment access
+                return Err(anyhow!("Variable assignment requires runtime support, falling back to interpreter"));
+            }
+            EchoAst::If { .. } => {
+                // If statements require control flow branching
+                return Err(anyhow!("If statements require control flow support, falling back to interpreter"));
+            }
+            EchoAst::While { .. } => {
+                // While loops require control flow branching and loops
+                return Err(anyhow!("While loops require control flow support, falling back to interpreter"));
+            }
+            EchoAst::For { .. } => {
+                // For loops require control flow and runtime iteration
+                return Err(anyhow!("For loops require control flow support, falling back to interpreter"));
+            }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
                 ast
@@ -874,6 +954,92 @@ impl EvaluatorTrait for JitEvaluator {
 
     fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         self.eval_with_player(ast, player_id)
+    }
+}
+
+impl JitEvaluator {
+    /// Evaluate if statement
+    fn eval_if(
+        &mut self,
+        condition: &EchoAst,
+        then_branch: &[EchoAst],
+        else_branch: &Option<Vec<EchoAst>>,
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let cond_val = self.eval_with_player(condition, player_id)?;
+        match cond_val {
+            Value::Boolean(true) => {
+                // Execute then branch
+                let mut last_val = Value::Null;
+                for stmt in then_branch {
+                    last_val = self.eval_with_player(stmt, player_id)?;
+                }
+                Ok(last_val)
+            }
+            Value::Boolean(false) => {
+                if let Some(else_stmts) = else_branch {
+                    let mut last_val = Value::Null;
+                    for stmt in else_stmts {
+                        last_val = self.eval_with_player(stmt, player_id)?;
+                    }
+                    Ok(last_val)
+                } else {
+                    Ok(Value::Null)
+                }
+            }
+            _ => Err(anyhow!("Condition must evaluate to boolean")),
+        }
+    }
+
+    /// Evaluate while loop
+    fn eval_while(
+        &mut self,
+        condition: &EchoAst,
+        body: &[EchoAst],
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        loop {
+            let cond_val = self.eval_with_player(condition, player_id)?;
+            match cond_val {
+                Value::Boolean(true) => {
+                    for stmt in body {
+                        self.eval_with_player(stmt, player_id)?;
+                    }
+                }
+                Value::Boolean(false) => break,
+                _ => return Err(anyhow!("While condition must evaluate to boolean")),
+            }
+        }
+        Ok(Value::Null)
+    }
+
+    /// Evaluate for loop
+    fn eval_for(
+        &mut self,
+        variable: &str,
+        collection: &EchoAst,
+        body: &[EchoAst],
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let coll_val = self.eval_with_player(collection, player_id)?;
+        
+        match coll_val {
+            Value::List(items) => {
+                for item in items {
+                    // Set loop variable
+                    if let Some(mut env) = self.environments.get_mut(&player_id) {
+                        env.variables.insert(variable.to_string(), item);
+                    }
+                    
+                    // Execute body
+                    for stmt in body {
+                        self.eval_with_player(stmt, player_id)?;
+                    }
+                }
+                Ok(Value::Null)
+            }
+            _ => Err(anyhow!("For loop requires a list")),
+        }
     }
 }
 

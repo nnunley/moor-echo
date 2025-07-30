@@ -64,6 +64,12 @@ mod jit_comparison_tests;
 mod jit_logical_tests;
 
 #[cfg(test)]
+mod jit_variable_tests;
+
+#[cfg(test)]
+mod jit_control_flow_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]
