@@ -327,7 +327,10 @@ impl JitEvaluator {
             | EchoAst::Assignment { .. }
             | EchoAst::If { .. }
             | EchoAst::While { .. }
-            | EchoAst::For { .. } => {
+            | EchoAst::For { .. }
+            | EchoAst::Return { .. }
+            | EchoAst::Break { .. }
+            | EchoAst::Continue { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -667,6 +670,22 @@ impl JitEvaluator {
                 // Fallback to interpreter for For loops
                 self.eval_for(variable, collection, body, player_id)
             }
+            EchoAst::Return { value } => {
+                // Evaluate return value if present
+                if let Some(val_ast) = value {
+                    self.eval_with_player(val_ast, player_id)
+                } else {
+                    Ok(Value::Null)
+                }
+            }
+            EchoAst::Break { .. } => {
+                // Break should be handled by loop context
+                Err(anyhow!("Break used outside of loop"))
+            }
+            EchoAst::Continue { .. } => {
+                // Continue should be handled by loop context
+                Err(anyhow!("Continue used outside of loop"))
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -926,6 +945,18 @@ impl JitEvaluator {
                 // For loops require control flow and runtime iteration
                 return Err(anyhow!("For loops require control flow support, falling back to interpreter"));
             }
+            EchoAst::Return { .. } => {
+                // Return statements require function context
+                return Err(anyhow!("Return statements require function context, falling back to interpreter"));
+            }
+            EchoAst::Break { .. } => {
+                // Break statements require loop context
+                return Err(anyhow!("Break statements require loop context, falling back to interpreter"));
+            }
+            EchoAst::Continue { .. } => {
+                // Continue statements require loop context  
+                return Err(anyhow!("Continue statements require loop context, falling back to interpreter"));
+            }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
                 ast
@@ -958,7 +989,71 @@ impl EvaluatorTrait for JitEvaluator {
 }
 
 impl JitEvaluator {
-    /// Evaluate if statement
+    /// Evaluate an expression with control flow support
+    fn eval_with_control_flow(
+        &mut self,
+        ast: &EchoAst,
+        player_id: ObjectId,
+    ) -> Result<ControlFlow> {
+        match ast {
+            EchoAst::Return { value } => {
+                if let Some(val_ast) = value {
+                    let val = self.eval_with_player(val_ast, player_id)?;
+                    Ok(ControlFlow::Return(val))
+                } else {
+                    Ok(ControlFlow::Return(Value::Null))
+                }
+            }
+            EchoAst::Break { label } => Ok(ControlFlow::Break(label.clone())),
+            EchoAst::Continue { label } => Ok(ControlFlow::Continue(label.clone())),
+            _ => {
+                let val = self.eval_with_player(ast, player_id)?;
+                Ok(ControlFlow::None(val))
+            }
+        }
+    }
+
+    /// Evaluate if statement with control flow
+    fn eval_if_control(
+        &mut self,
+        condition: &EchoAst,
+        then_branch: &[EchoAst],
+        else_branch: &Option<Vec<EchoAst>>,
+        player_id: ObjectId,
+    ) -> Result<ControlFlow> {
+        let cond_val = self.eval_with_player(condition, player_id)?;
+        match cond_val {
+            Value::Boolean(true) => {
+                // Execute then branch
+                let mut last_val = Value::Null;
+                for stmt in then_branch {
+                    match self.eval_with_control_flow(stmt, player_id)? {
+                        ControlFlow::None(v) => last_val = v,
+                        // Propagate control flow (Return, Break, Continue)
+                        flow => return Ok(flow),
+                    }
+                }
+                Ok(ControlFlow::None(last_val))
+            }
+            Value::Boolean(false) => {
+                if let Some(else_stmts) = else_branch {
+                    let mut last_val = Value::Null;
+                    for stmt in else_stmts {
+                        match self.eval_with_control_flow(stmt, player_id)? {
+                            ControlFlow::None(v) => last_val = v,
+                            flow => return Ok(flow),
+                        }
+                    }
+                    Ok(ControlFlow::None(last_val))
+                } else {
+                    Ok(ControlFlow::None(Value::Null))
+                }
+            }
+            _ => Err(anyhow!("Condition must evaluate to boolean")),
+        }
+    }
+
+    /// Evaluate if statement (wrapper for compatibility)
     fn eval_if(
         &mut self,
         condition: &EchoAst,
@@ -966,28 +1061,11 @@ impl JitEvaluator {
         else_branch: &Option<Vec<EchoAst>>,
         player_id: ObjectId,
     ) -> Result<Value> {
-        let cond_val = self.eval_with_player(condition, player_id)?;
-        match cond_val {
-            Value::Boolean(true) => {
-                // Execute then branch
-                let mut last_val = Value::Null;
-                for stmt in then_branch {
-                    last_val = self.eval_with_player(stmt, player_id)?;
-                }
-                Ok(last_val)
-            }
-            Value::Boolean(false) => {
-                if let Some(else_stmts) = else_branch {
-                    let mut last_val = Value::Null;
-                    for stmt in else_stmts {
-                        last_val = self.eval_with_player(stmt, player_id)?;
-                    }
-                    Ok(last_val)
-                } else {
-                    Ok(Value::Null)
-                }
-            }
-            _ => Err(anyhow!("Condition must evaluate to boolean")),
+        match self.eval_if_control(condition, then_branch, else_branch, player_id)? {
+            ControlFlow::None(v) => Ok(v),
+            ControlFlow::Return(v) => Ok(v),
+            ControlFlow::Break(_) => Err(anyhow!("Break used outside of loop")),
+            ControlFlow::Continue(_) => Err(anyhow!("Continue used outside of loop")),
         }
     }
 
@@ -998,12 +1076,35 @@ impl JitEvaluator {
         body: &[EchoAst],
         player_id: ObjectId,
     ) -> Result<Value> {
-        loop {
+        'outer: loop {
             let cond_val = self.eval_with_player(condition, player_id)?;
             match cond_val {
                 Value::Boolean(true) => {
                     for stmt in body {
-                        self.eval_with_player(stmt, player_id)?;
+                        let flow = if let EchoAst::If { condition, then_branch, else_branch } = stmt {
+                            self.eval_if_control(condition, then_branch, else_branch, player_id)?
+                        } else {
+                            self.eval_with_control_flow(stmt, player_id)?
+                        };
+                        
+                        match flow {
+                            ControlFlow::None(_) => {},
+                            ControlFlow::Return(v) => return Ok(v),
+                            ControlFlow::Break(label) => {
+                                if label.is_none() {
+                                    break 'outer;
+                                } else {
+                                    return Err(anyhow!("Labeled breaks not yet supported"));
+                                }
+                            }
+                            ControlFlow::Continue(label) => {
+                                if label.is_none() {
+                                    continue 'outer;
+                                } else {
+                                    return Err(anyhow!("Labeled continues not yet supported"));
+                                }
+                            }
+                        }
                     }
                 }
                 Value::Boolean(false) => break,
@@ -1025,7 +1126,7 @@ impl JitEvaluator {
         
         match coll_val {
             Value::List(items) => {
-                for item in items {
+                'outer: for item in items {
                     // Set loop variable
                     if let Some(mut env) = self.environments.get_mut(&player_id) {
                         env.variables.insert(variable.to_string(), item);
@@ -1033,7 +1134,30 @@ impl JitEvaluator {
                     
                     // Execute body
                     for stmt in body {
-                        self.eval_with_player(stmt, player_id)?;
+                        let flow = if let EchoAst::If { condition, then_branch, else_branch } = stmt {
+                            self.eval_if_control(condition, then_branch, else_branch, player_id)?
+                        } else {
+                            self.eval_with_control_flow(stmt, player_id)?
+                        };
+                        
+                        match flow {
+                            ControlFlow::None(_) => {},
+                            ControlFlow::Return(v) => return Ok(v),
+                            ControlFlow::Break(label) => {
+                                if label.is_none() {
+                                    break 'outer;
+                                } else {
+                                    return Err(anyhow!("Labeled breaks not yet supported"));
+                                }
+                            }
+                            ControlFlow::Continue(label) => {
+                                if label.is_none() {
+                                    continue 'outer;
+                                } else {
+                                    return Err(anyhow!("Labeled continues not yet supported"));
+                                }
+                            }
+                        }
                     }
                 }
                 Ok(Value::Null)

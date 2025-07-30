@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (30 out of ~50+)
+### ✅ Supported AST Nodes (33 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -156,6 +156,21 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Block(Vec<EchoAst>)
     ```
 
+31. **Return** - Return statements (interpreter only)
+    ```rust
+    EchoAst::Return { value }
+    ```
+
+32. **Break** - Break statements (interpreter only)
+    ```rust
+    EchoAst::Break { label }
+    ```
+
+33. **Continue** - Continue statements (interpreter only)
+    ```rust
+    EchoAst::Continue { label }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -215,9 +230,9 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [x] If (interpreter only)
 - [x] While (interpreter only)
 - [x] For (interpreter only)
-- [ ] Return
-- [ ] Break
-- [ ] Continue
+- [x] Return (interpreter only)
+- [x] Break (interpreter only)
+- [x] Continue (interpreter only)
 
 #### Advanced Features
 - [ ] Emit (events)
@@ -235,8 +250,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 30 (15 fully compiled, 15 fall back to interpreter)
-- **Coverage**: ~60%
+- **JIT Supported**: 33 (15 fully compiled, 18 fall back to interpreter)
+- **Coverage**: ~66%
 
 ## Current Limitations
 

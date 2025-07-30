@@ -276,6 +276,90 @@ mod tests {
     }
 
     #[test]
+    fn test_jit_return() {
+        let mut jit = create_test_jit();
+        
+        // Create a player
+        let player_id = jit.create_player("test_player").unwrap();
+        jit.switch_player(player_id).unwrap();
+        
+        // Test return statement
+        let ast = EchoAst::Return {
+            value: Some(Box::new(EchoAst::Number(42))),
+        };
+        let result = jit.eval(&ast).unwrap();
+        
+        match result {
+            Value::Integer(n) => assert_eq!(n, 42),
+            _ => panic!("Expected integer value"),
+        }
+        
+        // Test return without value
+        let ast = EchoAst::Return { value: None };
+        let result = jit.eval(&ast).unwrap();
+        
+        match result {
+            Value::Null => {},
+            _ => panic!("Expected null value"),
+        }
+    }
+
+    #[test]
+    fn test_jit_break_continue() {
+        let mut jit = create_test_jit();
+        
+        // Create a player
+        let player_id = jit.create_player("test_player").unwrap();
+        jit.switch_player(player_id).unwrap();
+        
+        // Set up counter
+        let init_ast = EchoAst::Assignment {
+            target: LValue::Binding {
+                binding_type: BindingType::Let,
+                pattern: BindingPattern::Identifier("counter".to_string()),
+            },
+            value: Box::new(EchoAst::Number(0)),
+        };
+        jit.eval(&init_ast).unwrap();
+        
+        // Test while loop with break
+        let ast = EchoAst::While {
+            label: None,
+            condition: Box::new(EchoAst::Boolean(true)),
+            body: vec![
+                EchoAst::Assignment {
+                    target: LValue::Binding {
+                        binding_type: BindingType::Let,
+                        pattern: BindingPattern::Identifier("counter".to_string()),
+                    },
+                    value: Box::new(EchoAst::Add {
+                        left: Box::new(EchoAst::Identifier("counter".to_string())),
+                        right: Box::new(EchoAst::Number(1)),
+                    }),
+                },
+                EchoAst::If {
+                    condition: Box::new(EchoAst::GreaterEqual {
+                        left: Box::new(EchoAst::Identifier("counter".to_string())),
+                        right: Box::new(EchoAst::Number(5)),
+                    }),
+                    then_branch: vec![EchoAst::Break { label: None }],
+                    else_branch: None,
+                },
+            ],
+        };
+        jit.eval(&ast).unwrap();
+        
+        // Check counter is 5
+        let check_ast = EchoAst::Identifier("counter".to_string());
+        let result = jit.eval(&check_ast).unwrap();
+        
+        match result {
+            Value::Integer(n) => assert_eq!(n, 5),
+            _ => panic!("Expected integer value"),
+        }
+    }
+
+    #[test]
     fn test_jit_compile_loops() {
         let mut jit = create_test_jit();
         
@@ -300,6 +384,11 @@ mod tests {
                 }),
                 body: vec![EchoAst::Number(0)],
             },
+            EchoAst::Return {
+                value: Some(Box::new(EchoAst::Number(99))),
+            },
+            EchoAst::Break { label: None },
+            EchoAst::Continue { label: None },
         ];
         
         for op in operations {
