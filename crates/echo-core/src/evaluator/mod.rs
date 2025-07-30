@@ -49,6 +49,9 @@ mod lambda_tests;
 mod player_tests;
 
 #[cfg(test)]
+mod jit_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]

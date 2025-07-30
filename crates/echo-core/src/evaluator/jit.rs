@@ -43,11 +43,11 @@ use crate::{
 /// JIT-compiled evaluator for Echo language
 pub struct JitEvaluator {
     #[cfg(feature = "jit")]
-    builder_context: FunctionBuilderContext,
+    builder_context: Option<FunctionBuilderContext>,
     #[cfg(feature = "jit")]
-    ctx: codegen::Context,
+    ctx: Option<codegen::Context>,
     #[cfg(feature = "jit")]
-    module: JITModule,
+    module: Option<JITModule>,
 
     storage: Arc<Storage>,
     environments: DashMap<ObjectId, Environment>,
@@ -60,23 +60,101 @@ pub struct JitEvaluator {
     compilation_count: usize,
     execution_count: usize,
     hot_threshold: usize,
+    
+    // Whether JIT is actually enabled/supported
+    jit_enabled: bool,
 }
 
 impl JitEvaluator {
-    /// Create a new JIT evaluator
+    /// Create a new JIT evaluator with fallback to interpreter-only mode if JIT is unsupported
+    pub fn new_with_fallback(storage: Arc<Storage>) -> Self {
+        #[cfg(feature = "jit")]
+        {
+            if Self::is_jit_supported() {
+                match Self::try_create_jit(storage.clone()) {
+                    Ok((builder_context, ctx, module)) => Self {
+                        builder_context: Some(builder_context),
+                        ctx: Some(ctx),
+                        module: Some(module),
+                        storage,
+                        environments: DashMap::new(),
+                        current_player: None,
+                        compiled_functions: HashMap::new(),
+                        compilation_count: 0,
+                        execution_count: 0,
+                        hot_threshold: 10,
+                        jit_enabled: true,
+                    },
+                    Err(_) => Self::fallback_evaluator(storage),
+                }
+            } else {
+                Self::fallback_evaluator(storage)
+            }
+        }
+
+        #[cfg(not(feature = "jit"))]
+        {
+            Self::fallback_evaluator(storage)
+        }
+    }
+    
+    fn fallback_evaluator(storage: Arc<Storage>) -> Self {
+        Self {
+            #[cfg(feature = "jit")]
+            builder_context: None,
+            #[cfg(feature = "jit")]
+            ctx: None,
+            #[cfg(feature = "jit")]
+            module: None,
+            storage,
+            environments: DashMap::new(),
+            current_player: None,
+            compiled_functions: HashMap::new(),
+            compilation_count: 0,
+            execution_count: 0,
+            hot_threshold: 10,
+            jit_enabled: false,
+        }
+    }
+    
+    #[cfg(feature = "jit")]
+    fn try_create_jit(_storage: Arc<Storage>) -> Result<(FunctionBuilderContext, codegen::Context, JITModule)> {
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+        
+        // Cranelift has platform-specific limitations that may cause panics
+        // Specifically, macOS ARM64 has PLT issues that prevent JIT from working
+        // TODO: Investigate workarounds like those discussed in wasmtime#2735
+        // Catch the panic and convert to a proper error
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let builder = JITBuilder::new(cranelift_module::default_libcall_names())?;
+            let module = JITModule::new(builder);
+            let builder_context = FunctionBuilderContext::new();
+            let ctx = module.make_context();
+            Result::<_, anyhow::Error>::Ok((builder_context, ctx, module))
+        }));
+        
+        match result {
+            Ok(Ok(tuple)) => Ok(tuple),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(anyhow!("Cranelift JIT initialization failed - likely due to PLT limitations on macOS ARM64 (see https://github.com/bytecodealliance/wasmtime/issues/2735)")),
+        }
+    }
+
+    /// Create a new JIT evaluator (strict - fails if JIT not supported)
     pub fn new(storage: Arc<Storage>) -> Result<Self> {
         #[cfg(feature = "jit")]
         {
-            let builder = JITBuilder::new(cranelift_module::default_libcall_names())?;
-            let module = JITModule::new(builder);
+            // Check if JIT is supported on this architecture
+            if !Self::is_jit_supported() {
+                return Err(anyhow!("JIT compilation is not supported on this architecture"));
+            }
 
-            let builder_context = FunctionBuilderContext::new();
-            let ctx = module.make_context();
+            let (builder_context, ctx, module) = Self::try_create_jit(storage.clone())?;
 
             Ok(Self {
-                builder_context,
-                ctx,
-                module,
+                builder_context: Some(builder_context),
+                ctx: Some(ctx),
+                module: Some(module),
                 storage,
                 environments: DashMap::new(),
                 current_player: None,
@@ -84,6 +162,7 @@ impl JitEvaluator {
                 compilation_count: 0,
                 execution_count: 0,
                 hot_threshold: 10, // Compile after 10 interpretations
+                jit_enabled: true,
             })
         }
 
@@ -97,8 +176,23 @@ impl JitEvaluator {
                 compilation_count: 0,
                 execution_count: 0,
                 hot_threshold: 10,
+                jit_enabled: false,
             })
         }
+    }
+
+    /// Check if JIT compilation is supported on the current architecture
+    #[cfg(feature = "jit")]
+    fn is_jit_supported() -> bool {
+        // Cranelift supports x86_64 and aarch64 architectures
+        // However, macOS ARM64 has PLT (Procedure Linkage Table) limitations
+        // See: https://github.com/bytecodealliance/wasmtime/issues/2735
+        cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64")
+    }
+
+    #[cfg(not(feature = "jit"))]
+    fn is_jit_supported() -> bool {
+        false
     }
 
     /// Create a new player
@@ -153,17 +247,9 @@ impl JitEvaluator {
 
     /// Decide whether to JIT compile based on hotness
     fn should_compile(&self, _ast_key: &str) -> bool {
-        #[cfg(feature = "jit")]
-        {
-            // For now, always use interpreter
-            // In a full implementation, we'd track execution frequency
-            false
-        }
-
-        #[cfg(not(feature = "jit"))]
-        {
-            false
-        }
+        // Only compile if JIT is enabled and supported
+        // For now, always use interpreter until the JIT backend is more complete
+        self.jit_enabled && false
     }
 
     /// Generate a key for caching compiled functions
@@ -227,6 +313,11 @@ impl JitEvaluator {
         }
     }
 
+    /// Check if JIT compilation is enabled for this evaluator instance
+    pub fn is_jit_enabled(&self) -> bool {
+        self.jit_enabled
+    }
+
     /// Get performance statistics
     pub fn stats(&self) -> JitStats {
         JitStats {
@@ -234,6 +325,7 @@ impl JitEvaluator {
             execution_count: self.execution_count,
             compiled_functions: self.compiled_functions.len(),
             hot_threshold: self.hot_threshold,
+            jit_enabled: self.jit_enabled,
         }
     }
 }
@@ -245,37 +337,50 @@ pub struct JitStats {
     pub execution_count: usize,
     pub compiled_functions: usize,
     pub hot_threshold: usize,
+    pub jit_enabled: bool,
 }
 
 #[cfg(feature = "jit")]
 impl JitEvaluator {
     /// Compile an AST node to Cranelift IR
-    fn compile_ast(&mut self, ast: &EchoAst) -> Result<()> {
-        // Clear previous function
-        self.ctx.func.clear();
+    pub fn compile_ast(&mut self, ast: &EchoAst) -> Result<()> {
+        if !self.jit_enabled {
+            return Err(anyhow!("JIT compilation is not enabled"));
+        }
 
-        // Set up function signature
-        let int_type = self.module.target_config().pointer_type();
-        self.ctx
-            .func
-            .signature
-            .returns
-            .push(AbiParam::new(int_type));
+        #[cfg(feature = "jit")]
+        {
+            let ctx = self.ctx.as_mut().ok_or_else(|| anyhow!("JIT context not available"))?;
+            let module = self.module.as_ref().ok_or_else(|| anyhow!("JIT module not available"))?;
+            let builder_context = self.builder_context.as_mut().ok_or_else(|| anyhow!("JIT builder context not available"))?;
 
-        // Build the function
-        let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_context);
-        let entry_block = builder.create_block();
-        builder.append_block_params_for_function_params(entry_block);
-        builder.switch_to_block(entry_block);
+            // Clear previous function
+            ctx.func.clear();
 
-        // Compile the AST
-        let value = Self::compile_ast_node(ast, &mut builder)?;
-        builder.ins().return_(&[value.inner()]);
+            // Set up function signature
+            let int_type = module.target_config().pointer_type();
+            ctx.func.signature.returns.push(AbiParam::new(int_type));
 
-        // Finalize the function
-        builder.finalize();
+            // Build the function
+            let mut builder = FunctionBuilder::new(&mut ctx.func, builder_context);
+            let entry_block = builder.create_block();
+            builder.append_block_params_for_function_params(entry_block);
+            builder.switch_to_block(entry_block);
 
-        Ok(())
+            // Compile the AST
+            let value = Self::compile_ast_node(ast, &mut builder)?;
+            builder.ins().return_(&[value.inner()]);
+
+            // Finalize the function
+            builder.finalize();
+
+            Ok(())
+        }
+
+        #[cfg(not(feature = "jit"))]
+        {
+            Err(anyhow!("JIT feature not enabled"))
+        }
     }
 
     /// Compile a single AST node to Cranelift IR
