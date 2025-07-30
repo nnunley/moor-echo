@@ -301,7 +301,10 @@ impl JitEvaluator {
             | EchoAst::LessEqual { .. }
             | EchoAst::GreaterThan { .. }
             | EchoAst::GreaterEqual { .. }
-            | EchoAst::In { .. } => {
+            | EchoAst::In { .. }
+            | EchoAst::And { .. }
+            | EchoAst::Or { .. }
+            | EchoAst::Not { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -567,6 +570,43 @@ impl JitEvaluator {
                 }
                 Ok(Value::List(values))
             }
+            EchoAst::And { left, right } => {
+                // Short-circuit evaluation
+                let left_val = self.eval_with_player(left, player_id)?;
+                match left_val {
+                    Value::Boolean(false) => Ok(Value::Boolean(false)), // Short-circuit
+                    Value::Boolean(true) => {
+                        let right_val = self.eval_with_player(right, player_id)?;
+                        match right_val {
+                            Value::Boolean(b) => Ok(Value::Boolean(b)),
+                            _ => Err(anyhow!("Type error in AND operation")),
+                        }
+                    }
+                    _ => Err(anyhow!("Type error in AND operation")),
+                }
+            }
+            EchoAst::Or { left, right } => {
+                // Short-circuit evaluation
+                let left_val = self.eval_with_player(left, player_id)?;
+                match left_val {
+                    Value::Boolean(true) => Ok(Value::Boolean(true)), // Short-circuit
+                    Value::Boolean(false) => {
+                        let right_val = self.eval_with_player(right, player_id)?;
+                        match right_val {
+                            Value::Boolean(b) => Ok(Value::Boolean(b)),
+                            _ => Err(anyhow!("Type error in OR operation")),
+                        }
+                    }
+                    _ => Err(anyhow!("Type error in OR operation")),
+                }
+            }
+            EchoAst::Not { operand } => {
+                let val = self.eval_with_player(operand, player_id)?;
+                match val {
+                    Value::Boolean(b) => Ok(Value::Boolean(!b)),
+                    _ => Err(anyhow!("Type error in NOT operation")),
+                }
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -665,7 +705,10 @@ impl JitEvaluator {
                 return Err(anyhow!("Float literals require type system support, falling back to interpreter"));
             }
             EchoAst::Boolean(_) => {
-                // Boolean compilation requires type system changes
+                // Boolean literals require type system support because:
+                // 1. Our JIT functions return i64, not a tagged union type
+                // 2. We can't distinguish between integer 0/1 and boolean false/true
+                // 3. Comparisons work because they return 0/1 as integers
                 // For now, fall back to interpreter
                 return Err(anyhow!("Boolean literals require type system support, falling back to interpreter"));
             }
@@ -775,6 +818,33 @@ impl JitEvaluator {
             EchoAst::In { .. } => {
                 // In operator requires runtime support for lists/strings
                 return Err(anyhow!("In operator requires runtime support, falling back to interpreter"));
+            }
+            EchoAst::And { .. } => {
+                // Logical AND requires control flow for short-circuit evaluation
+                // For now, fall back to interpreter
+                return Err(anyhow!("Logical AND requires control flow support, falling back to interpreter"));
+            }
+            EchoAst::Or { .. } => {
+                // Logical OR requires control flow for short-circuit evaluation
+                // For now, fall back to interpreter
+                return Err(anyhow!("Logical OR requires control flow support, falling back to interpreter"));
+            }
+            EchoAst::Not { operand } => {
+                // Check if operand is a boolean literal (which would fall back)
+                match operand.as_ref() {
+                    EchoAst::Boolean(_) => {
+                        return Err(anyhow!("NOT with boolean literal requires type system support, falling back to interpreter"));
+                    }
+                    _ => {
+                        // NOT is simple - just invert the boolean
+                        let operand_val = Self::compile_ast_node(operand, builder)?;
+                        // In Cranelift, booleans are represented as integers (0 or 1)
+                        // NOT can be implemented as XOR with 1
+                        let one = builder.ins().iconst(types::I64, 1);
+                        let result = builder.ins().bxor(operand_val.inner(), one);
+                        Ok(CraneliftValue::new(result))
+                    }
+                }
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",

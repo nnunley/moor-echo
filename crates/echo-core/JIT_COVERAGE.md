@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (22 out of ~50+)
+### ✅ Supported AST Nodes (25 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -116,6 +116,21 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::List { elements }
     ```
 
+23. **And** - Logical AND (falls back to interpreter)
+    ```rust
+    EchoAst::And { left, right }
+    ```
+
+24. **Or** - Logical OR (falls back to interpreter)
+    ```rust
+    EchoAst::Or { left, right }
+    ```
+
+25. **Not** - Logical NOT (partial support - works with comparisons)
+    ```rust
+    EchoAst::Not { operand }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -148,9 +163,9 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [x] In (falls back to interpreter)
 
 #### Logical Operations
-- [ ] And
-- [ ] Or
-- [ ] Not
+- [x] And (falls back to interpreter - requires control flow)
+- [x] Or (falls back to interpreter - requires control flow)
+- [x] Not (partial - works with comparisons)
 
 #### Variable Operations
 - [ ] Assignment
@@ -195,8 +210,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 22 (15 fully compiled, 7 fall back to interpreter)
-- **Coverage**: ~44%
+- **JIT Supported**: 25 (15 fully compiled, 10 fall back to interpreter)
+- **Coverage**: ~50%
 
 ## Current Limitations
 
