@@ -76,6 +76,9 @@ mod jit_collections_tests;
 mod jit_access_tests;
 
 #[cfg(test)]
+mod jit_function_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]

@@ -38,7 +38,7 @@ use dashmap::DashMap;
 
 use super::{Environment, EvaluatorTrait, Value};
 use crate::{
-    ast::{EchoAst, LValue, BindingType, BindingPattern},
+    ast::{EchoAst, LValue, BindingType, BindingPattern, LambdaParam},
     storage::{ObjectId, Storage},
 };
 
@@ -333,7 +333,11 @@ impl JitEvaluator {
             | EchoAst::Continue { .. }
             | EchoAst::Map { .. }
             | EchoAst::PropertyAccess { .. }
-            | EchoAst::IndexAccess { .. } => {
+            | EchoAst::IndexAccess { .. }
+            | EchoAst::FunctionCall { .. }
+            | EchoAst::MethodCall { .. }
+            | EchoAst::Call { .. }
+            | EchoAst::Lambda { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -704,6 +708,18 @@ impl JitEvaluator {
             EchoAst::IndexAccess { object, index } => {
                 self.eval_index_access(object, index, player_id)
             }
+            EchoAst::FunctionCall { name, args } => {
+                self.eval_function_call(name, args, player_id)
+            }
+            EchoAst::MethodCall { object, method, args } => {
+                self.eval_method_call(object, method, args, player_id)
+            }
+            EchoAst::Call { func, args } => {
+                self.eval_call(func, args, player_id)
+            }
+            EchoAst::Lambda { params, body } => {
+                self.eval_lambda(params, body.as_ref(), player_id)
+            }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
                 // In a full implementation, we'd handle all cases
@@ -987,6 +1003,22 @@ impl JitEvaluator {
                 // Index access requires runtime bounds checking and type dispatch
                 return Err(anyhow!("Index access requires runtime support, falling back to interpreter"));
             }
+            EchoAst::FunctionCall { .. } => {
+                // Function calls require runtime dispatch
+                return Err(anyhow!("Function calls require runtime dispatch, falling back to interpreter"));
+            }
+            EchoAst::MethodCall { .. } => {
+                // Method calls require runtime object type checking
+                return Err(anyhow!("Method calls require runtime dispatch, falling back to interpreter"));
+            }
+            EchoAst::Call { .. } => {
+                // Lambda calls require runtime closure access
+                return Err(anyhow!("Lambda calls require runtime support, falling back to interpreter"));
+            }
+            EchoAst::Lambda { .. } => {
+                // Lambda creation requires runtime closure allocation
+                return Err(anyhow!("Lambda creation requires runtime allocation, falling back to interpreter"));
+            }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",
                 ast
@@ -1254,6 +1286,144 @@ impl JitEvaluator {
             }
             _ => Err(anyhow!("Invalid index access")),
         }
+    }
+    
+    /// Evaluate function call (built-in functions)
+    fn eval_function_call(
+        &mut self,
+        name: &str,
+        args: &[EchoAst],
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        // Evaluate arguments
+        let arg_values: Result<Vec<_>> = args
+            .iter()
+            .map(|arg| self.eval_with_player(arg, player_id))
+            .collect();
+        let arg_values = arg_values?;
+        
+        // Built-in functions
+        match name {
+            "abs" => {
+                if arg_values.len() != 1 {
+                    return Err(anyhow!("abs() takes exactly 1 argument"));
+                }
+                match &arg_values[0] {
+                    Value::Integer(n) => Ok(Value::Integer(n.abs())),
+                    Value::Float(f) => Ok(Value::Float(f.abs())),
+                    _ => Err(anyhow!("abs() requires numeric argument")),
+                }
+            }
+            "len" => {
+                if arg_values.len() != 1 {
+                    return Err(anyhow!("len() takes exactly 1 argument"));
+                }
+                match &arg_values[0] {
+                    Value::List(items) => Ok(Value::Integer(items.len() as i64)),
+                    Value::Map(map) => Ok(Value::Integer(map.len() as i64)),
+                    Value::String(s) => Ok(Value::Integer(s.len() as i64)),
+                    _ => Err(anyhow!("len() requires list, map, or string")),
+                }
+            }
+            _ => Err(anyhow!("Unknown function: {}", name)),
+        }
+    }
+    
+    /// Evaluate method call
+    fn eval_method_call(
+        &mut self,
+        object: &EchoAst,
+        method: &str,
+        args: &[EchoAst],
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let _obj_val = self.eval_with_player(object, player_id)?;
+        let _arg_values: Result<Vec<_>> = args
+            .iter()
+            .map(|arg| self.eval_with_player(arg, player_id))
+            .collect();
+        let _arg_values = _arg_values?;
+        
+        // Method calls not yet implemented
+        Err(anyhow!("Method calls not yet implemented for {}", method))
+    }
+    
+    /// Evaluate lambda call
+    fn eval_call(
+        &mut self,
+        func: &EchoAst,
+        args: &[EchoAst],
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        let func_val = self.eval_with_player(func, player_id)?;
+        let arg_values: Result<Vec<_>> = args
+            .iter()
+            .map(|arg| self.eval_with_player(arg, player_id))
+            .collect();
+        let arg_values = arg_values?;
+        
+        match func_val {
+            Value::Lambda { params, body, captured_env } => {
+                // Create new environment for lambda execution
+                let mut lambda_env = Environment {
+                    variables: captured_env,
+                    const_bindings: HashSet::new(),
+                    player_id,
+                };
+                
+                // Bind parameters
+                if params.len() != arg_values.len() {
+                    return Err(anyhow!("Argument count mismatch"));
+                }
+                
+                for (param, value) in params.iter().zip(arg_values.iter()) {
+                    match param {
+                        LambdaParam::Simple(name) => {
+                            lambda_env.variables.insert(name.clone(), value.clone());
+                        }
+                        LambdaParam::Optional { name, .. } => {
+                            lambda_env.variables.insert(name.clone(), value.clone());
+                        }
+                        LambdaParam::Rest(_) => {
+                            // Rest parameters not yet implemented
+                        }
+                    }
+                }
+                
+                // Execute lambda body with new environment
+                let old_env = self.environments.get(&player_id).map(|e| e.clone());
+                self.environments.insert(player_id, lambda_env);
+                
+                let result = self.eval_with_player(&body, player_id)?;
+                
+                // Restore old environment
+                if let Some(env) = old_env {
+                    self.environments.insert(player_id, env);
+                }
+                
+                Ok(result)
+            }
+            _ => Err(anyhow!("Cannot call non-function value")),
+        }
+    }
+    
+    /// Evaluate lambda creation
+    fn eval_lambda(
+        &mut self,
+        params: &[LambdaParam],
+        body: &EchoAst,
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        // Capture current environment
+        let captured_env = self.environments.get(&player_id)
+            .map(|e| e.variables.clone())
+            .unwrap_or_else(HashMap::new);
+        
+        Ok(Value::Lambda {
+            params: params.to_vec(),
+            body: body.clone(),
+            captured_env,
+        })
     }
 }
 

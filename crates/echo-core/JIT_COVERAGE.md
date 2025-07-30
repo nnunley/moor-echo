@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (36 out of ~50+)
+### ✅ Supported AST Nodes (40 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -186,6 +186,26 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::IndexAccess { object, index }
     ```
 
+37. **FunctionCall** - Built-in function calls (interpreter only)
+    ```rust
+    EchoAst::FunctionCall { name, args }
+    ```
+
+38. **MethodCall** - Method calls on objects (interpreter only)
+    ```rust
+    EchoAst::MethodCall { object, method, args }
+    ```
+
+39. **Call** - Lambda/function calls (interpreter only)
+    ```rust
+    EchoAst::Call { func, args }
+    ```
+
+40. **Lambda** - Lambda/anonymous functions (interpreter only)
+    ```rust
+    EchoAst::Lambda { params, body }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -229,9 +249,9 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 
 #### Property & Method Access
 - [x] PropertyAccess (interpreter only)
-- [ ] MethodCall
-- [ ] FunctionCall
-- [ ] Call (lambda calls)
+- [x] MethodCall (interpreter only)
+- [x] FunctionCall (interpreter only)
+- [x] Call (lambda calls) (interpreter only)
 - [x] IndexAccess (interpreter only)
 
 #### Collections
@@ -239,7 +259,7 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [x] Map (interpreter only)
 
 #### Functions
-- [ ] Lambda
+- [x] Lambda (interpreter only)
 
 #### Control Flow
 - [x] If (interpreter only)
@@ -265,8 +285,8 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 36 (15 fully compiled, 21 fall back to interpreter)
-- **Coverage**: ~72%
+- **JIT Supported**: 40 (15 fully compiled, 25 fall back to interpreter)
+- **Coverage**: ~80%
 
 ## Current Limitations
 
