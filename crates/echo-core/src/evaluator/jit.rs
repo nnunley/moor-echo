@@ -6,6 +6,8 @@
 #[cfg(feature = "jit")]
 use cranelift::prelude::*;
 #[cfg(feature = "jit")]
+use cranelift::codegen::ir::condcodes::IntCC;
+#[cfg(feature = "jit")]
 use cranelift_jit::{JITBuilder, JITModule};
 #[cfg(feature = "jit")]
 use cranelift_module::Module;
@@ -292,7 +294,14 @@ impl JitEvaluator {
             | EchoAst::Modulo { .. }
             | EchoAst::Power { .. }
             | EchoAst::UnaryMinus { .. }
-            | EchoAst::UnaryPlus { .. } => {
+            | EchoAst::UnaryPlus { .. }
+            | EchoAst::Equal { .. }
+            | EchoAst::NotEqual { .. }
+            | EchoAst::LessThan { .. }
+            | EchoAst::LessEqual { .. }
+            | EchoAst::GreaterThan { .. }
+            | EchoAst::GreaterEqual { .. }
+            | EchoAst::In { .. } => {
                 // These are the AST types we support compiling
                 match self.compile_ast(ast) {
                     Ok(()) => {
@@ -452,6 +461,111 @@ impl JitEvaluator {
             EchoAst::UnaryPlus { operand } => {
                 // Unary plus is a no-op
                 self.eval_with_player(operand, player_id)
+            }
+            EchoAst::Equal { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l == r)),
+                    (Value::Null, Value::Null) => Ok(Value::Boolean(true)),
+                    _ => Ok(Value::Boolean(false)), // Different types are not equal
+                }
+            }
+            EchoAst::NotEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Boolean(l), Value::Boolean(r)) => Ok(Value::Boolean(l != r)),
+                    (Value::Null, Value::Null) => Ok(Value::Boolean(false)),
+                    _ => Ok(Value::Boolean(true)), // Different types are not equal
+                }
+            }
+            EchoAst::LessThan { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l < r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l < r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l < r)),
+                    _ => Err(anyhow!("Type error in less than comparison")),
+                }
+            }
+            EchoAst::LessEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l <= r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l <= r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l <= r)),
+                    _ => Err(anyhow!("Type error in less than or equal comparison")),
+                }
+            }
+            EchoAst::GreaterThan { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l > r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l > r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l > r)),
+                    _ => Err(anyhow!("Type error in greater than comparison")),
+                }
+            }
+            EchoAst::GreaterEqual { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match (&left_val, &right_val) {
+                    (Value::Integer(l), Value::Integer(r)) => Ok(Value::Boolean(l >= r)),
+                    (Value::Float(l), Value::Float(r)) => Ok(Value::Boolean(l >= r)),
+                    (Value::String(l), Value::String(r)) => Ok(Value::Boolean(l >= r)),
+                    _ => Err(anyhow!("Type error in greater than or equal comparison")),
+                }
+            }
+            EchoAst::In { left, right } => {
+                let left_val = self.eval_with_player(left, player_id)?;
+                let right_val = self.eval_with_player(right, player_id)?;
+                
+                match &right_val {
+                    Value::List(items) => {
+                        for item in items {
+                            match (&left_val, item) {
+                                (Value::Integer(l), Value::Integer(r)) if l == r => return Ok(Value::Boolean(true)),
+                                (Value::Float(l), Value::Float(r)) if l == r => return Ok(Value::Boolean(true)),
+                                (Value::String(l), Value::String(r)) if l == r => return Ok(Value::Boolean(true)),
+                                (Value::Boolean(l), Value::Boolean(r)) if l == r => return Ok(Value::Boolean(true)),
+                                (Value::Null, Value::Null) => return Ok(Value::Boolean(true)),
+                                _ => continue,
+                            }
+                        }
+                        Ok(Value::Boolean(false))
+                    }
+                    Value::String(s) => {
+                        // Check if left is a substring of right
+                        match &left_val {
+                            Value::String(needle) => Ok(Value::Boolean(s.contains(needle))),
+                            _ => Err(anyhow!("Type error in 'in' operator")),
+                        }
+                    }
+                    _ => Err(anyhow!("Right side of 'in' must be a list or string")),
+                }
+            }
+            EchoAst::List { elements } => {
+                let mut values = Vec::new();
+                for elem in elements {
+                    values.push(self.eval_with_player(elem, player_id)?);
+                }
+                Ok(Value::List(values))
             }
             _ => {
                 // For other AST nodes, delegate to main evaluator for now
@@ -615,6 +729,52 @@ impl JitEvaluator {
             EchoAst::UnaryPlus { operand } => {
                 // Unary plus is a no-op, just return the operand
                 Self::compile_ast_node(operand, builder)
+            }
+            EchoAst::Equal { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare integers for equality
+                let cmp = builder.ins().icmp(IntCC::Equal, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::NotEqual { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare integers for inequality
+                let cmp = builder.ins().icmp(IntCC::NotEqual, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::LessThan { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare signed integers
+                let cmp = builder.ins().icmp(IntCC::SignedLessThan, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::LessEqual { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare signed integers
+                let cmp = builder.ins().icmp(IntCC::SignedLessThanOrEqual, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::GreaterThan { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare signed integers
+                let cmp = builder.ins().icmp(IntCC::SignedGreaterThan, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::GreaterEqual { left, right } => {
+                let left_val = Self::compile_ast_node(left, builder)?;
+                let right_val = Self::compile_ast_node(right, builder)?;
+                // Compare signed integers
+                let cmp = builder.ins().icmp(IntCC::SignedGreaterThanOrEqual, left_val.inner(), right_val.inner());
+                Ok(CraneliftValue::new(cmp))
+            }
+            EchoAst::In { .. } => {
+                // In operator requires runtime support for lists/strings
+                return Err(anyhow!("In operator requires runtime support, falling back to interpreter"));
             }
             _ => Err(anyhow!(
                 "AST node not yet supported in JIT compilation: {:?}",

@@ -4,7 +4,7 @@
 
 As of the current implementation, the JIT compiler has **minimal coverage** of the Echo AST. Here's the breakdown:
 
-### ✅ Supported AST Nodes (14 out of ~50+)
+### ✅ Supported AST Nodes (22 out of ~50+)
 
 1. **Number** - Integer literals
    ```rust
@@ -76,6 +76,46 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
     EchoAst::Identifier(String)
     ```
 
+15. **Equal** - Equality comparison
+    ```rust
+    EchoAst::Equal { left, right }
+    ```
+
+16. **NotEqual** - Inequality comparison
+    ```rust
+    EchoAst::NotEqual { left, right }
+    ```
+
+17. **LessThan** - Less than comparison
+    ```rust
+    EchoAst::LessThan { left, right }
+    ```
+
+18. **LessEqual** - Less than or equal comparison
+    ```rust
+    EchoAst::LessEqual { left, right }
+    ```
+
+19. **GreaterThan** - Greater than comparison
+    ```rust
+    EchoAst::GreaterThan { left, right }
+    ```
+
+20. **GreaterEqual** - Greater than or equal comparison
+    ```rust
+    EchoAst::GreaterEqual { left, right }
+    ```
+
+21. **In** - Membership test (falls back to interpreter)
+    ```rust
+    EchoAst::In { left, right }
+    ```
+
+22. **List** - List literal (interpreter only)
+    ```rust
+    EchoAst::List { elements }
+    ```
+
 ### ❌ Not Supported (Everything Else)
 
 #### Literals & Basic Types
@@ -99,13 +139,13 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [x] UnaryPlus
 
 #### Comparison Operations
-- [ ] Equal
-- [ ] NotEqual
-- [ ] LessThan
-- [ ] LessEqual
-- [ ] GreaterThan
-- [ ] GreaterEqual
-- [ ] In
+- [x] Equal
+- [x] NotEqual
+- [x] LessThan
+- [x] LessEqual
+- [x] GreaterThan
+- [x] GreaterEqual
+- [x] In (falls back to interpreter)
 
 #### Logical Operations
 - [ ] And
@@ -125,7 +165,7 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 - [ ] IndexAccess
 
 #### Collections
-- [ ] List
+- [x] List (interpreter only)
 - [ ] Map
 
 #### Functions
@@ -155,15 +195,15 @@ As of the current implementation, the JIT compiler has **minimal coverage** of t
 ## Coverage Statistics
 
 - **Total AST Node Types**: ~50+
-- **JIT Supported**: 14 (9 fully compiled, 5 fall back to interpreter)
-- **Coverage**: ~28%
+- **JIT Supported**: 22 (15 fully compiled, 7 fall back to interpreter)
+- **Coverage**: ~44%
 
 ## Current Limitations
 
 1. **No Variable Support**: Can't access or assign variables
 2. **No Function Calls**: Can't call functions or methods
 3. **No Control Flow**: No if/else, loops, or jumps
-4. **No String Operations**: Only integers are supported
+4. **Limited Type Support**: Only integers are fully compiled; floats, strings, booleans fall back
 5. **No Memory Access**: Can't read/write to storage
 
 ## What Actually Gets Compiled?
@@ -180,6 +220,13 @@ When JIT is enabled, these expressions compile to native code:
 -42                  // Unary minus
 +42                  // Unary plus
 1 + 2 * 3            // Nested arithmetic
+10 == 10             // Equality
+42 != 24             // Inequality
+10 < 20              // Less than
+10 <= 20             // Less than or equal
+20 > 10              // Greater than
+20 >= 10             // Greater than or equal
+2 in [1, 2, 3]       // Membership test (falls back to interpreter)
 ```
 
 Everything else falls back to the interpreter.
@@ -191,7 +238,7 @@ To make the JIT useful, the following should be prioritized:
 ### Phase 1: Basic Expressions
 1. ~~Other arithmetic operations (Subtract, Multiply, Divide)~~ ✓ COMPLETED
 2. ~~Boolean literals and operations~~ ✓ COMPLETED (literals fall back to interpreter)
-3. Comparison operations
+3. ~~Comparison operations~~ ✓ COMPLETED
 4. Variable reads (Identifier)
 
 ### Phase 2: Memory & Control

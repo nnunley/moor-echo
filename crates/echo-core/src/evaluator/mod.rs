@@ -58,6 +58,9 @@ mod jit_arithmetic_tests;
 mod jit_literal_tests;
 
 #[cfg(test)]
+mod jit_comparison_tests;
+
+#[cfg(test)]
 mod mop_source_tests;
 
 #[cfg(test)]
