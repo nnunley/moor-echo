@@ -9,8 +9,6 @@ use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 #[cfg(feature = "jit")]
 use cranelift_module::Module;
-#[cfg(feature = "jit")]
-use cranelift_native;
 
 // NewType wrappers to avoid conflicts with our Value type
 #[cfg(feature = "jit")]
@@ -28,7 +26,7 @@ impl CraneliftValue {
     }
 }
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
@@ -101,7 +99,7 @@ impl JitEvaluator {
     }
 
     /// Create a new player
-    pub fn create_player(&mut self, name: &str) -> Result<ObjectId> {
+    pub fn create_player(&mut self, _name: &str) -> Result<ObjectId> {
         // Same implementation as interpreter evaluator
         let player_id = ObjectId::new();
 
@@ -109,6 +107,7 @@ impl JitEvaluator {
         let env = Environment {
             player_id,
             variables: HashMap::new(),
+            const_bindings: HashSet::new(),
         };
         self.environments.insert(player_id, env);
 
@@ -317,10 +316,6 @@ impl EvaluatorTrait for JitEvaluator {
 
     fn eval_with_player(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         self.eval_with_player(ast, player_id)
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }
 

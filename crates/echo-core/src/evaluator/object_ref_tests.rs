@@ -51,7 +51,7 @@ mod tests {
 
         // Test numeric references
         let ref10_ast = parser.parse("#10").expect("Failed to parse");
-        let result10 = evaluator.eval(&ref10_ast).expect("Failed to evaluate");
+        let _result10 = evaluator.eval(&ref10_ast).expect("Failed to evaluate");
 
         // Verify we got the foo object
         let name_code = "#10.name";
@@ -61,7 +61,7 @@ mod tests {
 
         // Test another reference
         let ref20_ast = parser.parse("#20").expect("Failed to parse");
-        let result20 = evaluator.eval(&ref20_ast).expect("Failed to evaluate");
+        let _result20 = evaluator.eval(&ref20_ast).expect("Failed to evaluate");
 
         let name_code = "#20.name";
         let name_ast = parser.parse(name_code).expect("Failed to parse");
@@ -106,7 +106,7 @@ mod tests {
 
         // Test numeric reference that should resolve
         let ref100_ast = parser.parse("#100").expect("Failed to parse");
-        let result100 = evaluator.eval(&ref100_ast).expect("Failed to evaluate");
+        let _result100 = evaluator.eval(&ref100_ast).expect("Failed to evaluate");
 
         // Verify we got the test_obj
         let name_code = "#100.name";

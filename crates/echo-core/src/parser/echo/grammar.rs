@@ -241,6 +241,22 @@ pub mod echo {
             right: Box<EchoAst>,
         },
 
+        // Unary minus (high precedence)
+        #[rust_sitter::prec_right(10)]
+        UnaryMinus {
+            #[rust_sitter::leaf(text = "-")]
+            _op: (),
+            operand: Box<EchoAst>,
+        },
+
+        // Unary plus (high precedence)
+        #[rust_sitter::prec_right(10)]
+        UnaryPlus {
+            #[rust_sitter::leaf(text = "+")]
+            _op: (),
+            operand: Box<EchoAst>,
+        },
+
         // Unary not (high precedence)
         #[rust_sitter::prec_right(10)]
         Not {
@@ -316,6 +332,21 @@ pub mod echo {
 
         // List literal
         List {
+            #[rust_sitter::leaf(text = "[")]
+            _lbracket: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            #[rust_sitter::delimited(
+                #[rust_sitter::leaf(text = ",")]
+                ()
+            )]
+            elements: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "]")]
+            _rbracket: (),
+        },
+
+        // Brace expression for lambda parameters: {x, y}
+        #[rust_sitter::prec(2)]
+        BraceExpression {
             #[rust_sitter::leaf(text = "{")]
             _lbrace: (),
             #[rust_sitter::repeat(non_empty = false)]
@@ -599,7 +630,7 @@ pub mod echo {
         Single(ParamElement),
         // Multiple parameters in braces (including empty {})
         Multiple {
-            #[rust_sitter::leaf(text = "{")]
+            #[rust_sitter::leaf(text = "{", add_conflict = true)]
             _lbrace: (),
             #[rust_sitter::repeat(non_empty = false)]
             #[rust_sitter::delimited(

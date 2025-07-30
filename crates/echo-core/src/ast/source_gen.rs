@@ -9,6 +9,121 @@ pub trait ToSource {
     fn to_source(&self) -> String;
 }
 
+// Helper function to format ObjectMember to reduce nesting
+fn format_object_member(member: &ObjectMember) -> String {
+    match member {
+        ObjectMember::Property {
+            name,
+            value,
+            permissions,
+        } => {
+            let mut result = format!("  property {} = {}", name, value.to_source());
+            if let Some(perms) = permissions {
+                result.push_str(&format!(" {{{}+{}}}", perms.read, perms.write));
+            }
+            result.push('\n');
+            result
+        }
+        ObjectMember::Verb {
+            name,
+            args,
+            body,
+            permissions,
+        } => {
+            let mut result = format!("  verb {}(", name);
+            let args_str = args
+                .iter()
+                .map(|p| p.to_source())
+                .collect::<Vec<_>>()
+                .join(", ");
+            result.push_str(&args_str);
+            result.push_str(") ");
+            if let Some(perms) = permissions {
+                result.push_str(&format!(
+                    "{{{}+{}+{}}}",
+                    perms.read, perms.write, perms.execute
+                ));
+            }
+            result.push('\n');
+            for stmt in body {
+                result.push_str(&format!("    {}\n", stmt.to_source()));
+            }
+            result.push_str("  endverb\n");
+            result
+        }
+        ObjectMember::Method {
+            name,
+            args,
+            body,
+            return_type,
+        } => {
+            let mut result = format!("  method {}(", name);
+            let args_str = args
+                .iter()
+                .map(|p| p.to_source())
+                .collect::<Vec<_>>()
+                .join(", ");
+            result.push_str(&args_str);
+            result.push(')');
+            if let Some(ret_type) = return_type {
+                result.push_str(&format!(": {}", ret_type.to_source()));
+            }
+            result.push_str(" {\n");
+            for stmt in body {
+                result.push_str(&format!("    {}\n", stmt.to_source()));
+            }
+            result.push_str("  }\n");
+            result
+        }
+        ObjectMember::Event { name, params, body } => {
+            let mut result = format!("  event {}(", name);
+            let params_str = params
+                .iter()
+                .map(|p| p.to_source())
+                .collect::<Vec<_>>()
+                .join(", ");
+            result.push_str(&params_str);
+            result.push_str(")\n");
+            for stmt in body {
+                result.push_str(&format!("    {}\n", stmt.to_source()));
+            }
+            result.push_str("  endevent\n");
+            result
+        }
+        ObjectMember::Query {
+            name,
+            params,
+            clauses,
+        } => {
+            let mut result = format!("  query {}", name);
+            if !params.is_empty() {
+                result.push_str(&format!("({})", params.join(", ")));
+            }
+            result.push_str(" :-\n    ");
+            let clauses_str = clauses
+                .iter()
+                .map(|c| {
+                    let args_str = c
+                        .args
+                        .iter()
+                        .map(|arg| match arg {
+                            crate::ast::QueryArg::Variable(v) => v.clone(),
+                            crate::ast::QueryArg::Constant(c) => c.to_source(),
+                            crate::ast::QueryArg::Wildcard => "_".to_string(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{}({})", c.predicate, args_str)
+                })
+                .collect::<Vec<_>>()
+                .join(",\n    ");
+            result.push_str(&clauses_str);
+            result.push_str(".\n");
+            result
+        }
+    }
+}
+
 impl ToSource for EchoAst {
     fn to_source(&self) -> String {
         match self {
@@ -238,116 +353,7 @@ impl ToSource for EchoAst {
                 result.push('\n');
 
                 for member in members {
-                    match member {
-                        ObjectMember::Property {
-                            name,
-                            value,
-                            permissions,
-                        } => {
-                            result.push_str(&format!(
-                                "  property {} = {}",
-                                name,
-                                value.to_source()
-                            ));
-                            if let Some(perms) = permissions {
-                                result.push_str(&format!(" {{{}+{}}}", perms.read, perms.write));
-                            }
-                            result.push('\n');
-                        }
-                        ObjectMember::Verb {
-                            name,
-                            args,
-                            body,
-                            permissions,
-                        } => {
-                            result.push_str(&format!("  verb {}(", name));
-                            let args_str = args
-                                .iter()
-                                .map(|p| p.to_source())
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            result.push_str(&args_str);
-                            result.push_str(") ");
-                            if let Some(perms) = permissions {
-                                result.push_str(&format!(
-                                    "{{{}+{}+{}}}",
-                                    perms.read, perms.write, perms.execute
-                                ));
-                            }
-                            result.push('\n');
-                            for stmt in body {
-                                result.push_str(&format!("    {}\n", stmt.to_source()));
-                            }
-                            result.push_str("  endverb\n");
-                        }
-                        ObjectMember::Method {
-                            name,
-                            args,
-                            body,
-                            return_type,
-                        } => {
-                            result.push_str(&format!("  method {}(", name));
-                            let args_str = args
-                                .iter()
-                                .map(|p| p.to_source())
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            result.push_str(&args_str);
-                            result.push(')');
-                            if let Some(ret_type) = return_type {
-                                result.push_str(&format!(": {}", ret_type.to_source()));
-                            }
-                            result.push_str(" {\n");
-                            for stmt in body {
-                                result.push_str(&format!("    {}\n", stmt.to_source()));
-                            }
-                            result.push_str("  }\n");
-                        }
-                        ObjectMember::Event { name, params, body } => {
-                            result.push_str(&format!("  event {}(", name));
-                            let params_str = params
-                                .iter()
-                                .map(|p| p.to_source())
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            result.push_str(&params_str);
-                            result.push_str(")\n");
-                            for stmt in body {
-                                result.push_str(&format!("    {}\n", stmt.to_source()));
-                            }
-                            result.push_str("  endevent\n");
-                        }
-                        ObjectMember::Query {
-                            name,
-                            params,
-                            clauses,
-                        } => {
-                            result.push_str(&format!("  query {}", name));
-                            if !params.is_empty() {
-                                result.push_str(&format!("({})", params.join(", ")));
-                            }
-                            result.push_str(" :-\n    ");
-                            let clauses_str = clauses
-                                .iter()
-                                .map(|c| {
-                                    let args_str = c
-                                        .args
-                                        .iter()
-                                        .map(|arg| match arg {
-                                            QueryArg::Variable(v) => v.clone(),
-                                            QueryArg::Constant(c) => c.to_source(),
-                                            QueryArg::Wildcard => "_".to_string(),
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join(", ");
-                                    format!("{}({})", c.predicate, args_str)
-                                })
-                                .collect::<Vec<_>>()
-                                .join(",\n    ");
-                            result.push_str(&clauses_str);
-                            result.push_str(".\n");
-                        }
-                    }
+                    result.push_str(&format_object_member(member));
                 }
 
                 result.push_str("endobject");

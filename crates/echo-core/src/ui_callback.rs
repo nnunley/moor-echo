@@ -7,6 +7,24 @@ use std::collections::HashMap;
 
 use crate::evaluator::Value;
 
+// Helper function to extract style from args
+fn extract_style_from_args(args: &[Value], index: usize) -> Option<HashMap<String, String>> {
+    if args.len() > index {
+        match &args[index] {
+            Value::Map(map) => {
+                let mut style_map = HashMap::new();
+                for (k, v) in map {
+                    style_map.insert(k.clone(), v.to_string());
+                }
+                Some(style_map)
+            }
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
 /// UI update action types
 #[derive(Debug, Clone)]
 pub enum UiAction {
@@ -73,20 +91,7 @@ pub fn convert_ui_event(action: &str, args: &[Value]) -> Option<UiAction> {
         "add_text" => {
             if args.len() >= 2 {
                 if let (Value::String(id), Value::String(text)) = (&args[0], &args[1]) {
-                    let style = if args.len() > 2 {
-                        match &args[2] {
-                            Value::Map(map) => {
-                                let mut style_map = HashMap::new();
-                                for (k, v) in map {
-                                    style_map.insert(k.clone(), v.to_string());
-                                }
-                                Some(style_map)
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
+                    let style = extract_style_from_args(args, 2);
 
                     return Some(UiAction::AddText {
                         id: id.clone(),
@@ -100,20 +105,7 @@ pub fn convert_ui_event(action: &str, args: &[Value]) -> Option<UiAction> {
         "add_div" => {
             if args.len() >= 2 {
                 if let (Value::String(id), Value::String(content)) = (&args[0], &args[1]) {
-                    let style = if args.len() > 2 {
-                        match &args[2] {
-                            Value::Map(map) => {
-                                let mut style_map = HashMap::new();
-                                for (k, v) in map {
-                                    style_map.insert(k.clone(), v.to_string());
-                                }
-                                Some(style_map)
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
+                    let style = extract_style_from_args(args, 2);
 
                     return Some(UiAction::AddDiv {
                         id: id.clone(),

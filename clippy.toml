@@ -44,8 +44,7 @@ doc-valid-idents = [
     "CI/CD",
 ]
 
-# Module inception - allow for organizing code
-allow-module-inception = true
+# Module inception is configured via #[allow(clippy::module_inception)] in code
 
 # Disallowed names
 disallowed-names = ["foo", "bar", "baz", "tmp", "temp", "test"]

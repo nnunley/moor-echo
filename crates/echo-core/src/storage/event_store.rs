@@ -210,7 +210,7 @@ mod tests {
         let event_store = EventStore::new(&db).unwrap();
 
         // Subscribe to all events
-        let sub = event_store.subscribe(EventPattern::All);
+        let mut sub = event_store.subscribe(EventPattern::All);
 
         // Emit an event
         let event = EchoEvent {

@@ -57,7 +57,7 @@ crossbeam-channel = "0.5"
 rust-sitter = "0.4"
 
 # Build dependencies needed for rust-sitter
-[workspace.build-dependencies]
+# [workspace.build-dependencies]
 rust-sitter-tool = "0.4"
 
 [profile.dev]

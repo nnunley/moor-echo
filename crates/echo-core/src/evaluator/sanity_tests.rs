@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, sync::Arc};
+    use std::sync::Arc;
 
     use tempfile::tempdir;
 

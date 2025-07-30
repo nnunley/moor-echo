@@ -1,4 +1,5 @@
 #![allow(dead_code)] // Many methods are kept for future use and API completeness
+#![allow(clippy::excessive_nesting)] // Complex control flow in evaluator requires deep nesting
 
 use std::{
     collections::{HashMap, HashSet},

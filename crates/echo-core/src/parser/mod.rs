@@ -7,10 +7,16 @@ use crate::ast::EchoAst;
 
 pub mod echo;
 // pub mod moo_compat;  // TODO: Implement MOO compatibility parser
-pub mod ast; // Keep old AST for reference during migration
+pub mod simple_parser;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod simple_parser_tests;
+
+#[cfg(test)]
+mod test_basic;
 
 /// Trait for all Echo parsers
 pub trait Parser: Send + Sync {
@@ -57,8 +63,12 @@ pub use echo::EchoParser;
 /// Create a parser based on type
 pub fn create_parser(parser_type: &str) -> Result<Box<dyn Parser>> {
     match parser_type {
-        "echo" => Ok(Box::new(EchoParser::new()?)),
+        "echo" => {
+            // Use the rust-sitter parser
+            Ok(Box::new(echo::EchoParser::new()?))
+        }
         // "moo" => Ok(Box::new(MooCompatParser::new()?)),
         _ => anyhow::bail!("Unknown parser type: {}", parser_type),
     }
 }
+
