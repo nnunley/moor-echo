@@ -71,7 +71,8 @@ pub struct VerbDefinition {
     pub code: String,                       // Source code for display
     pub ast: Vec<crate::ast::EchoAst>,      // The actual AST to execute
     pub params: Vec<crate::ast::Parameter>, // Parameters for the verb
-    pub permissions: VerbPermissions,
+    pub permissions: VerbPermissions,       // Keep for backward compatibility
+    pub required_capabilities: Vec<String>, // New capability-based security
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

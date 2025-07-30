@@ -54,6 +54,136 @@ pub mod echo {
     #[derive(Debug, PartialEq, Clone)]
     #[rust_sitter::language]
     pub enum EchoAst {
+        // Put control flow constructs before identifiers to ensure keywords are recognized
+        // Control flow - If with MOO syntax: if (condition) ... [else ...] endif
+        If {
+            #[rust_sitter::leaf(text = "if")]
+            _if: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            condition: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            then_body: Vec<EchoAst>,
+            else_clause: Option<ElseClause>,
+            #[rust_sitter::leaf(text = "endif")]
+            _endif: (),
+        },
+
+        // While loop with MOO syntax: while (condition) ... endwhile
+        While {
+            #[rust_sitter::leaf(text = "while")]
+            _while: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            condition: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endwhile")]
+            _endwhile: (),
+        },
+
+        // For loop with MOO syntax: for var in (collection) ... endfor
+        For {
+            #[rust_sitter::leaf(text = "for")]
+            _for: (),
+            variable: Box<EchoAst>, // Must be an Identifier
+            #[rust_sitter::leaf(text = "in")]
+            _in: (),
+            #[rust_sitter::leaf(text = "(")]
+            _lparen: (),
+            collection: Box<EchoAst>,
+            #[rust_sitter::leaf(text = ")")]
+            _rparen: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            #[rust_sitter::leaf(text = "endfor")]
+            _endfor: (),
+        },
+
+        // Match expression with MOO syntax: match expr matchclause+ endmatch
+        #[rust_sitter::prec(13)]
+        Match {
+            #[rust_sitter::leaf(text = "match", add_conflict = true)]
+            _match: (),
+            expr: Box<EchoAst>,
+            #[rust_sitter::repeat(non_empty = true)]
+            arms: Vec<MatchArm>,
+            #[rust_sitter::leaf(text = "endmatch")]
+            _endmatch: (),
+        },
+
+        // Try/catch expression with MOO syntax: try ... catch var ... [finally ...] endtry
+        #[rust_sitter::prec(10)]
+        Try {
+            #[rust_sitter::leaf(text = "try")]
+            _try: (),
+            #[rust_sitter::repeat(non_empty = false)]
+            body: Vec<EchoAst>,
+            catch: Option<CatchClause>,
+            finally: Option<FinallyClause>,
+            #[rust_sitter::leaf(text = "endtry")]
+            _endtry: (),
+        },
+
+        // Local variable declaration statement
+        #[rust_sitter::prec(12)]
+        LocalAssignment {
+            #[rust_sitter::leaf(text = "let")]
+            _let_keyword: (),
+            target: Box<BindingPattern>,
+            #[rust_sitter::leaf(text = "=")]
+            _op: (),
+            value: Box<EchoAst>,
+        },
+
+        // Constant declaration statement
+        #[rust_sitter::prec(12)]
+        ConstAssignment {
+            #[rust_sitter::leaf(text = "const")]
+            _const_keyword: (),
+            target: Box<BindingPattern>,
+            #[rust_sitter::leaf(text = "=")]
+            _op: (),
+            value: Box<EchoAst>,
+        },
+
+        // Break statement with optional label
+        #[rust_sitter::prec_right(9)]
+        Break {
+            #[rust_sitter::leaf(text = "break")]
+            _break: (),
+            label: Option<Box<EchoAst>>, // Optional label
+        },
+
+        // Continue statement with optional label
+        #[rust_sitter::prec_right(9)]
+        Continue {
+            #[rust_sitter::leaf(text = "continue")]
+            _continue: (),
+            label: Option<Box<EchoAst>>, // Optional label
+        },
+
+        // Return statement with optional value
+        #[rust_sitter::prec_right(9)]
+        Return {
+            #[rust_sitter::leaf(text = "return")]
+            _return: (),
+            value: Option<Box<EchoAst>>, // Optional return value
+        },
+
+        // Emit statement for event emission with optional arguments
+        #[rust_sitter::prec_right(9)]
+        Emit {
+            #[rust_sitter::leaf(text = "emit")]
+            _emit: (),
+            event_name: Identifier,
+            args: Option<EmitArgs>,
+        },
+
         // Literals
         Float(#[rust_sitter::leaf(pattern = r"\d+\.\d+", transform = |v| v.parse().unwrap())] f64),
         Number(#[rust_sitter::leaf(pattern = r"\d+", transform = |v| v.parse().unwrap())] i64),
@@ -68,7 +198,7 @@ pub mod echo {
         #[rust_sitter::leaf(text = "false")]
         False,
 
-        // Identifiers
+        // Identifiers (must come after all keywords)
         Identifier(
             #[rust_sitter::leaf(pattern = r"[a-zA-Z_][a-zA-Z0-9_]*", transform = |v| v.to_string())]
              String,
@@ -142,28 +272,6 @@ pub mod echo {
             #[rust_sitter::leaf(text = "=")]
             _op: (),
             right: Box<EchoAst>,
-        },
-
-        // Local variable declaration statement
-        #[rust_sitter::prec(12)]
-        LocalAssignment {
-            #[rust_sitter::leaf(text = "let")]
-            _let_keyword: (),
-            target: Box<BindingPattern>,
-            #[rust_sitter::leaf(text = "=")]
-            _op: (),
-            value: Box<EchoAst>,
-        },
-
-        // Constant declaration statement
-        #[rust_sitter::prec(12)]
-        ConstAssignment {
-            #[rust_sitter::leaf(text = "const")]
-            _const_keyword: (),
-            target: Box<BindingPattern>,
-            #[rust_sitter::leaf(text = "=")]
-            _op: (),
-            value: Box<EchoAst>,
         },
 
         // Comparison operators (precedence 4)
@@ -391,88 +499,6 @@ pub mod echo {
         // Comma separator (needed for argument lists)
         #[rust_sitter::leaf(text = ",")]
         Comma,
-
-        // Control flow - If with MOO syntax: if (condition) ... [else ...] endif
-        If {
-            #[rust_sitter::leaf(text = "if")]
-            _if: (),
-            #[rust_sitter::leaf(text = "(")]
-            _lparen: (),
-            condition: Box<EchoAst>,
-            #[rust_sitter::leaf(text = ")")]
-            _rparen: (),
-            #[rust_sitter::repeat(non_empty = false)]
-            then_body: Vec<EchoAst>,
-            else_clause: Option<ElseClause>,
-            #[rust_sitter::leaf(text = "endif")]
-            _endif: (),
-        },
-
-        // While loop with MOO syntax: while (condition) ... endwhile
-        While {
-            #[rust_sitter::leaf(text = "while")]
-            _while: (),
-            #[rust_sitter::leaf(text = "(")]
-            _lparen: (),
-            condition: Box<EchoAst>,
-            #[rust_sitter::leaf(text = ")")]
-            _rparen: (),
-            #[rust_sitter::repeat(non_empty = false)]
-            body: Vec<EchoAst>,
-            #[rust_sitter::leaf(text = "endwhile")]
-            _endwhile: (),
-        },
-
-        // For loop with MOO syntax: for var in (collection) ... endfor
-        For {
-            #[rust_sitter::leaf(text = "for")]
-            _for: (),
-            variable: Box<EchoAst>, // Must be an Identifier
-            #[rust_sitter::leaf(text = "in")]
-            _in: (),
-            #[rust_sitter::leaf(text = "(")]
-            _lparen: (),
-            collection: Box<EchoAst>,
-            #[rust_sitter::leaf(text = ")")]
-            _rparen: (),
-            #[rust_sitter::repeat(non_empty = false)]
-            body: Vec<EchoAst>,
-            #[rust_sitter::leaf(text = "endfor")]
-            _endfor: (),
-        },
-
-        // Break statement with optional label
-        #[rust_sitter::prec_right(9)]
-        Break {
-            #[rust_sitter::leaf(text = "break")]
-            _break: (),
-            label: Option<Box<EchoAst>>, // Optional label
-        },
-
-        // Continue statement with optional label
-        #[rust_sitter::prec_right(9)]
-        Continue {
-            #[rust_sitter::leaf(text = "continue")]
-            _continue: (),
-            label: Option<Box<EchoAst>>, // Optional label
-        },
-
-        // Return statement with optional value
-        #[rust_sitter::prec_right(9)]
-        Return {
-            #[rust_sitter::leaf(text = "return")]
-            _return: (),
-            value: Option<Box<EchoAst>>, // Optional return value
-        },
-
-        // Emit statement for event emission with optional arguments
-        #[rust_sitter::prec_right(9)]
-        Emit {
-            #[rust_sitter::leaf(text = "emit")]
-            _emit: (),
-            event_name: Identifier,
-            args: Option<EmitArgs>,
-        },
         // // Block statement - commented out due to conflict with List
         // // In MOO, blocks don't exist as a syntax construct
         // Block {
@@ -570,6 +596,7 @@ pub mod echo {
             _verb: (),
             name: Identifier,
             params: ParamPattern,
+            requires_clause: Option<RequiresClause>,
             #[rust_sitter::repeat(non_empty = false)]
             body: Vec<EchoAst>,
             #[rust_sitter::leaf(text = "endverb")]
@@ -650,11 +677,79 @@ pub mod echo {
         #[rust_sitter::repeat(non_empty = false)]
         pub body: Vec<EchoAst>,
     }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[rust_sitter::prec(14)]
+    pub struct MatchArm {
+        #[rust_sitter::leaf(text = "case")]
+        pub _case: (),
+        pub pattern: MatchPattern,
+        pub guard: Option<GuardClause>,
+        #[rust_sitter::leaf(text = "=>")]
+        pub _arrow: (),
+        pub body: Box<EchoAst>,
+    }
+    
+    #[derive(Debug, PartialEq, Clone)]
+    #[rust_sitter::prec(14)]
+    pub struct GuardClause {
+        #[rust_sitter::leaf(text = "when", add_conflict = true)]
+        pub _when: (),
+        pub condition: Box<EchoAst>,
+    }
+
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub enum MatchPattern {
+        // Wildcard pattern: _
+        #[rust_sitter::leaf(text = "_")]
+        Wildcard,
+        // Number pattern
+        Number(#[rust_sitter::leaf(pattern = r"-?\d+", transform = |v| v.parse().unwrap())] i64),
+        // String pattern
+        String(
+            #[rust_sitter::leaf(pattern = r#""[^"]*""#, transform = |v| v[1..v.len()-1].to_string())]
+            String,
+        ),
+        // Identifier pattern (for binding)
+        Identifier(Identifier),
+    }
+
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct CatchClause {
+        #[rust_sitter::leaf(text = "catch")]
+        pub _catch: (),
+        pub error_var: Identifier,
+        #[rust_sitter::repeat(non_empty = false)]
+        pub body: Vec<EchoAst>,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct FinallyClause {
+        #[rust_sitter::leaf(text = "finally")]
+        pub _finally: (),
+        #[rust_sitter::repeat(non_empty = false)]
+        pub body: Vec<EchoAst>,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct RequiresClause {
+        #[rust_sitter::leaf(text = "requires")]
+        pub _requires: (),
+        pub capability: CapabilityExpr,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct CapabilityExpr {
+        pub name: Identifier,
+    }
 }
 
 pub use echo::{
     parse as parse_echo, BindingPattern, BindingPatternElement, EchoAst, ElseClause, EmitArgs,
     Identifier, ObjectMember, ParamElement, ParamPattern, QueryClause, QueryParam, QueryParams,
+    MatchArm, MatchPattern, GuardClause, CatchClause, FinallyClause, RequiresClause, CapabilityExpr,
 };
 
 // Compatibility wrapper for existing API

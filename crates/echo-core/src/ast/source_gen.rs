@@ -29,6 +29,7 @@ fn format_object_member(member: &ObjectMember) -> String {
             args,
             body,
             permissions,
+            required_capabilities,
         } => {
             let mut result = format!("  verb {name}(");
             let args_str = args
@@ -38,6 +39,11 @@ fn format_object_member(member: &ObjectMember) -> String {
                 .join(", ");
             result.push_str(&args_str);
             result.push_str(") ");
+            if !required_capabilities.is_empty() {
+                result.push_str("requires ");
+                result.push_str(&required_capabilities.join(", "));
+                result.push(' ');
+            }
             if let Some(perms) = permissions {
                 result.push_str(&format!(
                     "{{{}+{}+{}}}",

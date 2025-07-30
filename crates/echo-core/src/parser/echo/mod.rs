@@ -7,9 +7,25 @@ pub mod grammar;
 // #[cfg(test)]
 // pub mod test_improved_grammar;
 
+#[cfg(test)]
+mod match_try_tests;
+
 use anyhow::{anyhow, Result};
 
 use crate::ast::{self};
+
+// Helper function to convert match patterns
+fn convert_match_pattern(pattern: grammar::MatchPattern) -> Result<ast::Pattern> {
+    use grammar::MatchPattern as G;
+    use crate::ast::Pattern as A;
+    
+    match pattern {
+        G::Wildcard => Ok(A::Wildcard),
+        G::Number(n) => Ok(A::Number(n)),
+        G::String(s) => Ok(A::String(s)),
+        G::Identifier(id) => Ok(A::Identifier(id.name)),
+    }
+}
 
 // Helper function to extract lambda parameters from scatter expressions
 fn extract_lambda_params_from_scatter(scatter: grammar::EchoAst) -> Result<Vec<ast::LambdaParam>> {
@@ -455,7 +471,7 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                         });
                     }
                     grammar::ObjectMember::VerbDef {
-                        name, params, body, ..
+                        name, params, requires_clause, body, ..
                     } => {
                         let verb_name = name.name.clone();
                         let verb_params = convert_params_to_parameters(&params)?;
@@ -463,11 +479,20 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                             .into_iter()
                             .map(convert_grammar_to_ast)
                             .collect::<Result<Vec<_>>>()?;
+                        
+                        // Extract required capabilities from requires clause
+                        let required_capabilities = if let Some(clause) = requires_clause {
+                            vec![clause.capability.name.name]
+                        } else {
+                            Vec::new()
+                        };
+                        
                         converted_members.push(ast::ObjectMember::Verb {
                             name: verb_name,
                             args: verb_params,
                             body: verb_body,
                             permissions: None,
+                            required_capabilities,
                         });
                     }
                     grammar::ObjectMember::EventDef {
@@ -596,6 +621,59 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
                 variable: var_name,
                 collection: Box::new(convert_grammar_to_ast(*collection)?),
                 body: body_vec,
+            }
+        }
+
+        G::Match { expr, arms, .. } => {
+            let converted_arms = arms
+                .into_iter()
+                .map(|arm| {
+                    Ok(ast::MatchArm {
+                        pattern: convert_match_pattern(arm.pattern)?,
+                        guard: match arm.guard {
+                            Some(guard) => Some(Box::new(convert_grammar_to_ast(*guard.condition)?)),
+                            None => None,
+                        },
+                        body: Box::new(convert_grammar_to_ast(*arm.body)?),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            A::Match {
+                expr: Box::new(convert_grammar_to_ast(*expr)?),
+                arms: converted_arms,
+            }
+        }
+
+        G::Try { body, catch, finally, .. } => {
+            let try_body = body
+                .into_iter()
+                .map(convert_grammar_to_ast)
+                .collect::<Result<Vec<_>>>()?;
+
+            let catch_clause = match catch {
+                Some(catch) => Some(ast::CatchClause {
+                    error_var: Some(catch.error_var.name),
+                    body: catch.body
+                        .into_iter()
+                        .map(convert_grammar_to_ast)
+                        .collect::<Result<Vec<_>>>()?,
+                }),
+                None => None,
+            };
+
+            let finally_body = match finally {
+                Some(finally) => Some(finally.body
+                    .into_iter()
+                    .map(convert_grammar_to_ast)
+                    .collect::<Result<Vec<_>>>()?),
+                None => None,
+            };
+
+            A::Try {
+                body: try_body,
+                catch: catch_clause,
+                finally: finally_body,
             }
         }
 

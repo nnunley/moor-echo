@@ -1653,6 +1653,7 @@ impl Evaluator {
         args: &[crate::ast::Parameter],
         body: &[EchoAst],
         permissions: &Option<crate::ast::VerbPermissions>,
+        required_capabilities: &[String],
         verbs: &mut HashMap<String, crate::storage::object_store::VerbDefinition>,
     ) -> Result<()> {
         use crate::ast::ToSource;
@@ -1691,6 +1692,7 @@ impl Evaluator {
                     write: true,
                     execute: true,
                 }),
+            required_capabilities: required_capabilities.to_vec(),
         };
 
         verbs.insert(verb_name.to_string(), verb_def);
@@ -1841,8 +1843,9 @@ impl Evaluator {
                     args,
                     body,
                     permissions,
+                    required_capabilities,
                 } => {
-                    self.process_verb_member(verb_name, args, body, permissions, &mut verbs)?;
+                    self.process_verb_member(verb_name, args, body, permissions, required_capabilities, &mut verbs)?;
                 }
                 ObjectMember::Event {
                     name: event_name,
@@ -2627,6 +2630,49 @@ impl Evaluator {
                 "Permission denied: cannot execute verb '{}'",
                 method_name
             ));
+        }
+
+        // Check required capabilities
+        if !verb_def.required_capabilities.is_empty() {
+            // Get the calling player object to check their capabilities
+            let player_obj = self.storage.objects.get(player_id).unwrap_or_else(|_| {
+                // If player object not found, create a minimal object with no capabilities
+                crate::storage::object_store::EchoObject {
+                    id: player_id,
+                    parent: None,
+                    name: format!("player_{}", player_id),
+                    properties: std::collections::HashMap::new(),
+                    verbs: std::collections::HashMap::new(),
+                    queries: std::collections::HashMap::new(),
+                    meta: crate::evaluator::meta_object::MetaObject::new(player_id),
+                }
+            });
+
+            // Check each required capability
+            for capability in &verb_def.required_capabilities {
+                let has_capability = match player_obj.properties.get("capabilities") {
+                    Some(crate::storage::object_store::PropertyValue::List(caps)) => {
+                        caps.iter().any(|cap| match cap {
+                            crate::storage::object_store::PropertyValue::String(cap_name) => {
+                                cap_name == capability
+                            }
+                            _ => false,
+                        })
+                    }
+                    Some(crate::storage::object_store::PropertyValue::String(cap_name)) => {
+                        cap_name == capability
+                    }
+                    _ => false,
+                };
+
+                if !has_capability {
+                    return Err(anyhow!(
+                        "Capability '{}' required to execute verb '{}'",
+                        capability,
+                        method_name
+                    ));
+                }
+            }
         }
 
         // Evaluate the arguments

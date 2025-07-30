@@ -302,6 +302,7 @@ pub enum ObjectMember {
         args: Vec<Parameter>,
         body: Vec<EchoAst>,
         permissions: Option<VerbPermissions>,
+        required_capabilities: Vec<String>,
     },
     // Modern Echo only
     Method {
