@@ -6,7 +6,7 @@ use anyhow::Result;
 use crate::ast::EchoAst;
 
 pub mod echo;
-// pub mod moo_compat;  // TODO: Implement MOO compatibility parser
+pub mod moo_compat;
 
 #[cfg(test)]
 mod tests;
@@ -49,6 +49,8 @@ pub enum ParserType {
 
 // Re-export for backward compatibility
 pub use echo::EchoParser;
+// Re-export MOO compatibility features
+pub use moo_compat::{MooCompatParser, import_moo_objects};
 // TEMPORARILY DISABLED due to rust-sitter dependency issues
 // pub use echo::grammar::{EchoAst as GrammarAst, ObjectMember as
 // GrammarObjectMember}; pub use echo::parse_echo;
@@ -60,7 +62,7 @@ pub fn create_parser(parser_type: &str) -> Result<Box<dyn Parser>> {
             // Use the rust-sitter parser
             Ok(Box::new(echo::EchoParser::new()?))
         }
-        // "moo" => Ok(Box::new(MooCompatParser::new()?)),
+        "moo" => Ok(Box::new(moo_compat::MooCompatParser::new()?)),
         _ => anyhow::bail!("Unknown parser type: {}", parser_type),
     }
 }

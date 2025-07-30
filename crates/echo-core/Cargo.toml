@@ -29,6 +29,7 @@ parking_lot.workspace = true
 
 # Parser
 tree-sitter.workspace = true
+tree-sitter-moo.workspace = true
 
 # Additional dependencies that were in original echo-repl
 bincode.workspace = true

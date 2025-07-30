@@ -130,6 +130,7 @@ impl Repl {
             ReplCommand::SwitchPlayer(name) => self.switch_player(&name),
             ReplCommand::ListPlayers => self.list_players(),
             ReplCommand::Stats => self.show_stats(),
+            ReplCommand::ImportMoo(filename) => self.import_moo_file(&filename),
         }
     }
 
@@ -204,6 +205,7 @@ Player Commands:
   .switch <name>  - Switch to a player
   .players        - List all players
   .stats          - Show runtime statistics
+  .import <file>  - Import MOO code from file
 
 Echo Language Features:
   - Variables: let x = 42
@@ -280,6 +282,29 @@ Type 'help' for language help, or visit the documentation."#
             self.quiet
         );
         Ok(stats)
+    }
+
+    /// Import a MOO file
+    fn import_moo_file(&mut self, filename: &str) -> Result<String> {
+        use std::fs;
+        use echo_core::parser::moo_compat::import_moo_objects;
+        
+        // Read the MOO file
+        let source = fs::read_to_string(filename)
+            .map_err(|e| anyhow::anyhow!("Failed to read file '{}': {}", filename, e))?;
+        
+        // Import the objects
+        match import_moo_objects(&source, &self.runtime.storage().objects) {
+            Ok(imported_ids) => {
+                let count = imported_ids.len();
+                let id_list = imported_ids.iter()
+                    .map(|id| format!("  {}", id))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                Ok(format!("Imported {} objects from '{}':\n{}", count, filename, id_list))
+            }
+            Err(e) => Err(anyhow::anyhow!("Failed to import MOO file: {}", e))
+        }
     }
 
     /// Show exit statistics

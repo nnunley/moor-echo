@@ -26,6 +26,8 @@ pub enum ReplCommand {
     ListPlayers,
     /// Show runtime statistics
     Stats,
+    /// Import MOO file
+    ImportMoo(String),
 }
 
 /// Parse a command string into a ReplCommand
@@ -62,6 +64,12 @@ pub fn parse_command(input: &str) -> Result<ReplCommand> {
         }
         "players" | "list" => Ok(ReplCommand::ListPlayers),
         "stats" | "statistics" => Ok(ReplCommand::Stats),
+        "import" => {
+            if parts.len() != 2 {
+                return Err(anyhow!("Usage: .import <moo_file>"));
+            }
+            Ok(ReplCommand::ImportMoo(parts[1].to_string()))
+        }
         _ => Err(anyhow!("Unknown command: .{}", parts[0])),
     }
 }

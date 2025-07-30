@@ -190,4 +190,9 @@ impl EchoRuntime {
             Vec::new()
         }
     }
+
+    /// Get access to the storage (for import operations)
+    pub fn storage(&self) -> &Storage {
+        &self._storage
+    }
 }

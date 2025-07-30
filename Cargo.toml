@@ -33,7 +33,7 @@ dashmap = "5.0"
 parking_lot = "0.12"
 
 # Parser dependencies  
-tree-sitter = "0.20"
+tree-sitter = "0.25"
 thiserror = "1.0"
 
 # Web server dependencies
@@ -59,6 +59,9 @@ rust-sitter = "0.4"
 # Build dependencies needed for rust-sitter
 # [workspace.build-dependencies]
 rust-sitter-tool = "0.4"
+
+# MOO parser dependency
+tree-sitter-moo = { git = "https://github.com/nnunley/tree-sitter-moo" }
 
 [profile.dev]
 opt-level = 0
