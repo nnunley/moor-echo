@@ -46,7 +46,7 @@ cranelift-native = { version = "0.121", optional = true }
 
 # WebAssembly JIT compilation
 wasmtime = { version = "27", optional = true }
-wasmtime-wasi = { version = "27", optional = true }
+wasmtime-wasi = { version = "33", optional = true }
 wasm-encoder = { version = "0.220", optional = true }
 
 [build-dependencies]
