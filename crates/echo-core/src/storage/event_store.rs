@@ -12,6 +12,12 @@ use crate::storage::ObjectId;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EventId(pub Uuid);
 
+impl Default for EventId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -68,12 +74,15 @@ pub struct Subscription {
     pub receiver: UnboundedReceiver<Arc<EchoEvent>>,
 }
 
+/// Type alias for subscription map
+type SubscriptionMap = DashMap<Uuid, (EventPattern, UnboundedSender<Arc<EchoEvent>>)>;
+
 /// Event store with pub/sub capabilities
 pub struct EventStore {
     /// Persistent storage for event history
     events: sled::Tree,
     /// Active subscriptions
-    subscriptions: Arc<DashMap<Uuid, (EventPattern, UnboundedSender<Arc<EchoEvent>>)>>,
+    subscriptions: Arc<SubscriptionMap>,
     /// Event sequence counter
     sequence: sled::Tree,
 }
@@ -105,11 +114,9 @@ impl EventStore {
             let sub_id = *entry.key();
             let (pattern, sender) = entry.value();
 
-            if self.matches_pattern(&event, pattern) {
-                if sender.send(event_arc.clone()).is_err() {
-                    // Subscriber disconnected
-                    dead_subs.push(sub_id);
-                }
+            if self.matches_pattern(&event, pattern) && sender.send(event_arc.clone()).is_err() {
+                // Subscriber disconnected
+                dead_subs.push(sub_id);
             }
         }
 

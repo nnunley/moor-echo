@@ -35,6 +35,7 @@ pub struct Repl {
     debug: bool,
 }
 
+#[allow(dead_code)]
 impl Repl {
     /// Create a new REPL with the given runtime
     pub fn new(runtime: EchoRuntime) -> Result<Self> {
@@ -142,7 +143,7 @@ impl Repl {
                 let output = self.format_value(&value);
                 Ok((output, duration))
             }
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
         }
     }
 
@@ -157,25 +158,26 @@ impl Repl {
                     let output = self.format_value(&value);
                     Ok((output, duration))
                 }
-                Err(e) => Err(e.into()),
+                Err(e) => Err(e),
             },
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
         }
     }
 
     /// Format a value for display
+    #[allow(clippy::only_used_in_recursion)]
     fn format_value(&self, value: &Value) -> String {
         match value {
             Value::Null => "null".to_string(),
             Value::Boolean(b) => b.to_string(),
             Value::Integer(i) => i.to_string(),
             Value::Float(f) => f.to_string(),
-            Value::String(s) => format!("\"{}\"", s),
+            Value::String(s) => format!("\"{s}\""),
             Value::List(items) => {
                 let formatted: Vec<String> = items.iter().map(|v| self.format_value(v)).collect();
                 format!("[{}]", formatted.join(", "))
             }
-            Value::Object(id) => format!("#{}", id),
+            Value::Object(id) => format!("#{id}"),
             Value::Map(map) => {
                 let formatted: Vec<String> = map
                     .iter()
@@ -230,13 +232,13 @@ Type 'help' for language help, or visit the documentation."#
                         e
                     ));
                 }
-                Ok(format!("Created and switched to player '{}'", name))
+                Ok(format!("Created and switched to player '{name}'"))
             }
             Err(e) => {
                 if e.to_string().contains("already exists") {
                     Err(anyhow::anyhow!("Player '{}' already exists", name))
                 } else {
-                    Err(e.into())
+                    Err(e)
                 }
             }
         }
@@ -245,8 +247,8 @@ Type 'help' for language help, or visit the documentation."#
     /// Switch to a player
     fn switch_player(&mut self, name: &str) -> Result<String> {
         match self.runtime.switch_player_by_name(name) {
-            Ok(_) => Ok(format!("Switched to player '{}'", name)),
-            Err(e) => Err(e.into()),
+            Ok(_) => Ok(format!("Switched to player '{name}'")),
+            Err(e) => Err(e),
         }
     }
 
@@ -262,10 +264,10 @@ Type 'help' for language help, or visit the documentation."#
                         .map(|(name, id)| format!("  {} (#{:x})", name, id.0))
                         .collect::<Vec<_>>()
                         .join("\n");
-                    Ok(format!("Players:\n{}", player_list))
+                    Ok(format!("Players:\n{player_list}"))
                 }
             }
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
         }
     }
 

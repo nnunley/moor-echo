@@ -1,7 +1,7 @@
 // Tests for MOP source code access
 
 #[cfg(test)]
-mod mop_source_tests {
+mod tests {
     use crate::{
         evaluator::meta_object::{MetaObject, PropertyMetadata, VerbMetadata},
         storage::ObjectId,

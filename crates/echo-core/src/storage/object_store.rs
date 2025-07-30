@@ -12,6 +12,12 @@ use crate::evaluator::meta_object::MetaObject;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ObjectId(pub Uuid);
 
+impl Default for ObjectId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ObjectId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -181,7 +187,7 @@ impl ObjectStore {
     }
 
     pub fn find_by_name(&self, name: &str) -> Result<Option<ObjectId>> {
-        let name_key = format!("name:{}", name);
+        let name_key = format!("name:{name}");
         if let Some(id_bytes) = self.indices.get(name_key.as_bytes())? {
             let id = Uuid::from_slice(&id_bytes)?;
             Ok(Some(ObjectId(id)))

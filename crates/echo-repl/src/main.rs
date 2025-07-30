@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
     fs::create_dir_all(&db_path)?;
 
     println!("Echo REPL v{}", echo_core::VERSION);
-    println!("Database: {}", db_path);
+    println!("Database: {db_path}");
 
     if debug {
         println!("Debug mode: enabled");
@@ -134,11 +134,11 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                     Ok(msg) => repl.notifier().on_output(&msg),
                     Err(e) => repl
                         .notifier()
-                        .on_error(&format!("Error switching to guest player: {}", e)),
+                        .on_error(&format!("Error switching to guest player: {e}")),
                 }
             } else {
                 repl.notifier()
-                    .on_error(&format!("Error creating default player: {}", e));
+                    .on_error(&format!("Error creating default player: {e}"));
             }
         }
     }
@@ -190,7 +190,7 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                         if !is_interactive {
                             println!(">> .eval");
                             for eval_line in eval_buffer.lines() {
-                                println!(">> {}", eval_line);
+                                println!(">> {eval_line}");
                             }
                             println!(">> .");
                         }
@@ -201,7 +201,7 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                                 repl.notifier()
                                     .on_result(&output, duration, repl.is_quiet());
                             }
-                            Err(e) => repl.notifier().on_error(&format!("Error: {}", e)),
+                            Err(e) => repl.notifier().on_error(&format!("Error: {e}")),
                         }
 
                         eval_buffer.clear();
@@ -233,12 +233,12 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                     // Check if it's a REPL command
                     if trimmed.starts_with('.') {
                         rl.add_history_entry(&line)?;
-                        match repl.parse_input(&trimmed) {
+                        match repl.parse_input(trimmed) {
                             Ok(command) => match repl.handle_command(command) {
                                 Ok(output) => repl.notifier().on_output(&output),
-                                Err(e) => repl.notifier().on_error(&format!("Error: {}", e)),
+                                Err(e) => repl.notifier().on_error(&format!("Error: {e}")),
                             },
-                            Err(e) => repl.notifier().on_error(&format!("Error: {}", e)),
+                            Err(e) => repl.notifier().on_error(&format!("Error: {e}")),
                         }
                     } else {
                         // Process through multi-line collector
@@ -248,7 +248,7 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
 
                                 // Echo input in non-interactive mode
                                 if !is_interactive {
-                                    println!(">> {}", code);
+                                    println!(">> {code}");
                                 }
 
                                 // Execute the complete code
@@ -260,7 +260,7 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                                             repl.is_quiet(),
                                         );
                                     }
-                                    Err(e) => repl.notifier().on_error(&format!("Error: {}", e)),
+                                    Err(e) => repl.notifier().on_error(&format!("Error: {e}")),
                                 }
                             }
                             LineProcessResult::NeedMore => {
@@ -289,7 +289,7 @@ async fn run_repl(repl: &mut Repl, input_file: Option<String>) -> Result<()> {
                 break;
             }
             Err(err) => {
-                eprintln!("Error: {}", err);
+                eprintln!("Error: {err}");
                 break;
             }
         }

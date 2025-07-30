@@ -8,6 +8,12 @@ use crate::storage::object_store::ObjectId;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GreenThreadId(pub u64);
 
+impl Default for GreenThreadId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GreenThreadId {
     /// Generate a new unique green thread ID
     pub fn new() -> Self {

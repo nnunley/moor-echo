@@ -28,25 +28,23 @@ impl DefaultNotifier {
 impl ReplNotifier for DefaultNotifier {
     fn on_output(&self, content: &str) {
         if !content.is_empty() {
-            println!("{}", content);
+            println!("{content}");
         }
     }
 
     fn on_error(&self, content: &str) {
-        eprintln!("{}", content);
+        eprintln!("{content}");
     }
 
     fn on_result(&self, output: &str, duration_ms: u64, quiet: bool) {
         if output.is_empty() || output == "null" {
             if !quiet {
-                println!("=> null ({}ms)", duration_ms);
+                println!("=> null ({duration_ms}ms)");
             }
+        } else if quiet {
+            println!("{output}");
         } else {
-            if quiet {
-                println!("{}", output);
-            } else {
-                println!("=> {} ({}ms)", output, duration_ms);
-            }
+            println!("=> {output} ({duration_ms}ms)");
         }
     }
 }

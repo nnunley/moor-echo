@@ -36,6 +36,12 @@ pub struct EventRegistry {
     pub handlers: Vec<EventHandler>,
 }
 
+impl Default for EventRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventRegistry {
     pub fn new() -> Self {
         EventRegistry {

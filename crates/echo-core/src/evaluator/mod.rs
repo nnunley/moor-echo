@@ -472,8 +472,8 @@ impl Evaluator {
                 _ => {
                     return Err(EvaluatorError::binary_type_error(
                         "less than comparison",
-                        &left_val.type_name(),
-                        &right_val.type_name(),
+                        left_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into())
                 }
@@ -487,8 +487,8 @@ impl Evaluator {
                 _ => {
                     return Err(EvaluatorError::binary_type_error(
                         "less than or equal comparison",
-                        &left_val.type_name(),
-                        &right_val.type_name(),
+                        left_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into())
                 }
@@ -502,8 +502,8 @@ impl Evaluator {
                 _ => {
                     return Err(EvaluatorError::binary_type_error(
                         "greater than comparison",
-                        &left_val.type_name(),
-                        &right_val.type_name(),
+                        left_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into())
                 }
@@ -517,8 +517,8 @@ impl Evaluator {
                 _ => {
                     return Err(EvaluatorError::binary_type_error(
                         "greater than or equal comparison",
-                        &left_val.type_name(),
-                        &right_val.type_name(),
+                        left_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into())
                 }
@@ -529,6 +529,7 @@ impl Evaluator {
     }
 
     /// Helper to check value equality
+    #[allow(clippy::only_used_in_recursion)]
     fn values_equal(&self, left: &Value, right: &Value) -> bool {
         match (left, right) {
             (Value::Null, Value::Null) => true,
@@ -585,7 +586,7 @@ impl Evaluator {
                 // Emit the event through the event system
                 let result = event_system.emit(self, event)?;
 
-                println!("EMIT EVENT: {} - Result: {:?}", event_name, result);
+                println!("EMIT EVENT: {event_name} - Result: {result:?}");
 
                 // Emit returns null (like a void function)
                 Ok(ControlFlow::None(Value::Null))
@@ -617,7 +618,7 @@ impl Evaluator {
         // First check if it's an object name bound to #0
         let system_obj = self.storage.objects.get(ObjectId::system())?;
         if let Some(prop_val) = system_obj.properties.get(name) {
-            return Ok(property_value_to_value(prop_val.clone())?);
+            return property_value_to_value(prop_val.clone());
         }
 
         // Look up variable in player's environment
@@ -640,7 +641,7 @@ impl Evaluator {
             Ok(property_value_to_value(prop_val.clone())?)
         } else {
             Err(EvaluatorError::InvalidOperation {
-                message: format!("System property '{}' not found", prop_name),
+                message: format!("System property '{prop_name}' not found"),
             }
             .into())
         }
@@ -664,12 +665,12 @@ impl Evaluator {
             (Value::Float(l), Value::Float(r)) => Ok(Value::Float(float_op(*l, *r))),
             (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(float_op(*l as f64, *r))),
             (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(float_op(*l, *r as f64))),
-            _ => Err(EvaluatorError::binary_type_error(
-                op_name,
-                &left.type_name(),
-                &right.type_name(),
-            )
-            .into()),
+            _ => {
+                Err(
+                    EvaluatorError::binary_type_error(op_name, left.type_name(), right.type_name())
+                        .into(),
+                )
+            }
         }
     }
 
@@ -690,11 +691,11 @@ impl Evaluator {
                 (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l + r)),
                 (Value::Integer(l), Value::Float(r)) => Ok(Value::Float(*l as f64 + r)),
                 (Value::Float(l), Value::Integer(r)) => Ok(Value::Float(l + *r as f64)),
-                (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{}{}", l, r))),
+                (Value::String(l), Value::String(r)) => Ok(Value::String(format!("{l}{r}"))),
                 _ => Err(EvaluatorError::binary_type_error(
                     "addition",
-                    &left_val.type_name(),
-                    &right_val.type_name(),
+                    left_val.type_name(),
+                    right_val.type_name(),
                 )
                 .into()),
             },
@@ -1027,7 +1028,7 @@ impl Evaluator {
                     _ => Err(EvaluatorError::unary_type_error(
                         "logical AND (right operand)",
                         "boolean",
-                        &right_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into()),
                 }
@@ -1035,7 +1036,7 @@ impl Evaluator {
             _ => Err(EvaluatorError::unary_type_error(
                 "logical AND (left operand)",
                 "boolean",
-                &left_val.type_name(),
+                left_val.type_name(),
             )
             .into()),
         }
@@ -1055,7 +1056,7 @@ impl Evaluator {
                     _ => Err(EvaluatorError::unary_type_error(
                         "logical OR (right operand)",
                         "boolean",
-                        &right_val.type_name(),
+                        right_val.type_name(),
                     )
                     .into()),
                 }
@@ -1063,7 +1064,7 @@ impl Evaluator {
             _ => Err(EvaluatorError::unary_type_error(
                 "logical OR (left operand)",
                 "boolean",
-                &left_val.type_name(),
+                left_val.type_name(),
             )
             .into()),
         }
@@ -1075,7 +1076,7 @@ impl Evaluator {
         match val {
             Value::Boolean(b) => Ok(Value::Boolean(!b)),
             _ => Err(
-                EvaluatorError::unary_type_error("logical NOT", "boolean", &val.type_name()).into(),
+                EvaluatorError::unary_type_error("logical NOT", "boolean", val.type_name()).into(),
             ),
         }
     }
@@ -1101,7 +1102,7 @@ impl Evaluator {
                     Value::String(substr) => Ok(Value::Boolean(s.contains(&substr))),
                     _ => Err(EvaluatorError::binary_type_error(
                         "string containment",
-                        &left_val.type_name(),
+                        left_val.type_name(),
                         "string",
                     )
                     .into()),
@@ -1109,8 +1110,8 @@ impl Evaluator {
             }
             _ => Err(EvaluatorError::binary_type_error(
                 "membership test",
-                &left_val.type_name(),
-                &right_val.type_name(),
+                left_val.type_name(),
+                right_val.type_name(),
             )
             .into()),
         }
@@ -1123,7 +1124,7 @@ impl Evaluator {
             Value::Integer(n) => Ok(Value::Integer(-n)),
             Value::Float(f) => Ok(Value::Float(-f)),
             _ => Err(
-                EvaluatorError::unary_type_error("unary minus", "number", &val.type_name()).into(),
+                EvaluatorError::unary_type_error("unary minus", "number", val.type_name()).into(),
             ),
         }
     }
@@ -1134,7 +1135,7 @@ impl Evaluator {
         match val {
             Value::Integer(_) | Value::Float(_) => Ok(val),
             _ => Err(
-                EvaluatorError::unary_type_error("unary plus", "number", &val.type_name()).into(),
+                EvaluatorError::unary_type_error("unary plus", "number", val.type_name()).into(),
             ),
         }
     }
@@ -1336,7 +1337,7 @@ impl Evaluator {
                 for stmt in then_branch {
                     match self.eval_with_control_flow(stmt, player_id)? {
                         ControlFlow::None(v) => last_val = v,
-                        flow => return Ok(flow.into_value()?),
+                        flow => return flow.into_value(),
                     }
                 }
                 Ok(last_val)
@@ -1348,7 +1349,7 @@ impl Evaluator {
                     for stmt in else_stmts {
                         match self.eval_with_control_flow(stmt, player_id)? {
                             ControlFlow::None(v) => last_val = v,
-                            flow => return Ok(flow.into_value()?),
+                            flow => return flow.into_value(),
                         }
                     }
                     Ok(last_val)
@@ -1359,7 +1360,7 @@ impl Evaluator {
             _ => Err(EvaluatorError::unary_type_error(
                 "if condition",
                 "boolean",
-                &cond_val.type_name(),
+                cond_val.type_name(),
             )
             .into()),
         }
@@ -1409,7 +1410,7 @@ impl Evaluator {
                     return Err(EvaluatorError::unary_type_error(
                         "while condition",
                         "boolean",
-                        &cond_val.type_name(),
+                        cond_val.type_name(),
                     )
                     .into())
                 }
@@ -1471,7 +1472,7 @@ impl Evaluator {
             _ => Err(EvaluatorError::unary_type_error(
                 "for loop collection",
                 "list",
-                &coll_val.type_name(),
+                coll_val.type_name(),
             )
             .into()),
         }
@@ -1520,8 +1521,8 @@ impl Evaluator {
             }
             _ => Err(EvaluatorError::binary_type_error(
                 "index access",
-                &obj_val.type_name(),
-                &index_val.type_name(),
+                obj_val.type_name(),
+                index_val.type_name(),
             )
             .into()),
         }
@@ -1694,11 +1695,11 @@ impl Evaluator {
 
         // Store event handler metadata as a property for introspection
         properties.insert(
-            format!("__event_{}", event_name),
+            format!("__event_{event_name}"),
             PropertyValue::String(event_source),
         );
 
-        println!("Registered event handler '{}' on object", event_name);
+        println!("Registered event handler '{event_name}' on object");
         Ok(())
     }
 
@@ -1726,7 +1727,7 @@ impl Evaluator {
         properties: &mut HashMap<String, PropertyValue>,
     ) -> Result<()> {
         use crate::ast::ToSource;
-        let mut query_source = format!("query {}", query_name);
+        let mut query_source = format!("query {query_name}");
         if !params.is_empty() {
             query_source.push_str(&format!("({})", params.join(", ")));
         }
@@ -1754,11 +1755,11 @@ impl Evaluator {
 
         // Store query metadata as a property
         properties.insert(
-            format!("__query_{}", query_name),
+            format!("__query_{query_name}"),
             PropertyValue::String(query_source),
         );
 
-        println!("Registered query '{}' on object", query_name);
+        println!("Registered query '{query_name}' on object");
         Ok(())
     }
 
@@ -2046,7 +2047,7 @@ impl Evaluator {
                     _ => Err(EvaluatorError::unary_type_error(
                         "len()",
                         "list, string, or map",
-                        &arg_values[0].type_name(),
+                        arg_values[0].type_name(),
                     )
                     .into()),
                 }
@@ -2084,7 +2085,7 @@ impl Evaluator {
                     .map(|v| v.to_string())
                     .collect::<Vec<_>>()
                     .join(" ");
-                println!("{}", output);
+                println!("{output}");
                 Ok(Value::Null)
             }
             // UI manipulation functions
@@ -2331,7 +2332,7 @@ impl Evaluator {
                     }
                 } else {
                     Err(EvaluatorError::InvalidOperation {
-                        message: format!("Unknown function: {}", name),
+                        message: format!("Unknown function: {name}"),
                     }
                     .into())
                 }
@@ -2858,18 +2859,18 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Null => write!(f, "null"),
-            Value::Boolean(b) => write!(f, "{}", b),
-            Value::Integer(i) => write!(f, "{}", i),
-            Value::Float(fl) => write!(f, "{}", fl),
-            Value::String(s) => write!(f, "{}", s),
-            Value::Object(id) => write!(f, "{}", id),
+            Value::Boolean(b) => write!(f, "{b}"),
+            Value::Integer(i) => write!(f, "{i}"),
+            Value::Float(fl) => write!(f, "{fl}"),
+            Value::String(s) => write!(f, "{s}"),
+            Value::Object(id) => write!(f, "{id}"),
             Value::List(items) => {
                 write!(f, "[")?;
                 for (i, item) in items.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", item)?;
+                    write!(f, "{item}")?;
                 }
                 write!(f, "]")
             }
@@ -2880,7 +2881,7 @@ impl std::fmt::Display for Value {
                     if !first {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}: {}", key, value)?;
+                    write!(f, "{key}: {value}")?;
                     first = false;
                 }
                 write!(f, "}}")
@@ -2890,8 +2891,8 @@ impl std::fmt::Display for Value {
                     .iter()
                     .map(|p| match p {
                         LambdaParam::Simple(name) => name.clone(),
-                        LambdaParam::Optional { name, .. } => format!("?{}", name),
-                        LambdaParam::Rest(name) => format!("@{}", name),
+                        LambdaParam::Optional { name, .. } => format!("?{name}"),
+                        LambdaParam::Rest(name) => format!("@{name}"),
                     })
                     .collect();
                 write!(f, "fn({})", param_strs.join(", "))

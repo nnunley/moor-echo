@@ -40,20 +40,16 @@ mod tests {
             Ok(result) => {
                 // The test suite should return a test report
                 if let Value::String(report) = result {
-                    println!("Test Report:\n{}", report);
+                    println!("Test Report:\n{report}");
 
                     // Check if all tests passed
-                    assert!(
-                        report.contains("Failed: 0"),
-                        "Some tests failed:\n{}",
-                        report
-                    );
+                    assert!(report.contains("Failed: 0"), "Some tests failed:\n{report}");
                 } else {
-                    panic!("Expected string result from test suite, got {:?}", result);
+                    panic!("Expected string result from test suite, got {result:?}");
                 }
             }
             Err(e) => {
-                panic!("Test suite execution failed: {}", e);
+                panic!("Test suite execution failed: {e}");
             }
         }
     }
@@ -86,18 +82,17 @@ mod tests {
             Ok(result) => {
                 // The test suite should report success
                 if let Value::String(report) = result {
-                    println!("Simple Test Result: {}", report);
+                    println!("Simple Test Result: {report}");
                     assert!(
                         report.contains("All") && report.contains("tests passed!"),
-                        "Tests failed: {}",
-                        report
+                        "Tests failed: {report}"
                     );
                 } else {
-                    panic!("Expected string result from test suite, got {:?}", result);
+                    panic!("Expected string result from test suite, got {result:?}");
                 }
             }
             Err(e) => {
-                panic!("Simple test suite execution failed: {}", e);
+                panic!("Simple test suite execution failed: {e}");
             }
         }
     }
@@ -128,7 +123,7 @@ mod tests {
                     Err(e) => {
                         // Try to accumulate lines for multi-line constructs
                         if statements.is_empty() {
-                            panic!("Failed to parse line: {} - Error: {}", trimmed, e);
+                            panic!("Failed to parse line: {trimmed} - Error: {e}");
                         }
                     }
                 }
@@ -140,7 +135,7 @@ mod tests {
         for stmt in statements {
             match evaluator.eval(&stmt) {
                 Ok(result) => last_result = result,
-                Err(e) => panic!("Failed to evaluate statement: {}", e),
+                Err(e) => panic!("Failed to evaluate statement: {e}"),
             }
         }
 
@@ -177,11 +172,11 @@ mod tests {
         for (expr, expected) in tests {
             let ast = parser
                 .parse(expr)
-                .expect(&format!("Failed to parse: {}", expr));
+                .unwrap_or_else(|_| panic!("Failed to parse: {expr}"));
             let result = evaluator
                 .eval(&ast)
-                .expect(&format!("Failed to evaluate: {}", expr));
-            assert_eq!(result, expected, "Expression {} failed", expr);
+                .unwrap_or_else(|_| panic!("Failed to evaluate: {expr}"));
+            assert_eq!(result, expected, "Expression {expr} failed");
         }
     }
 

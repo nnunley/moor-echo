@@ -97,12 +97,12 @@ pub fn format_web_value(value: &Value) -> String {
         Value::Boolean(b) => b.to_string(),
         Value::Integer(i) => i.to_string(),
         Value::Float(f) => f.to_string(),
-        Value::String(s) => format!("\"{}\"", s),
+        Value::String(s) => format!("\"{s}\""),
         Value::List(items) => {
             let formatted: Vec<String> = items.iter().map(format_web_value).collect();
             format!("[{}]", formatted.join(", "))
         }
-        Value::Object(id) => format!("#{}", id),
+        Value::Object(id) => format!("#{id}"),
         Value::Map(map) => {
             let formatted: Vec<String> = map
                 .iter()

@@ -435,14 +435,14 @@ impl EchoAst {
 impl fmt::Display for EchoAst {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EchoAst::Number(n) => write!(f, "{}", n),
-            EchoAst::Float(fl) => write!(f, "{}", fl),
-            EchoAst::String(s) => write!(f, "\"{}\"", s),
-            EchoAst::Boolean(b) => write!(f, "{}", b),
+            EchoAst::Number(n) => write!(f, "{n}"),
+            EchoAst::Float(fl) => write!(f, "{fl}"),
+            EchoAst::String(s) => write!(f, "\"{s}\""),
+            EchoAst::Boolean(b) => write!(f, "{b}"),
             EchoAst::Null => write!(f, "null"),
-            EchoAst::Identifier(s) => write!(f, "{}", s),
-            EchoAst::SystemProperty(s) => write!(f, "${}", s),
-            EchoAst::ObjectRef(n) => write!(f, "#{}", n),
+            EchoAst::Identifier(s) => write!(f, "{s}"),
+            EchoAst::SystemProperty(s) => write!(f, "${s}"),
+            EchoAst::ObjectRef(n) => write!(f, "#{n}"),
             _ => write!(f, "<expression>"),
         }
     }

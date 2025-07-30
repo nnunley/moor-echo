@@ -172,7 +172,7 @@ impl WebServer {
 
         let addr = format!("{}:{}", config.host, config.port).parse::<SocketAddr>()?;
 
-        println!("Web server starting on http://{}", addr);
+        println!("Web server starting on http://{addr}");
 
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;
@@ -209,6 +209,49 @@ async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) 
     ws.on_upgrade(|socket| handle_websocket(socket, state))
 }
 
+/// Execute a request and return the response
+async fn execute_request(request: &ExecuteRequest, state: &AppState) -> ExecuteResponse {
+    let mut runtime = state.runtime.write().await;
+    let start = std::time::Instant::now();
+
+    let execution_result = if request.is_program {
+        runtime
+            .parse_program(&request.code)
+            .and_then(|ast| runtime.eval(&ast))
+    } else {
+        runtime.eval_source(&request.code)
+    };
+
+    let duration = start.elapsed().as_millis() as u64;
+
+    match execution_result {
+        Ok(value) => {
+            let result = format_value(&value);
+            // Send result event to all connected clients
+            state
+                .notifier
+                .send_result(&result, std::time::Duration::from_millis(duration));
+            ExecuteResponse {
+                result,
+                duration_ms: duration,
+                success: true,
+                error: None,
+            }
+        }
+        Err(e) => {
+            let error_msg = e.to_string();
+            // Send error event to all connected clients
+            state.notifier.send_error(&error_msg);
+            ExecuteResponse {
+                result: String::new(),
+                duration_ms: duration,
+                success: false,
+                error: Some(error_msg),
+            }
+        }
+    }
+}
+
 /// Handle WebSocket connections
 async fn handle_websocket(socket: WebSocket, state: AppState) {
     let mut rx = state.notifier.subscribe();
@@ -225,48 +268,7 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
             if let Ok(Message::Text(text)) = msg {
                 // Handle incoming WebSocket messages (commands from UI)
                 if let Ok(request) = serde_json::from_str::<ExecuteRequest>(&text) {
-                    let result = {
-                        let mut runtime = state_clone.runtime.write().await;
-                        let start = std::time::Instant::now();
-
-                        let execution_result = if request.is_program {
-                            runtime
-                                .parse_program(&request.code)
-                                .and_then(|ast| runtime.eval(&ast))
-                        } else {
-                            runtime.eval_source(&request.code)
-                        };
-
-                        let duration = start.elapsed().as_millis() as u64;
-
-                        match execution_result {
-                            Ok(value) => {
-                                let result = format_value(&value);
-                                // Send result event to all connected clients
-                                state_clone.notifier.send_result(
-                                    &result,
-                                    std::time::Duration::from_millis(duration),
-                                );
-                                ExecuteResponse {
-                                    result,
-                                    duration_ms: duration,
-                                    success: true,
-                                    error: None,
-                                }
-                            }
-                            Err(e) => {
-                                let error_msg = e.to_string();
-                                // Send error event to all connected clients
-                                state_clone.notifier.send_error(&error_msg);
-                                ExecuteResponse {
-                                    result: String::new(),
-                                    duration_ms: duration,
-                                    success: false,
-                                    error: Some(error_msg),
-                                }
-                            }
-                        }
-                    };
+                    let result = execute_request(&request, &state_clone).await;
 
                     let response = serde_json::to_string(&result).unwrap_or_default();
                     let mut sender = sender_clone.lock().await;
@@ -353,7 +355,7 @@ async fn command_handler(
 
     let response = if request.command.starts_with('.') {
         // Handle REPL commands
-        let parts: Vec<&str> = request.command.trim().split_whitespace().collect();
+        let parts: Vec<&str> = request.command.split_whitespace().collect();
         match parts.as_slice() {
             [".help"] => CommandResponse {
                 success: true,
@@ -377,17 +379,17 @@ async fn command_handler(
                 Ok(players) => {
                     let player_list = players
                         .iter()
-                        .map(|(name, id)| format!("  {} ({})", name, id))
+                        .map(|(name, id)| format!("  {name} ({id})"))
                         .collect::<Vec<_>>()
                         .join("\n");
                     CommandResponse {
                         success: true,
-                        message: Some(format!("Players:\n{}", player_list)),
+                        message: Some(format!("Players:\n{player_list}")),
                     }
                 }
                 Err(e) => CommandResponse {
                     success: false,
-                    message: Some(format!("Error listing players: {}", e)),
+                    message: Some(format!("Error listing players: {e}")),
                 },
             },
             [".player", "create", name] => match runtime.create_player(name) {
@@ -396,24 +398,23 @@ async fn command_handler(
                     CommandResponse {
                         success: true,
                         message: Some(format!(
-                            "Created and switched to player '{}' ({})",
-                            name, player_id
+                            "Created and switched to player '{name}' ({player_id})"
                         )),
                     }
                 }
                 Err(e) => CommandResponse {
                     success: false,
-                    message: Some(format!("Error creating player: {}", e)),
+                    message: Some(format!("Error creating player: {e}")),
                 },
             },
             [".player", "switch", name] => match runtime.switch_player_by_name(name) {
                 Ok(_) => CommandResponse {
                     success: true,
-                    message: Some(format!("Switched to player '{}'", name)),
+                    message: Some(format!("Switched to player '{name}'")),
                 },
                 Err(e) => CommandResponse {
                     success: false,
-                    message: Some(format!("Error switching player: {}", e)),
+                    message: Some(format!("Error switching player: {e}")),
                 },
             },
             [".player"] => {
@@ -424,11 +425,9 @@ async fn command_handler(
                             Ok(players) => players
                                 .iter()
                                 .find(|(_, id)| *id == player_id)
-                                .map(|(name, _)| {
-                                    format!("Current player: {} ({})", name, player_id)
-                                })
-                                .unwrap_or_else(|| format!("Current player: {}", player_id)),
-                            Err(_) => format!("Current player: {}", player_id),
+                                .map(|(name, _)| format!("Current player: {name} ({player_id})"))
+                                .unwrap_or_else(|| format!("Current player: {player_id}")),
+                            Err(_) => format!("Current player: {player_id}"),
                         };
                         CommandResponse {
                             success: true,
@@ -467,7 +466,7 @@ async fn command_handler(
 
                     CommandResponse {
                         success: true,
-                        message: Some(format!("You say: {}", message)),
+                        message: Some(format!("You say: {message}")),
                     }
                 }
             }
@@ -529,7 +528,7 @@ async fn command_handler(
             }
             Err(e) => CommandResponse {
                 success: false,
-                message: Some(format!("Execution error: {}", e)),
+                message: Some(format!("Execution error: {e}")),
             },
         }
     };
@@ -564,12 +563,12 @@ fn format_value(value: &Value) -> String {
         Value::Boolean(b) => b.to_string(),
         Value::Integer(i) => i.to_string(),
         Value::Float(f) => f.to_string(),
-        Value::String(s) => format!("\"{}\"", s),
+        Value::String(s) => format!("\"{s}\""),
         Value::List(items) => {
             let formatted: Vec<String> = items.iter().map(format_value).collect();
             format!("[{}]", formatted.join(", "))
         }
-        Value::Object(id) => format!("#{}", id),
+        Value::Object(id) => format!("#{id}"),
         Value::Map(map) => {
             let formatted: Vec<String> = map
                 .iter()

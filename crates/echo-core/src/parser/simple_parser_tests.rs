@@ -3,9 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{BindingPattern, BindingType, EchoAst, LValue, ObjectMember};
-
-    use crate::parser::simple_parser::parse_simple;
+    use crate::{
+        ast::{BindingPattern, BindingType, EchoAst, LValue, ObjectMember},
+        parser::simple_parser::parse_simple,
+    };
 
     #[test]
     fn test_parse_integer() {

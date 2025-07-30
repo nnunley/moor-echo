@@ -38,6 +38,12 @@ pub struct SecurityContext {
     pub current_player: Option<String>,
 }
 
+impl Default for SecurityContext {
+    fn default() -> Self {
+        Self::new(SecurityPolicy::default())
+    }
+}
+
 impl SecurityContext {
     /// Create a new security context
     pub fn new(policy: SecurityPolicy) -> Self {
@@ -45,11 +51,6 @@ impl SecurityContext {
             policy,
             current_player: None,
         }
-    }
-
-    /// Create a default security context
-    pub fn default() -> Self {
-        Self::new(SecurityPolicy::default())
     }
 
     /// Set the current player

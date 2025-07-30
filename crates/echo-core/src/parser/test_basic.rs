@@ -7,7 +7,7 @@ mod tests {
         // Test that simple parser works
         let result = parse_simple("42");
         assert!(result.is_ok());
-        
+
         let result = parse_simple("let x = 10;");
         assert!(result.is_ok());
     }

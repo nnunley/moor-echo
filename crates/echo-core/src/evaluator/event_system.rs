@@ -50,12 +50,15 @@ pub enum EventResult {
     Unhandled,
 }
 
+/// Type alias for event callback function
+pub type EventCallback = Arc<dyn Fn(&Event) -> Result<()> + Send + Sync>;
+
 /// Event subscription for external listeners
 #[derive(Clone)]
 pub struct EventSubscription {
     pub id: u64,
     pub event_pattern: String,
-    pub callback: Arc<dyn Fn(&Event) -> Result<()> + Send + Sync>,
+    pub callback: EventCallback,
 }
 
 impl std::fmt::Debug for EventSubscription {
@@ -110,7 +113,7 @@ impl EventSystem {
         let mut handlers = self.handlers.write();
         handlers
             .entry(event_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(handler);
 
         // Sort by priority (descending)
@@ -276,8 +279,7 @@ impl EventSystem {
         }
 
         // Simple glob matching
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             event_name.starts_with(prefix)
         } else {
             event_name == pattern

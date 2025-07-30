@@ -12,10 +12,10 @@ use anyhow::{anyhow, Result};
 use crate::ast::{self};
 
 // Helper function to extract lambda parameters from scatter expressions
-fn extract_lambda_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<Vec<ast::LambdaParam>> {
+fn extract_lambda_params_from_scatter(scatter: grammar::EchoAst) -> Result<Vec<ast::LambdaParam>> {
     use grammar::EchoAst as G;
 
-    match *scatter {
+    match scatter {
         // Simple identifier: x
         G::Identifier(name) => Ok(vec![ast::LambdaParam::Simple(name)]),
 
@@ -25,14 +25,18 @@ fn extract_lambda_params_from_scatter(scatter: Box<grammar::EchoAst>) -> Result<
             for elem in elements {
                 match elem {
                     G::Identifier(name) => params.push(ast::LambdaParam::Simple(name)),
-                    _ => return Err(anyhow!("Only simple identifiers supported in lambda parameters for now")),
+                    _ => {
+                        return Err(anyhow!(
+                            "Only simple identifiers supported in lambda parameters for now"
+                        ))
+                    }
                 }
             }
             Ok(params)
         }
 
         // Parenthesized expression: (x) or (x, y)
-        G::Paren { expr, .. } => extract_lambda_params_from_scatter(expr),
+        G::Paren { expr, .. } => extract_lambda_params_from_scatter(*expr),
 
         _ => Err(anyhow!("Invalid parameter pattern")),
     }
@@ -321,21 +325,19 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
             right: Box::new(convert_grammar_to_ast(*right)?),
         },
 
-        G::UnaryMinus { operand, .. } => {
-            match operand.as_ref() {
-                G::Number(n) => A::Number(-n),
-                G::Float(f) => A::Float(-f),
-                _ => A::Subtract {
-                    left: Box::new(A::Number(0)),
-                    right: Box::new(convert_grammar_to_ast(*operand)?),
-                },
-            }
+        G::UnaryMinus { operand, .. } => match operand.as_ref() {
+            G::Number(n) => A::Number(-n),
+            G::Float(f) => A::Float(-f),
+            _ => A::Subtract {
+                left: Box::new(A::Number(0)),
+                right: Box::new(convert_grammar_to_ast(*operand)?),
+            },
         },
 
         G::UnaryPlus { operand, .. } => {
             // Unary plus doesn't change the value, just return the operand
             convert_grammar_to_ast(*operand)?
-        },
+        }
 
         G::Not { operand, .. } => A::Not {
             operand: Box::new(convert_grammar_to_ast(*operand)?),
@@ -386,7 +388,7 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         G::ArrowFunction { params, body, .. } => {
             // For arrow functions, we need to check if it's a simple identifier or a
             // pattern
-            let lambda_params = extract_lambda_params_from_scatter(params)?;
+            let lambda_params = extract_lambda_params_from_scatter(*params)?;
             A::Lambda {
                 params: lambda_params,
                 body: Box::new(convert_grammar_to_ast(*body)?),
@@ -504,7 +506,7 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
 
                         let query_clauses = clauses
                             .into_iter()
-                            .map(|clause| convert_query_clause(clause))
+                            .map(convert_query_clause)
                             .collect::<Result<Vec<_>>>()?;
 
                         converted_members.push(ast::ObjectMember::Query {
@@ -656,7 +658,9 @@ fn convert_grammar_to_ast(node: grammar::EchoAst) -> Result<ast::EchoAst> {
         G::BraceExpression { .. } => {
             // BraceExpression should not appear as a standalone expression in the AST
             // It's only valid as lambda parameters
-            return Err(anyhow!("Brace expression can only be used as lambda parameters"));
+            return Err(anyhow!(
+                "Brace expression can only be used as lambda parameters"
+            ));
         }
     })
 }
@@ -673,7 +677,7 @@ fn convert_grammar_binding_pattern_to_ast(
         G_BP::List { elements, .. } => {
             let converted_elements: Result<Vec<_>> = elements
                 .into_iter()
-                .map(|elem| convert_grammar_binding_pattern_element_to_ast(elem))
+                .map(convert_grammar_binding_pattern_element_to_ast)
                 .collect();
             A_BP::List(converted_elements?)
         }
@@ -705,7 +709,7 @@ fn convert_params_to_parameters(params: &grammar::ParamPattern) -> Result<Vec<as
 
     let elements = match params {
         G_PP::Single(elem) => vec![elem.clone()],
-        G_PP::Multiple { params, .. } => params.iter().cloned().collect(),
+        G_PP::Multiple { params, .. } => params.to_vec(),
     };
 
     elements

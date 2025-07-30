@@ -60,14 +60,14 @@ pub fn parse_simple(input: &str) -> Result<EchoAst, String> {
         return parse_list(trimmed);
     }
 
-    // Handle boolean operations  
+    // Handle boolean operations
     if trimmed.contains("&&") || trimmed.contains("||") {
         return parse_boolean_operation(trimmed);
     }
 
     // Handle not operator
-    if trimmed.starts_with('!') {
-        let operand = parse_simple(&trimmed[1..])?;
+    if let Some(rest) = trimmed.strip_prefix('!') {
+        let operand = parse_simple(rest)?;
         return Ok(EchoAst::Not {
             operand: Box::new(operand),
         });
@@ -140,8 +140,8 @@ fn parse_assignment(input: &str) -> Result<EchoAst, String> {
             let obj_name = dot_parts[0].trim();
             let prop_name = dot_parts[1].trim();
 
-            let object_ast = if obj_name.starts_with('$') {
-                EchoAst::SystemProperty(obj_name[1..].to_string())
+            let object_ast = if let Some(prop_name) = obj_name.strip_prefix('$') {
+                EchoAst::SystemProperty(prop_name.to_string())
             } else {
                 EchoAst::Identifier(obj_name.to_string())
             };
@@ -182,8 +182,8 @@ fn parse_property_access(input: &str) -> Result<EchoAst, String> {
         return Err("Empty property name".to_string());
     }
 
-    let object_ast = if obj_str.starts_with('$') {
-        EchoAst::SystemProperty(obj_str[1..].to_string())
+    let object_ast = if let Some(prop_name) = obj_str.strip_prefix('$') {
+        EchoAst::SystemProperty(prop_name.to_string())
     } else {
         EchoAst::Identifier(obj_str.to_string())
     };
@@ -255,7 +255,7 @@ fn parse_binary_with_property(input: &str) -> Result<EchoAst, String> {
             left: Box::new(left),
             right: Box::new(right),
         }),
-        _ => Err(format!("Unsupported operator: {}", op_char)),
+        _ => Err(format!("Unsupported operator: {op_char}")),
     }
 }
 
@@ -285,7 +285,7 @@ fn parse_binary_operation(input: &str, op: char) -> Result<EchoAst, String> {
             left: Box::new(left),
             right: Box::new(right),
         }),
-        _ => Err(format!("Unsupported operator: {}", op)),
+        _ => Err(format!("Unsupported operator: {op}")),
     }
 }
 
@@ -294,34 +294,34 @@ fn parse_list(input: &str) -> Result<EchoAst, String> {
     if content.trim().is_empty() {
         return Ok(EchoAst::List { elements: vec![] });
     }
-    
+
     let elements = content
         .split(',')
         .map(|elem| parse_primary(elem.trim()))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     Ok(EchoAst::List { elements })
 }
 
 fn parse_boolean_operation(input: &str) -> Result<EchoAst, String> {
     if let Some(pos) = input.find("&&") {
-        let left = parse_simple(&input[..pos].trim())?;
-        let right = parse_simple(&input[pos + 2..].trim())?;
+        let left = parse_simple(input[..pos].trim())?;
+        let right = parse_simple(input[pos + 2..].trim())?;
         return Ok(EchoAst::And {
             left: Box::new(left),
             right: Box::new(right),
         });
     }
-    
+
     if let Some(pos) = input.find("||") {
-        let left = parse_simple(&input[..pos].trim())?;
-        let right = parse_simple(&input[pos + 2..].trim())?;
+        let left = parse_simple(input[..pos].trim())?;
+        let right = parse_simple(input[pos + 2..].trim())?;
         return Ok(EchoAst::Or {
             left: Box::new(left),
             right: Box::new(right),
         });
     }
-    
+
     Err("Invalid boolean operation".to_string())
 }
 
@@ -355,8 +355,7 @@ fn parse_object_definition(input: &str) -> Result<EchoAst, String> {
     while i < lines.len() - 1 {
         let line = lines[i].trim();
 
-        if line.starts_with("property ") {
-            let prop_def = &line[9..];
+        if let Some(prop_def) = line.strip_prefix("property ") {
             let prop_parts: Vec<&str> = prop_def.split('=').collect();
             if prop_parts.len() >= 2 {
                 let prop_name = prop_parts[0].trim().trim_end_matches(';').to_string();
@@ -369,8 +368,7 @@ fn parse_object_definition(input: &str) -> Result<EchoAst, String> {
                     permissions: None,
                 });
             }
-        } else if line.starts_with("verb ") {
-            let verb_line = &line[5..];
+        } else if let Some(verb_line) = line.strip_prefix("verb ") {
             if let Some(paren_start) = verb_line.find('(') {
                 let verb_name = verb_line[..paren_start]
                     .trim()
@@ -384,8 +382,8 @@ fn parse_object_definition(input: &str) -> Result<EchoAst, String> {
                     let line_content = lines[i].trim();
                     if !line_content.is_empty() {
                         // Handle return statements
-                        if line_content.starts_with("return ") {
-                            let return_expr = &line_content[7..].trim_end_matches(';');
+                        if let Some(rest) = line_content.strip_prefix("return ") {
+                            let return_expr = rest.trim_end_matches(';');
                             if let Ok(expr) = parse_primary(return_expr) {
                                 verb_body.push(EchoAst::Return {
                                     value: Some(Box::new(expr)),
@@ -447,8 +445,8 @@ fn parse_primary(input: &str) -> Result<EchoAst, String> {
     }
 
     // System properties
-    if trimmed.starts_with('$') {
-        return Ok(EchoAst::SystemProperty(trimmed[1..].to_string()));
+    if let Some(prop_name) = trimmed.strip_prefix('$') {
+        return Ok(EchoAst::SystemProperty(prop_name.to_string()));
     }
 
     // Object references
@@ -463,7 +461,7 @@ fn parse_primary(input: &str) -> Result<EchoAst, String> {
         return Ok(EchoAst::Identifier(trimmed.to_string()));
     }
 
-    Err(format!("Unable to parse: '{}'", trimmed))
+    Err(format!("Unable to parse: '{trimmed}'"))
 }
 
 fn find_binary_operator(input: &str) -> Option<char> {

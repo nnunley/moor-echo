@@ -71,4 +71,3 @@ pub fn create_parser(parser_type: &str) -> Result<Box<dyn Parser>> {
         _ => anyhow::bail!("Unknown parser type: {}", parser_type),
     }
 }
-

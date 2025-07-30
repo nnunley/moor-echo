@@ -50,7 +50,6 @@ blank_lines_lower_bound = 0
 # Misc
 inline_attribute_width = 0
 merge_derives = true
-merge_imports = true
 reorder_impl_items = true
 space_after_colon = true
 space_before_colon = false

@@ -72,7 +72,7 @@ mod value_source_tests {
             Value::Null,
             Value::Boolean(true),
             Value::Integer(42),
-            Value::Float(3.14),
+            Value::Float(3.14159),
             Value::String("test".to_string()),
             Value::List(vec![Value::Integer(1), Value::Integer(2)]),
         ];

@@ -93,7 +93,7 @@ impl IndexManager {
     /// Index objects by property names they contain
     pub fn update_properties(&self, obj_id: ObjectId, properties: &[String]) -> Result<()> {
         for prop_name in properties {
-            let key = format!("prop:{}", prop_name);
+            let key = format!("prop:{prop_name}");
             let mut objects = self.get_objects_with_property(prop_name)?;
             if !objects.contains(&obj_id) {
                 objects.push(obj_id);
@@ -106,7 +106,7 @@ impl IndexManager {
 
     /// Get all objects that have a specific property
     pub fn get_objects_with_property(&self, prop_name: &str) -> Result<Vec<ObjectId>> {
-        let key = format!("prop:{}", prop_name);
+        let key = format!("prop:{prop_name}");
         if let Some(value) = self.property_index.get(key.as_bytes())? {
             let objects: Vec<ObjectId> = bincode::deserialize(&value)?;
             Ok(objects)
@@ -118,7 +118,7 @@ impl IndexManager {
     /// Index objects by verb names they contain
     pub fn update_verbs(&self, obj_id: ObjectId, verbs: &[String]) -> Result<()> {
         for verb_name in verbs {
-            let key = format!("verb:{}", verb_name);
+            let key = format!("verb:{verb_name}");
             let mut objects = self.get_objects_with_verb(verb_name)?;
             if !objects.contains(&obj_id) {
                 objects.push(obj_id);
@@ -131,7 +131,7 @@ impl IndexManager {
 
     /// Get all objects that have a specific verb
     pub fn get_objects_with_verb(&self, verb_name: &str) -> Result<Vec<ObjectId>> {
-        let key = format!("verb:{}", verb_name);
+        let key = format!("verb:{verb_name}");
         if let Some(value) = self.verb_index.get(key.as_bytes())? {
             let objects: Vec<ObjectId> = bincode::deserialize(&value)?;
             Ok(objects)

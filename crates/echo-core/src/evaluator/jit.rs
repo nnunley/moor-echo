@@ -26,7 +26,10 @@ impl CraneliftValue {
     }
 }
 
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use anyhow::{anyhow, Result};
 use dashmap::DashMap;
