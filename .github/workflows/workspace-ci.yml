@@ -136,7 +136,7 @@ jobs:
             --exclude-files "*/build.rs"
 
       - name: Upload coverage to codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./cobertura.xml
           fail_ci_if_error: true
