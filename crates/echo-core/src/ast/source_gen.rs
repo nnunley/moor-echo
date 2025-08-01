@@ -481,6 +481,47 @@ impl ToSource for EchoAst {
             EchoAst::In { left, right } => {
                 format!("{} in {}", left.to_source(), right.to_source())
             }
+
+            // MOO-specific features
+            EchoAst::Flyweight { object, properties } => {
+                let props = properties
+                    .iter()
+                    .map(|(k, v)| format!("{} -> {}", k, v.to_source()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("<{}, [{}]>", object.to_source(), props)
+            }
+            
+            EchoAst::ErrorCatch { expr, error_patterns, default } => {
+                let patterns = error_patterns.join(", ");
+                format!("`{} ! {} => {}'", expr.to_source(), patterns, default.to_source())
+            }
+            
+            EchoAst::MapLiteral { entries } => {
+                let items = entries
+                    .iter()
+                    .map(|(k, v)| format!("{} -> {}", k, v.to_source()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("[{}]", items)
+            }
+            
+            EchoAst::Define { name, value } => {
+                format!("define {} = {}", name, value.to_source())
+            }
+            
+            EchoAst::Spread { expr } => {
+                format!("...{}", expr.to_source())
+            }
+            
+            EchoAst::DestructuringAssignment { targets, value } => {
+                let target_list = targets
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{{}}} = {}", target_list, value.to_source())
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 
-use crate::ast::{EchoAst, ObjectMember, Parameter, VerbPermissions, LValue, BindingType, BindingPattern};
+use crate::ast::{EchoAst, ObjectMember, Parameter, VerbPermissions, LValue, BindingType, BindingPattern, DestructuringTarget};
 use crate::parser::Parser;
 
 /// MOO compatibility parser using tree-sitter-moo
@@ -27,7 +27,11 @@ impl MooCompatParser {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() != "comment" {
-                        statements.push(self.convert_node(child, source)?);
+                        let stmt = self.convert_node(child, source)?;
+                        // Filter out placeholder Null values (e.g., from standalone "define")
+                        if !matches!(stmt, EchoAst::Null) {
+                            statements.push(stmt);
+                        }
                     }
                 }
                 Ok(EchoAst::Program(statements))
@@ -68,7 +72,56 @@ impl MooCompatParser {
             
             "expression_statement" => {
                 let expr_node = node.child(0).ok_or_else(|| anyhow!("Missing expression"))?;
+                
+                // Check if this is a define statement masquerading as an expression
+                if expr_node.kind() == "expression" && expr_node.child_count() > 0 {
+                    let first_child = expr_node.child(0).unwrap();
+                    if first_child.kind() == "identifier" && self.get_node_text(first_child, source) == "define" {
+                        // This is a define statement - look for the assignment that follows
+                        if let Some(parent) = node.parent() {
+                            let mut found_assignment = false;
+                            let mut cursor = parent.walk();
+                            let mut next_node = None;
+                            
+                            // Find the current node and then get the next one
+                            for child in parent.children(&mut cursor) {
+                                if found_assignment {
+                                    next_node = Some(child);
+                                    break;
+                                }
+                                if child.id() == node.id() {
+                                    found_assignment = true;
+                                }
+                            }
+                            
+                            if let Some(next) = next_node {
+                                if let Some(assignment) = next.child(0).and_then(|n| n.child(0)) {
+                                    if assignment.kind() == "assignment_operation" {
+                                        let name_node = assignment.child(0);
+                                        let value_node = assignment.child(2);
+                                        
+                                        if let (Some(name), Some(value)) = (name_node, value_node) {
+                                            return Ok(EchoAst::Define {
+                                                name: self.get_node_text(name, source).to_string(),
+                                                value: Box::new(self.convert_expression(value, source)?),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // If we didn't find the assignment, this is just a standalone "define"
+                        // which we should skip (it will be paired with the next statement)
+                        return Ok(EchoAst::Null);
+                    }
+                }
+                
                 self.convert_expression(expr_node, source)
+            }
+            
+            "define_statement" => {
+                self.convert_define_statement(node, source)
             }
             
             _ => self.convert_expression(node, source),
@@ -221,6 +274,21 @@ impl MooCompatParser {
                 Ok(EchoAst::Identifier(text.to_string()))
             }
             
+            "object_id" => {
+                let text = self.get_node_text(node, source);
+                // Object IDs are in the form #123 or #-123
+                if text.starts_with('#') {
+                    let num_str = &text[1..];
+                    if let Ok(num) = num_str.parse::<i64>() {
+                        Ok(EchoAst::ObjectRef(num))
+                    } else {
+                        Err(anyhow!("Invalid object ID: {}", text))
+                    }
+                } else {
+                    Err(anyhow!("Object ID must start with #: {}", text))
+                }
+            }
+            
             "integer" => {
                 let text = self.get_node_text(node, source);
                 let value = text.parse::<i64>()
@@ -261,6 +329,10 @@ impl MooCompatParser {
                 self.convert_method_call(node, source)
             }
             
+            "call" | "function_call" => {
+                self.convert_function_call(node, source)
+            }
+            
             "binary_expression" => {
                 self.convert_binary_expression(node, source)
             }
@@ -271,6 +343,119 @@ impl MooCompatParser {
             
             "assignment_expression" => {
                 self.convert_assignment(node, source)
+            }
+            
+            "flyweight" | "flyweight_expression" => {
+                self.convert_flyweight(node, source)
+            }
+            
+            "error_catch" | "error_catch_expression" => {
+                self.convert_error_catch(node, source)
+            }
+            
+            "map" | "map_literal" => {
+                self.convert_map_literal(node, source)
+            }
+            
+            "spread" | "spread_expression" => {
+                let expr = node.child(1).ok_or_else(|| anyhow!("Missing expression in spread"))?;
+                Ok(EchoAst::Spread {
+                    expr: Box::new(self.convert_expression(expr, source)?),
+                })
+            }
+            
+            "destructuring_assignment" => {
+                self.convert_destructuring(node, source)
+            }
+            
+            "symbol" | "symbol_literal" => {
+                let text = self.get_node_text(node, source);
+                // Remove the leading quote
+                let symbol_name = text.trim_start_matches('\'');
+                Ok(EchoAst::Identifier(format!(":{}", symbol_name))) // Prefix with : to indicate symbol
+            }
+            
+            "statement" => {
+                // For constants.moo - statement nodes contain expression statements
+                if let Some(child) = node.child(0) {
+                    self.convert_node(child, source)
+                } else {
+                    Err(anyhow!("Empty statement node"))
+                }
+            }
+            
+            "expression" => {
+                // An expression node can contain various expression types
+                if node.child_count() == 1 {
+                    let child = node.child(0).unwrap();
+                    
+                    // Special handling for assignment operations
+                    if child.kind() == "assignment_operation" {
+                        let left = child.child(0).ok_or_else(|| anyhow!("Missing assignment target"))?;
+                        let right = child.child(2).ok_or_else(|| anyhow!("Missing assignment value"))?;
+                        
+                        // Create an Assignment node
+                        let target = LValue::Binding {
+                            binding_type: BindingType::None,
+                            pattern: BindingPattern::Identifier(self.get_node_text(left, source).to_string()),
+                        };
+                        
+                        return Ok(EchoAst::Assignment {
+                            target,
+                            value: Box::new(self.convert_expression(right, source)?),
+                        });
+                    }
+                    
+                    self.convert_expression(child, source)
+                } else {
+                    Err(anyhow!("Unexpected expression structure"))
+                }
+            }
+            
+            "ERROR" => {
+                // Tree-sitter couldn't parse this properly - try to extract what we can
+                let text = self.get_node_text(node, source);
+                
+                // Special handling for common patterns
+                if text.starts_with("define ") {
+                    // Handle define statements that weren't parsed correctly
+                    let parts: Vec<&str> = text.split_whitespace().collect();
+                    if parts.len() >= 4 && parts[2] == "=" {
+                        let name = parts[1].to_string();
+                        let joined_value = parts[3..].join(" ");
+                        let value_text = joined_value.trim_end_matches(';');
+                        
+                        // Try to parse the value
+                        let value = if value_text.starts_with('#') {
+                            // Object reference
+                            if let Ok(num) = value_text[1..].parse::<i64>() {
+                                EchoAst::ObjectRef(num)
+                            } else {
+                                EchoAst::String(value_text.to_string())
+                            }
+                        } else {
+                            EchoAst::String(value_text.to_string())
+                        };
+                        
+                        return Ok(EchoAst::Define {
+                            name,
+                            value: Box::new(value),
+                        });
+                    }
+                }
+                
+                // Try to find valid child nodes within the ERROR node
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() != "ERROR" {
+                        // Try to parse any non-ERROR child
+                        if let Ok(ast) = self.convert_node(child, source) {
+                            return Ok(ast);
+                        }
+                    }
+                }
+                
+                Err(anyhow!("Cannot parse ERROR node: {}", text.chars().take(100).collect::<String>()))
             }
             
             _ => {
@@ -310,6 +495,44 @@ impl MooCompatParser {
         Ok(EchoAst::MethodCall {
             object: Box::new(self.convert_expression(object, source)?),
             method: self.get_node_text(method, source).to_string(),
+            args,
+        })
+    }
+    
+    fn convert_function_call(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        let function = node.child(0).ok_or_else(|| anyhow!("Missing function name in call"))?;
+        let mut args = Vec::new();
+        
+        // Find the argument list - might be child(1) or we need to search
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "argument_list" || child.kind() == "arguments" {
+                let mut arg_cursor = child.walk();
+                for arg in child.children(&mut arg_cursor) {
+                    if arg.kind() != "(" && arg.kind() != ")" && arg.kind() != "," {
+                        args.push(self.convert_expression(arg, source)?);
+                    }
+                }
+                break;
+            }
+        }
+        
+        // If no argument list found, check if child(1) is the arguments directly
+        if args.is_empty() {
+            if let Some(args_node) = node.child(1) {
+                if args_node.kind() == "argument_list" || args_node.kind() == "arguments" {
+                    let mut arg_cursor = args_node.walk();
+                    for arg in args_node.children(&mut arg_cursor) {
+                        if arg.kind() != "(" && arg.kind() != ")" && arg.kind() != "," {
+                            args.push(self.convert_expression(arg, source)?);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(EchoAst::Call {
+            func: Box::new(self.convert_expression(function, source)?),
             args,
         })
     }
@@ -361,6 +584,35 @@ impl MooCompatParser {
     fn convert_assignment(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
         let target = node.child(0).ok_or_else(|| anyhow!("Missing assignment target"))?;
         let value = node.child(2).ok_or_else(|| anyhow!("Missing assignment value"))?;
+        
+        // Check if this is a destructuring assignment
+        if target.kind() == "list" || target.kind() == "destructuring_pattern" {
+            let mut targets = Vec::new();
+            let mut cursor = target.walk();
+            
+            for child in target.children(&mut cursor) {
+                if child.kind() == "identifier" {
+                    let name = self.get_node_text(child, source).to_string();
+                    targets.push(DestructuringTarget::Simple(name));
+                } else if child.kind() == "optional_parameter" {
+                    // Handle ?param = default syntax
+                    if let Some(name_node) = child.child_by_field_name("name") {
+                        let name = self.get_node_text(name_node, source).to_string();
+                        let default = if let Some(default_node) = child.child_by_field_name("default") {
+                            Box::new(self.convert_expression(default_node, source)?)
+                        } else {
+                            Box::new(EchoAst::Null)
+                        };
+                        targets.push(DestructuringTarget::Optional { name, default });
+                    }
+                }
+            }
+            
+            return Ok(EchoAst::DestructuringAssignment {
+                targets,
+                value: Box::new(self.convert_expression(value, source)?),
+            });
+        }
         
         let target_text = self.get_node_text(target, source);
         Ok(EchoAst::Assignment {
@@ -491,6 +743,154 @@ impl MooCompatParser {
     fn get_node_text<'a>(&self, node: tree_sitter::Node, source: &'a str) -> &'a str {
         &source[node.byte_range()]
     }
+
+    fn convert_define_statement(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        let mut name = None;
+        let mut value = None;
+        
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "identifier" => {
+                    if name.is_none() {
+                        name = Some(self.get_node_text(child, source).to_string());
+                    }
+                }
+                "=" => {} // Skip operator
+                _ => {
+                    // This should be the value expression
+                    if value.is_none() && child.kind() != "define" {
+                        value = Some(self.convert_expression(child, source)?);
+                    }
+                }
+            }
+        }
+        
+        Ok(EchoAst::Define {
+            name: name.unwrap_or_else(|| "unnamed".to_string()),
+            value: Box::new(value.unwrap_or(EchoAst::Null)),
+        })
+    }
+    
+    fn convert_flyweight(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        let object = node.child(1).ok_or_else(|| anyhow!("Missing object in flyweight"))?;
+        let properties_node = node.child(3).ok_or_else(|| anyhow!("Missing properties in flyweight"))?;
+        
+        let mut properties = Vec::new();
+        let mut cursor = properties_node.walk();
+        
+        for child in properties_node.children(&mut cursor) {
+            if child.kind() == "map_entry" || child.kind() == "property_entry" {
+                if let Some((key, value)) = self.convert_map_entry(child, source)? {
+                    properties.push((key, value));
+                }
+            }
+        }
+        
+        Ok(EchoAst::Flyweight {
+            object: Box::new(self.convert_expression(object, source)?),
+            properties,
+        })
+    }
+    
+    fn convert_map_entry(&self, node: tree_sitter::Node, source: &str) -> Result<Option<(String, EchoAst)>> {
+        let key_node = node.child(0);
+        let value_node = node.child(2); // Skip the -> operator
+        
+        if let (Some(key), Some(value)) = (key_node, value_node) {
+            let key_text = match self.convert_expression(key, source)? {
+                EchoAst::Identifier(s) => s,
+                EchoAst::String(s) => s,
+                _ => self.get_node_text(key, source).to_string(),
+            };
+            
+            let value_ast = self.convert_expression(value, source)?;
+            Ok(Some((key_text, value_ast)))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    fn convert_error_catch(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        // MOO error catch syntax: `expr ! E_TYPE, E_PROPNF => default'
+        let expr = node.child(1).ok_or_else(|| anyhow!("Missing expression in error catch"))?;
+        
+        let mut error_patterns = Vec::new();
+        let mut default_expr = None;
+        let mut found_arrow = false;
+        
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "error_code" | "identifier" => {
+                    if !found_arrow {
+                        error_patterns.push(self.get_node_text(child, source).to_string());
+                    }
+                }
+                "=>" => {
+                    found_arrow = true;
+                }
+                _ => {
+                    if found_arrow && default_expr.is_none() && child.kind() != "`" && child.kind() != "'" {
+                        default_expr = Some(self.convert_expression(child, source)?);
+                    }
+                }
+            }
+        }
+        
+        Ok(EchoAst::ErrorCatch {
+            expr: Box::new(self.convert_expression(expr, source)?),
+            error_patterns,
+            default: Box::new(default_expr.unwrap_or(EchoAst::Null)),
+        })
+    }
+    
+    fn convert_destructuring(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        // {a, b, c} = expr
+        let targets_node = node.child(0).ok_or_else(|| anyhow!("Missing targets in destructuring"))?;
+        let value = node.child(2).ok_or_else(|| anyhow!("Missing value in destructuring"))?;
+        
+        let mut targets = Vec::new();
+        let mut cursor = targets_node.walk();
+        
+        for child in targets_node.children(&mut cursor) {
+            if child.kind() == "identifier" {
+                let name = self.get_node_text(child, source).to_string();
+                targets.push(DestructuringTarget::Simple(name));
+            } else if child.kind() == "optional_parameter" {
+                // Handle ?param = default syntax
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    let name = self.get_node_text(name_node, source).to_string();
+                    let default = if let Some(default_node) = child.child_by_field_name("default") {
+                        Box::new(self.convert_expression(default_node, source)?)
+                    } else {
+                        Box::new(EchoAst::Null)
+                    };
+                    targets.push(DestructuringTarget::Optional { name, default });
+                }
+            }
+        }
+        
+        Ok(EchoAst::DestructuringAssignment {
+            targets,
+            value: Box::new(self.convert_expression(value, source)?),
+        })
+    }
+    
+    fn convert_map_literal(&self, node: tree_sitter::Node, source: &str) -> Result<EchoAst> {
+        let mut entries = Vec::new();
+        let mut cursor = node.walk();
+        
+        for child in node.children(&mut cursor) {
+            if child.kind() == "map_entry" || child.kind() == "property_entry" {
+                if let Some((key, value)) = self.convert_map_entry(child, source)? {
+                    entries.push((key, value));
+                }
+            }
+        }
+        
+        Ok(EchoAst::MapLiteral { entries })
+    }
 }
 
 impl Parser for MooCompatParser {
@@ -611,6 +1011,14 @@ fn ast_to_property_value(ast: &EchoAst) -> Result<crate::storage::object_store::
                 .map(ast_to_property_value)
                 .collect::<Result<Vec<_>>>()?;
             Ok(PropertyValue::List(values))
+        }
+        EchoAst::MapLiteral { entries } => {
+            let mut map = HashMap::new();
+            for (k, v) in entries {
+                let value = ast_to_property_value(v)?;
+                map.insert(k.clone(), value);
+            }
+            Ok(PropertyValue::Map(map))
         }
         _ => Err(anyhow!("Cannot convert AST node to property value: {:?}", ast)),
     }

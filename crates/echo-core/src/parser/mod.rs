@@ -7,9 +7,14 @@ use crate::ast::EchoAst;
 
 pub mod echo;
 pub mod moo_compat;
+pub mod moo_preprocessor;
+pub mod moo_object_parser;
+pub mod verb_parser;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod moo_tests;
 
 /// Trait for all Echo parsers
 pub trait Parser: Send + Sync {

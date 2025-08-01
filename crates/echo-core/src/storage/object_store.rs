@@ -68,7 +68,7 @@ pub enum PropertyValue {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerbDefinition {
-    pub name: String,
+    pub name: String,                       // Multiple names separated by spaces (e.g., "l look" or "pronoun_*")
     pub signature: VerbSignature,
     pub code: String,                       // Source code for display
     pub ast: Vec<crate::ast::EchoAst>,      // The actual AST to execute
@@ -103,6 +103,10 @@ pub struct ObjectStore {
     db: Db,
     objects: sled::Tree,
     indices: sled::Tree,
+    /// Maps MOO object numbers to Echo ObjectIds
+    pub moo_id_map: HashMap<i64, ObjectId>,
+    /// Maps Echo ObjectIds to MOO object numbers (reverse lookup)
+    pub reverse_moo_map: HashMap<ObjectId, i64>,
 }
 
 impl ObjectStore {
@@ -114,11 +118,21 @@ impl ObjectStore {
     pub fn new_with_db(db: Db) -> Result<Self> {
         let objects = db.open_tree("objects")?;
         let indices = db.open_tree("indices")?;
+        
+        let mut moo_id_map = HashMap::new();
+        let mut reverse_moo_map = HashMap::new();
+        // Pre-populate well-known MOO objects
+        moo_id_map.insert(0, ObjectId::system());
+        moo_id_map.insert(1, ObjectId::root());
+        reverse_moo_map.insert(ObjectId::system(), 0);
+        reverse_moo_map.insert(ObjectId::root(), 1);
 
         let store = Self {
             db,
             objects,
             indices,
+            moo_id_map,
+            reverse_moo_map,
         };
 
         // Initialize system objects if they don't exist
@@ -229,5 +243,29 @@ impl ObjectStore {
     pub fn estimated_size(&self) -> Result<u64> {
         // Return the estimated size of the database
         Ok(self.db.size_on_disk()?)
+    }
+    
+    /// Register a MOO object number mapping
+    pub fn register_moo_id(&mut self, moo_number: i64, object_id: ObjectId) {
+        self.moo_id_map.insert(moo_number, object_id);
+        self.reverse_moo_map.insert(object_id, moo_number);
+    }
+    
+    /// Get or create an ObjectId for a MOO object number
+    pub fn get_or_create_moo_id(&mut self, moo_number: i64) -> ObjectId {
+        let object_id = *self.moo_id_map.entry(moo_number)
+            .or_insert_with(ObjectId::new);
+        self.reverse_moo_map.insert(object_id, moo_number);
+        object_id
+    }
+    
+    /// Resolve a MOO object number to an ObjectId
+    pub fn resolve_moo_id(&self, moo_number: i64) -> Option<ObjectId> {
+        self.moo_id_map.get(&moo_number).copied()
+    }
+    
+    /// Check if a MOO object number is valid (exists in the MOO object space)
+    pub fn is_valid_moo_id(&self, moo_number: i64) -> bool {
+        self.moo_id_map.contains_key(&moo_number)
     }
 }

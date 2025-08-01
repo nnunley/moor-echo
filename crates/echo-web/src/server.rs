@@ -145,6 +145,19 @@ impl WebServer {
                     action: "update".to_string(),
                     data: serde_json::json!(properties),
                 },
+                echo_core::UiAction::NotifyPlayer { player_id, message } => {
+                    // Handle player notifications directly through the notifier
+                    let player_str = format!("{}", player_id);
+                    notifier_clone.send_player_notification(&player_str, &message);
+                    // Return a dummy update since we handled it directly
+                    UiUpdate {
+                        target: format!("player_{}", player_id),
+                        action: "notify".to_string(),
+                        data: serde_json::json!({
+                            "message": message
+                        }),
+                    }
+                },
             };
 
             notifier_clone.send_ui_update(update);

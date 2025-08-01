@@ -17,6 +17,7 @@ pub mod ast;
 pub mod evaluator;
 pub mod parser;
 pub mod storage;
+pub mod tracer;
 
 pub mod runtime;
 pub mod ui_callback;

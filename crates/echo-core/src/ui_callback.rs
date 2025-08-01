@@ -48,6 +48,11 @@ pub enum UiAction {
         id: String,
         properties: HashMap<String, Value>,
     },
+    /// Send a notification message to a player
+    NotifyPlayer {
+        player_id: crate::storage::ObjectId,
+        message: String,
+    },
 }
 
 /// UI event that can be sent to external handlers

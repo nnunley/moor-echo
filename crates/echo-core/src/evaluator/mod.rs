@@ -3,7 +3,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, atomic},
 };
 
 use anyhow::{anyhow, Result};
@@ -13,7 +13,7 @@ use errors::EvaluatorError;
 use crate::{
     ast::{
         BindingPattern, BindingPatternElement, BindingType, EchoAst, LValue, LambdaParam,
-        ObjectMember,
+        ObjectMember, DestructuringTarget, CatchClause,
     },
     storage::{EchoObject, ObjectId, PropertyValue, Storage},
     ui_callback::{UiAction, UiEvent, UiEventCallback},
@@ -27,6 +27,7 @@ pub mod errors;
 pub mod event_system;
 pub mod events;
 pub mod meta_object;
+pub mod moo_builtins;
 
 // JIT compiler module
 #[cfg(feature = "jit")]
@@ -47,6 +48,9 @@ mod lambda_tests;
 
 #[cfg(test)]
 mod player_tests;
+
+#[cfg(test)]
+mod moo_builtin_tests;
 
 #[cfg(test)]
 mod jit_tests;
@@ -85,6 +89,9 @@ mod jit_reference_tests;
 mod jit_assignment_tests;
 
 #[cfg(test)]
+mod destructuring_tests;
+
+#[cfg(test)]
 mod jit_block_tests;
 
 #[cfg(test)]
@@ -114,6 +121,15 @@ mod sanity_tests;
 #[cfg(test)]
 mod event_tests;
 
+#[cfg(test)]
+mod moo_tests;
+
+#[cfg(test)]
+mod exception_tests;
+
+#[cfg(test)]
+mod verb_pattern_tests;
+
 // Always available trait
 pub trait EvaluatorTrait {
     fn create_player(&mut self, name: &str) -> Result<ObjectId>;
@@ -129,6 +145,10 @@ pub struct Evaluator {
     current_player: Option<ObjectId>,
     event_system: Arc<event_system::EventSystem>,
     ui_callback: Option<UiEventCallback>,
+    /// Maps negative MOO connection numbers to connection objects
+    connections: DashMap<i64, ObjectId>,
+    /// Counter for assigning negative connection numbers (starts at -1, decrements)
+    next_connection_id: atomic::AtomicI64,
 }
 
 #[derive(Clone)]
@@ -232,6 +252,8 @@ impl Evaluator {
             current_player: None,
             event_system: Arc::new(event_system::EventSystem::new()),
             ui_callback: None,
+            connections: DashMap::new(),
+            next_connection_id: atomic::AtomicI64::new(-1),
         }
     }
 
@@ -251,6 +273,7 @@ impl Evaluator {
                     UiAction::AddText { id, .. } => id.clone(),
                     UiAction::AddDiv { id, .. } => id.clone(),
                     UiAction::Update { id, .. } => id.clone(),
+                    UiAction::NotifyPlayer { player_id, .. } => format!("player_{}", player_id),
                 },
                 data: HashMap::new(),
             };
@@ -444,12 +467,97 @@ impl Evaluator {
         &self.event_system
     }
 
+    pub fn storage(&self) -> &Arc<Storage> {
+        &self.storage
+    }
+
+    /// Create a new connection object for an un-logged-in user (LambdaMOO style)
+    /// Returns the negative connection number assigned to this connection
+    pub fn create_connection(&mut self) -> Result<i64> {
+        // Get the next negative connection ID
+        let connection_number = self.next_connection_id.fetch_sub(1, atomic::Ordering::SeqCst);
+        
+        // Create a connection object that represents the un-logged-in connection
+        let connection_id = ObjectId::new();
+        let connection_obj = EchoObject {
+            id: connection_id,
+            parent: Some(ObjectId::system()),
+            name: format!("connection_{}", -connection_number),
+            properties: {
+                let mut props = HashMap::new();
+                props.insert("connection_number".to_string(), PropertyValue::Integer(connection_number));
+                props.insert("logged_in".to_string(), PropertyValue::Boolean(false));
+                props.insert("player".to_string(), PropertyValue::Null);
+                props
+            },
+            property_capabilities: HashMap::new(),
+            verbs: HashMap::new(),
+            queries: HashMap::new(),
+            meta: MetaObject::new(connection_id),
+        };
+        
+        // Store the connection object
+        self.storage.objects.store(connection_obj)?;
+        
+        // Map the negative number to the connection object
+        self.connections.insert(connection_number, connection_id);
+        
+        Ok(connection_number)
+    }
+    
+    /// Resolve a negative MOO number to a connection object if it exists
+    fn resolve_connection_object(&self, connection_number: i64) -> Option<ObjectId> {
+        if connection_number >= 0 {
+            return None; // Not a connection number
+        }
+        
+        self.connections.get(&connection_number).map(|entry| *entry.value())
+    }
+    
+    /// Log in a connection by associating it with a player
+    pub fn login_connection(&mut self, connection_number: i64, player_id: ObjectId) -> Result<()> {
+        if let Some(connection_id) = self.resolve_connection_object(connection_number) {
+            let mut connection_obj = self.storage.objects.get(connection_id)?;
+            connection_obj.properties.insert("logged_in".to_string(), PropertyValue::Boolean(true));
+            connection_obj.properties.insert("player".to_string(), PropertyValue::Object(player_id));
+            self.storage.objects.store(connection_obj)?;
+            Ok(())
+        } else {
+            Err(anyhow!("Connection {} not found", connection_number))
+        }
+    }
+    
+    /// Disconnect a connection, removing it from the active connections
+    pub fn disconnect_connection(&mut self, connection_number: i64) -> Result<()> {
+        if let Some((_, connection_id)) = self.connections.remove(&connection_number) {
+            // Optionally remove the connection object from storage
+            // In MOO, connection objects are temporary and removed when disconnected
+            self.storage.objects.delete(connection_id)?;
+            Ok(())
+        } else {
+            Err(anyhow!("Connection {} not found", connection_number))
+        }
+    }
+
     pub fn eval(&mut self, ast: &EchoAst) -> Result<Value> {
         let player_id = self
             .current_player
             .ok_or_else(|| anyhow!("No player selected"))?;
 
         self.eval_with_player(ast, player_id)
+    }
+
+    /// Evaluate a MOO command string
+    pub fn eval_command(&mut self, command: &str) -> Result<Value> {
+        let player_id = self
+            .current_player
+            .ok_or_else(|| anyhow!("No player selected"))?;
+
+        // Parse the command
+        let mut parser = crate::parser::create_parser("moo")?;
+        let ast = parser.parse(command)?;
+
+        self.eval_with_player(&ast, player_id)
     }
 
     /// Create a new environment for an event handler
@@ -661,6 +769,7 @@ impl Evaluator {
             EchoAst::Float(f) => Ok(Value::Float(*f)),
             EchoAst::String(s) => Ok(Value::String(s.clone())),
             EchoAst::Boolean(b) => Ok(Value::Boolean(*b)),
+            EchoAst::Null => Ok(Value::Null),
             _ => unreachable!("eval_literal called with non-literal AST node"),
         }
     }
@@ -681,6 +790,7 @@ impl Evaluator {
                 Err(EvaluatorError::variable_not_found(name).into())
             }
         } else {
+            eprintln!("No environment for player when looking up '{}'", name);
             Err(EvaluatorError::Runtime("No environment for player".to_string()).into())
         }
     }
@@ -1882,6 +1992,14 @@ impl Evaluator {
         let mut property_capabilities = HashMap::new();
         let mut verbs = HashMap::new();
 
+        // Early binding: Make the object name available as a constant during object creation
+        // This allows the object definition itself to reference the object name
+        let mut system_obj = self.storage.objects.get(ObjectId::system())?;
+        system_obj
+            .properties
+            .insert(name.to_string(), PropertyValue::Object(obj_id));
+        self.storage.objects.store(system_obj)?;
+
         // Process object members
         for member in members {
             match member {
@@ -1942,12 +2060,7 @@ impl Evaluator {
 
         self.storage.objects.store(obj)?;
 
-        // Bind the object name to a property on #0
-        let mut system_obj = self.storage.objects.get(ObjectId::system())?;
-        system_obj
-            .properties
-            .insert(name.to_string(), PropertyValue::Object(obj_id));
-        self.storage.objects.store(system_obj)?;
+        // Object name was already bound early in the function
 
         Ok(Value::Object(obj_id))
     }
@@ -1967,8 +2080,8 @@ impl Evaluator {
             // Get the object
             let obj = self.storage.objects.get(obj_id)?;
 
-            // Find the verb
-            if let Some(_verb_def) = obj.verbs.get(method) {
+            // Find the verb using pattern matching
+            if self.find_verb(&obj, method).is_some() {
                 // Execute the verb with proper environment
                 self.execute_verb(obj_id, method, args, player_id)
             } else {
@@ -1981,6 +2094,21 @@ impl Evaluator {
 
     /// Evaluate object reference
     fn eval_object_ref(&mut self, n: &i64) -> Result<Value> {
+        // Handle negative object references 
+        if *n < 0 {
+            // In LambdaMOO, negative numbers represent different things:
+            // - Connection objects (e.g., #-1, #-2) for un-logged-in connections
+            // - Error constants (e.g., #-3 for FAILED_MATCH, #-2 for AMBIGUOUS_MATCH, #-1 for NONE)
+            
+            // Check if this might be a connection object by looking for active connections
+            if let Some(connection_id) = self.resolve_connection_object(*n) {
+                return Ok(Value::Object(connection_id));
+            }
+            
+            // Otherwise, treat as MOO error constants (FAILED_MATCH = -3, AMBIGUOUS_MATCH = -2, NONE = -1)
+            return Ok(Value::Integer(*n));
+        }
+        
         // Object reference like #0 or #1
         if *n == 0 {
             return Ok(Value::Object(ObjectId::system()));
@@ -2018,6 +2146,36 @@ impl Evaluator {
             // Look up the numeric ID in the map
             let key = n.to_string();
             if let Some(PropertyValue::Object(obj_id)) = object_map.get(&key) {
+                return Ok(Value::Object(*obj_id));
+            }
+        }
+
+        // As a fallback, try to find the object by its well-known name based on MOO constants
+        let object_name = match *n {
+            0 => Some("SYSOBJ"),
+            1 => Some("ROOT"),
+            2 => Some("ARCH_WIZARD"),
+            3 => Some("ROOM"),
+            4 => Some("PLAYER"),
+            5 => Some("BUILDER"),
+            6 => Some("PROG"),
+            7 => Some("HACKER"),
+            8 => Some("WIZ"),
+            10 => Some("STRING"),
+            11 => Some("PASSWORD"),
+            12 => Some("FIRST_ROOM"),
+            13 => Some("LOGIN"),
+            14 => Some("EVENT"),
+            15 => Some("SUB"),
+            16 => Some("BLOCK"),
+            17 => Some("LOOK"),
+            18 => Some("LIST"),
+            19 => Some("THING"),
+            _ => None,
+        };
+
+        if let Some(name) = object_name {
+            if let Some(PropertyValue::Object(obj_id)) = system_obj.properties.get(name) {
                 return Ok(Value::Object(*obj_id));
             }
         }
@@ -2349,6 +2507,12 @@ impl Evaluator {
 
                 Ok(Value::Null)
             }
+            // MOO compatibility builtin functions
+            "valid" => self.moo_valid(&arg_values),
+            "typeof" => self.moo_typeof(&arg_values),
+            "tostr" => self.moo_tostr(&arg_values),
+            "notify" => self.moo_notify(&arg_values),
+            "raise" => self.moo_raise(&arg_values),
             _ => {
                 // Try to resolve as a variable containing a function
                 if let Ok(func_val) = self.eval_identifier(name, player_id) {
@@ -2554,7 +2718,7 @@ impl Evaluator {
     fn eval_with_player_impl(&mut self, ast: &EchoAst, player_id: ObjectId) -> Result<Value> {
         match ast {
             // Literals and basic values
-            EchoAst::Number(_) | EchoAst::Float(_) | EchoAst::String(_) | EchoAst::Boolean(_) => {
+            EchoAst::Number(_) | EchoAst::Float(_) | EchoAst::String(_) | EchoAst::Boolean(_) | EchoAst::Null => {
                 self.eval_literal(ast)
             }
             EchoAst::Identifier(s) => self.eval_identifier(s, player_id),
@@ -2659,9 +2823,83 @@ impl Evaluator {
             EchoAst::ConstAssignment { target, value } => {
                 self.eval_const_assignment(target, value, player_id)
             }
+            
+            // MOO-specific features
+            EchoAst::Flyweight { object, properties } => {
+                self.eval_flyweight(object, properties, player_id)
+            }
+            EchoAst::ErrorCatch { expr, error_patterns, default } => {
+                self.eval_error_catch(expr, error_patterns, default, player_id)
+            }
+            EchoAst::MapLiteral { entries } => {
+                self.eval_map_literal(entries, player_id)
+            }
+            EchoAst::Spread { expr } => {
+                self.eval_spread(expr, player_id)
+            }
+            EchoAst::DestructuringAssignment { targets, value } => {
+                self.eval_destructuring_assignment(targets, value, player_id)
+            }
+            EchoAst::Define { .. } => {
+                // Define nodes should be handled at parse time by the preprocessor
+                Err(anyhow!("Define statements should be preprocessed before evaluation"))
+            }
+            
+            EchoAst::Try { body, catch, finally } => {
+                self.eval_try_catch_finally(body, catch, finally, player_id)
+            }
 
-            _ => Err(anyhow!("Evaluation not implemented for this AST node type")),
+            _ => {
+                eprintln!("Unhandled AST node: {:?}", ast);
+                Err(anyhow!("Evaluation not implemented for this AST node type"))
+            }
         }
+    }
+
+    /// Find a verb on an object using pattern matching
+    fn find_verb<'a>(
+        &self,
+        obj: &'a crate::storage::object_store::EchoObject,
+        verb_name: &str,
+    ) -> Option<(&'a str, &'a crate::storage::object_store::VerbDefinition)> {
+        use crate::parser::verb_parser::{parse_verb_names, matches_verb_pattern};
+        
+        // First try exact match
+        for (verb_spec, verb_def) in &obj.verbs {
+            if verb_spec == verb_name {
+                return Some((verb_spec.as_str(), verb_def));
+            }
+        }
+        
+        // Then try pattern matching
+        let mut best_match: Option<(&'a str, &'a crate::storage::object_store::VerbDefinition)> = None;
+        let mut best_score = 0;
+        
+        for (verb_spec, verb_def) in &obj.verbs {
+            let patterns = parse_verb_names(verb_spec);
+            for pattern in patterns {
+                if matches_verb_pattern(&pattern, verb_name) {
+                    // Score based on pattern specificity
+                    let score = if pattern == verb_name {
+                        1000  // Exact match
+                    } else if !pattern.contains('*') {
+                        900   // Non-pattern match
+                    } else if pattern == "*" {
+                        1     // Wildcard is lowest priority
+                    } else {
+                        // Score based on non-* characters
+                        pattern.chars().filter(|&c| c != '*').count() + 10
+                    };
+                    
+                    if score > best_score {
+                        best_score = score;
+                        best_match = Some((verb_spec.as_str(), verb_def));
+                    }
+                }
+            }
+        }
+        
+        best_match
     }
 
     fn execute_verb(
@@ -2674,10 +2912,9 @@ impl Evaluator {
         // Get the object
         let obj = self.storage.objects.get(obj_id)?;
 
-        // Get the verb definition
-        let verb_def = obj
-            .verbs
-            .get(method_name)
+        // Find the verb using pattern matching
+        let (_verb_spec, verb_def) = self
+            .find_verb(&obj, method_name)
             .ok_or_else(|| anyhow!("Verb '{}' not found on object", method_name))?;
 
         // Check permissions
@@ -2901,6 +3138,193 @@ impl Evaluator {
                 Err(anyhow!("Object destructuring not yet implemented"))
             }
         }
+    }
+    
+    // MOO-specific evaluation methods
+    
+    /// Evaluate flyweight object creation
+    fn eval_flyweight(&mut self, object: &EchoAst, properties: &[(String, EchoAst)], player_id: ObjectId) -> Result<Value> {
+        // Evaluate the parent object
+        let parent_val = self.eval_with_player(object, player_id)?;
+        
+        if let Value::Object(_parent_id) = parent_val {
+            // Create a new lightweight object with no inheritance
+            let flyweight_id = ObjectId::new();
+            
+            // Create properties map
+            let mut props = HashMap::new();
+            for (name, value_ast) in properties {
+                let value = self.eval_with_player(value_ast, player_id)?;
+                props.insert(name.clone(), value_to_property_value(value)?);
+            }
+            
+            // Create the flyweight object
+            let flyweight = EchoObject {
+                id: flyweight_id,
+                parent: None, // Flyweights don't inherit
+                name: format!("flyweight_{}", flyweight_id),
+                properties: props,
+                property_capabilities: HashMap::new(),
+                verbs: HashMap::new(), // Flyweights can't have verbs
+                queries: HashMap::new(),
+                meta: MetaObject::new(flyweight_id),
+            };
+            
+            // Store the flyweight
+            self.storage.objects.store(flyweight)?;
+            
+            Ok(Value::Object(flyweight_id))
+        } else {
+            Err(anyhow!("Flyweight requires an object as parent"))
+        }
+    }
+    
+    /// Evaluate error catching expression
+    fn eval_error_catch(&mut self, expr: &EchoAst, error_patterns: &[String], default: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        // Try to evaluate the expression
+        match self.eval_with_player(expr, player_id) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                // Check if the error matches any of the patterns
+                let error_str = e.to_string();
+                for pattern in error_patterns {
+                    // Simple pattern matching for MOO error codes
+                    if error_str.contains(pattern) {
+                        // Return the default value
+                        return self.eval_with_player(default, player_id);
+                    }
+                }
+                // If no pattern matched, re-throw the error
+                Err(e)
+            }
+        }
+    }
+    
+    /// Evaluate map literal (MOO syntax)
+    fn eval_map_literal(&mut self, entries: &[(String, EchoAst)], player_id: ObjectId) -> Result<Value> {
+        // This is similar to eval_map but specifically for MOO map literals
+        let mut map = HashMap::new();
+        for (key, value_ast) in entries {
+            let value = self.eval_with_player(value_ast, player_id)?;
+            map.insert(key.clone(), value);
+        }
+        Ok(Value::Map(map))
+    }
+    
+    /// Evaluate spread operator
+    fn eval_spread(&mut self, expr: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        // Evaluate the expression to spread
+        let value = self.eval_with_player(expr, player_id)?;
+        
+        // For now, just return the value
+        // In a full implementation, this would be handled by the containing context
+        // (e.g., list construction or function calls)
+        Ok(value)
+    }
+    
+    /// Evaluate destructuring assignment
+    fn eval_destructuring_assignment(&mut self, targets: &[DestructuringTarget], value: &EchoAst, player_id: ObjectId) -> Result<Value> {
+        // Evaluate the value to destructure
+        let val = self.eval_with_player(value, player_id)?;
+        
+        match &val {
+            Value::List(items) => {
+                // Destructure list elements into variables
+                for (i, target) in targets.iter().enumerate() {
+                    let item_val = if i < items.len() {
+                        items[i].clone()
+                    } else {
+                        // Use default value if provided, otherwise null
+                        match target {
+                            DestructuringTarget::Simple(_) => Value::Null,
+                            DestructuringTarget::Optional { default, .. } => {
+                                self.eval_with_player(default, player_id)?
+                            }
+                        }
+                    };
+                    
+                    // Get the variable name
+                    let var_name = match target {
+                        DestructuringTarget::Simple(name) => name,
+                        DestructuringTarget::Optional { name, .. } => name,
+                    };
+                    
+                    // Bind the variable
+                    self.environments.entry(player_id).and_modify(|env| {
+                        env.variables.insert(var_name.clone(), item_val);
+                    });
+                }
+                Ok(val)
+            }
+            _ => Err(anyhow!("Destructuring assignment requires a list"))
+        }
+    }
+    fn eval_try_catch_finally(
+        &mut self,
+        body: &[EchoAst],
+        catch: &Option<CatchClause>,
+        finally: &Option<Vec<EchoAst>>,
+        player_id: ObjectId,
+    ) -> Result<Value> {
+        // Try to execute the body
+        let mut result = Ok(Value::Null);
+        let mut body_error: Option<anyhow::Error> = None;
+        
+        // Execute try body
+        for stmt in body {
+            match self.eval_with_player(stmt, player_id) {
+                Ok(val) => result = Ok(val),
+                Err(e) => {
+                    body_error = Some(e);
+                    break;
+                }
+            }
+        }
+        
+        // If there was an error and we have a catch clause, execute it
+        if let Some(error) = body_error {
+            if let Some(catch_clause) = catch {
+                // Save the error in a variable if specified
+                if let Some(error_var) = &catch_clause.error_var {
+                    // Use local assignment to set the error variable
+                    let assign_ast = EchoAst::Assignment {
+                        target: LValue::Binding {
+                            binding_type: BindingType::None,
+                            pattern: BindingPattern::Identifier(error_var.clone()),
+                        },
+                        value: Box::new(EchoAst::String(error.to_string())),
+                    };
+                    self.eval_with_player(&assign_ast, player_id)?;
+                }
+                
+                // Execute catch body
+                result = Ok(Value::Null);
+                for stmt in &catch_clause.body {
+                    result = self.eval_with_player(stmt, player_id);
+                    if result.is_err() {
+                        break;
+                    }
+                }
+            } else {
+                // No catch clause, re-throw the error
+                result = Err(error);
+            }
+        }
+        
+        // Always execute finally block if present
+        if let Some(finally_body) = finally {
+            for stmt in finally_body {
+                // Execute finally statements but don't change the result
+                // unless there's an error in finally
+                if let Err(e) = self.eval_with_player(stmt, player_id) {
+                    // Error in finally overrides any previous result
+                    result = Err(e);
+                    break;
+                }
+            }
+        }
+        
+        result
     }
 }
 

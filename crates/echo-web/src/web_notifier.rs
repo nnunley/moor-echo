@@ -161,6 +161,15 @@ impl WebNotifier {
             message: message.to_string(),
         });
     }
+    
+    /// Send a player notification (equivalent to MOO's notify())
+    pub fn send_player_notification(&self, player_id: &str, message: &str) {
+        // For now, treat player notifications as chat messages with system prefix
+        self.send_event(WebEvent::ChatMessage {
+            player: format!("system@{}", player_id),
+            message: message.to_string(),
+        });
+    }
 }
 
 impl Default for WebNotifier {

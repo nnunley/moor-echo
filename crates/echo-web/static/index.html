@@ -168,10 +168,19 @@
             <div id="connectionStatus" class="status disconnected">Disconnected</div>
         </div>
         
-        <!-- Output Display -->
-        <div class="card">
-            <div class="card-title">REPL Output</div>
-            <div id="outputContainer"></div>
+        <!-- Main content area with REPL and Chat -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <!-- REPL Output Display -->
+            <div class="card">
+                <div class="card-title">REPL Output</div>
+                <div id="outputContainer"></div>
+            </div>
+            
+            <!-- Chat/Notifications Display -->
+            <div class="card">
+                <div class="card-title">Notifications & Chat</div>
+                <div id="chatContainer" style="height: 300px; overflow-y: auto; font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 10px;"></div>
+            </div>
         </div>
         
         <!-- Command Input -->
@@ -299,6 +308,10 @@
                 case 'UiUpdate':
                     updateDynamicUI(data.data.update);
                     break;
+                case 'ChatMessage':
+                    // Display notifications in the chat container
+                    addChatMessage(data.data.player, data.data.message);
+                    break;
             }
         }
         
@@ -309,6 +322,23 @@
             line.textContent = content;
             outputContainer.appendChild(line);
             outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+        
+        function addChatMessage(player, message) {
+            const chatContainer = document.getElementById('chatContainer');
+            const line = document.createElement('div');
+            line.style.marginBottom = '5px';
+            
+            if (player.startsWith('system@')) {
+                // System notification
+                line.innerHTML = `<span style="color: #4ec9b0;">🔔 ${message}</span>`;
+            } else {
+                // Regular chat message
+                line.innerHTML = `<span style="color: #9cdcfe;">${player}:</span> ${message}`;
+            }
+            
+            chatContainer.appendChild(line);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
         
         function sendCommand() {
