@@ -1,0 +1,110 @@
+// Flexible LambdaMOO Database Grammar
+// Based on research from EtaMOO, ToastStunt, and original LambdaMOO implementations
+// This grammar focuses on the essential structure while being flexible about variations
+
+// Whitespace and newline handling
+ws = _{ " " | "\t" }
+newline = _{ "\n" | "\r\n" }
+
+// Basic types
+num = @{ "-"? ~ ASCII_DIGIT+ }
+objid = { num }
+raw_string = @{ (!newline ~ ANY)* }
+
+// Database structure - core sections only
+database = {
+    SOI ~
+    header ~
+    newline ~
+    intro_block ~
+    player_list ~
+    flexible_middle_sections ~
+    object_list ~
+    verb_programs_section ~
+    (newline | ws)* ~
+    EOI
+}
+
+// Header: ** LambdaMOO Database, Format Version N **
+header = { "**" ~ ws* ~ "LambdaMOO Database, Format Version" ~ ws+ ~ db_version ~ ws* ~ "**" }
+db_version = { num }
+
+// Introduction block (4 numbers)
+intro_block = {
+    total_objects ~ newline ~
+    total_verbs ~ newline ~
+    dummy_zero ~ newline ~
+    total_players ~ newline
+}
+total_objects = { num }
+total_verbs = { num }
+dummy_zero = { num }
+total_players = { num }
+
+// Player list (variable number of object IDs)
+player_list = { 
+    (num ~ newline)*
+}
+
+// Flexible middle sections - consume everything until we see objects
+flexible_middle_sections = {
+    flexible_line*
+}
+
+flexible_line = {
+    !object_header ~ raw_string ~ newline
+}
+
+// Object definitions - start with #number
+object_list = { 
+    object_def* 
+}
+
+object_def = {
+    object_header ~
+    object_content
+}
+
+object_header = { "#" ~ objid ~ newline }
+
+// Object content - everything until next object or verb programs
+object_content = {
+    object_line*
+}
+
+object_line = {
+    !(object_header | verb_programs_start) ~ raw_string ~ newline
+}
+
+// Verb programs section - starts with a number followed by verb code
+verb_programs_section = {
+    verb_programs_start ~
+    verb_program*
+}
+
+// Look for the verb count line - this signals start of verb programs
+verb_programs_start = {
+    num ~ newline
+}
+
+// Individual verb program
+verb_program = {
+    verb_header ~
+    program_code
+}
+
+verb_header = { raw_string ~ newline }
+
+// Program code - lines until a line with just "."
+program_code = {
+    program_line* ~
+    program_terminator
+}
+
+program_line = { 
+    !program_terminator ~ raw_string ~ newline 
+}
+
+program_terminator = { 
+    "." ~ newline 
+}

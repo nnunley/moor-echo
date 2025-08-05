@@ -1,0 +1,5 @@
+match 42
+case x when x > 10 => "big"
+case _ => "small"
+endmatch
+EOF < /dev/null

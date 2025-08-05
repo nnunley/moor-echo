@@ -30,6 +30,8 @@ parking_lot.workspace = true
 # Parser
 tree-sitter.workspace = true
 tree-sitter-moo.workspace = true
+pest = "2.7"
+pest_derive = "2.7"
 
 # Additional dependencies that were in original echo-repl
 bincode.workspace = true
@@ -41,6 +43,10 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 indexmap = { version = "2.0", features = ["serde"] }
 regex = "1.10"
+
+# TUI dependencies
+ratatui = "0.28"
+crossterm = "0.28"
 
 # Optional JIT dependencies
 cranelift = { version = "0.99", optional = true }
@@ -73,3 +79,15 @@ reflection = []
 [[bench]]
 name = "jit_benchmark"
 harness = false
+
+[[bin]]
+name = "moo_db_browser"
+path = "src/bin/moo_db_browser.rs"
+
+[[example]]
+name = "test_simple_parser"
+path = "examples/test_simple_parser.rs"
+
+[[example]]
+name = "test_grammar_rules"
+path = "examples/test_grammar_rules.rs"

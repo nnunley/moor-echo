@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui:window xmlns:ui="http://echo.dev/xmlui" 
+           id="chat-window"
+           title="Echo Chat">
+    
+    <!-- Chat display area -->
+    <ui:scroll-view id="chat-messages" height="400" width="600">
+        <ui:vertical-layout id="message-container" padding="10">
+            <!-- Messages will be dynamically added here -->
+        </ui:vertical-layout>
+    </ui:scroll-view>
+    
+    <!-- Input area -->
+    <ui:horizontal-layout padding="10">
+        <ui:text-input id="chat-input" 
+                       placeholder="Type your message..." 
+                       flex="1"/>
+        <ui:button id="send-button" 
+                   text="Send"
+                   on-click="send_message"/>
+    </ui:horizontal-layout>
+    
+    <!-- Templates for different message types -->
+    <ui:template id="system-message">
+        <ui:horizontal-layout padding="5">
+            <ui:label text="🔔" color="#4ec9b0"/>
+            <ui:label text="{message}" color="#4ec9b0" margin-left="5"/>
+        </ui:horizontal-layout>
+    </ui:template>
+    
+    <ui:template id="player-message">
+        <ui:horizontal-layout padding="5">
+            <ui:label text="{player}:" color="#9cdcfe" font-weight="bold"/>
+            <ui:label text="{message}" margin-left="5"/>
+        </ui:horizontal-layout>
+    </ui:template>
+    
+    <ui:template id="room-message">
+        <ui:horizontal-layout padding="5">
+            <ui:label text="[{room}]" color="#dcdcaa" font-style="italic"/>
+            <ui:label text="{message}" margin-left="5"/>
+        </ui:horizontal-layout>
+    </ui:template>
+</ui:window>

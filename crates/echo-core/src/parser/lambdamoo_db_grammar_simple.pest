@@ -1,0 +1,78 @@
+// Simplified LambdaMOO Database Grammar
+// Focus on parsing just the essential parts: header, objects
+
+// Whitespace and newline handling
+ws = _{ " " | "\t" }
+newline = _{ "\n" | "\r\n" }
+
+// Basic types
+num = @{ "-"? ~ ASCII_DIGIT+ }
+objid = { num }
+
+// String handling
+raw_string = @{ (!newline ~ ANY)* }
+
+// Simplified database structure
+database = {
+    SOI ~
+    header ~
+    newline ~
+    content ~
+    EOI
+}
+
+// Header: ** LambdaMOO Database, Format Version N **
+header = { "**" ~ ws* ~ "LambdaMOO Database, Format Version" ~ ws+ ~ db_version ~ ws* ~ "**" }
+db_version = { num }
+
+// Everything after header - we'll parse this more loosely
+content = { 
+    intro_numbers ~
+    rest_of_database
+}
+
+// First few numbers after header
+intro_numbers = {
+    num ~ newline ~
+    num ~ newline ~
+    num ~ newline ~
+    num ~ newline ~
+    player_section
+}
+
+// Player section - variable number of object IDs
+player_section = { 
+    (num ~ newline)*
+}
+
+// Rest of database - just capture everything until we find objects
+rest_of_database = {
+    database_line*
+}
+
+database_line = {
+    object_def |
+    other_line
+}
+
+// Object definition - starts with #number
+object_def = {
+    object_header ~
+    object_content
+}
+
+object_header = { "#" ~ objid ~ newline }
+
+// Object content - everything until the next object or end
+object_content = {
+    object_line*
+}
+
+object_line = {
+    !object_header ~ raw_string ~ newline
+}
+
+// Everything else
+other_line = {
+    raw_string ~ newline
+}

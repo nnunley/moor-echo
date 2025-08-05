@@ -10,6 +10,7 @@ pub mod moo_compat;
 pub mod moo_preprocessor;
 pub mod moo_object_parser;
 pub mod verb_parser;
+pub mod lambdamoo_db_parser;
 
 #[cfg(test)]
 mod tests;

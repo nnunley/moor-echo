@@ -1,0 +1,318 @@
+// LambdaMOO Database Grammar
+// Based on LambdaMOO database format version 4 and later versions
+// This grammar parses LambdaMOO textdump database files
+
+// Whitespace and newline handling
+ws = _{ " " | "\t" }
+newline = _{ "\n" | "\r\n" }
+
+// Basic types
+num = @{ "-"? ~ ASCII_DIGIT+ }
+float_num = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ ~ ("e" ~ "-"? ~ ASCII_DIGIT+)? }
+objid = { num }
+
+// String handling (can contain escaped quotes and newlines)
+string_content = @{ (!("\"" | "\n") ~ ANY)* }
+string = { "\"" ~ string_content ~ "\"" }
+raw_string = @{ (!newline ~ ANY)* }
+
+// Database file structure (original working order)
+database = {
+    SOI ~
+    header ~
+    newline ~
+    intro_block ~
+    player_list ~
+    finalization_section? ~
+    object_list ~
+    verb_programs? ~
+    clocks_section? ~
+    queued_tasks_section? ~
+    suspended_tasks_section? ~
+    final_tasks_section? ~
+    (newline | ws | (!EOI ~ ANY))* ~
+    EOI
+}
+
+// Header: ** LambdaMOO Database, Format Version N **
+header = { "**" ~ ws* ~ "LambdaMOO Database, Format Version" ~ ws+ ~ db_version ~ ws* ~ "**" }
+db_version = { num }
+
+// Introduction block (4 numbers)
+intro_block = {
+    total_objects ~ newline ~
+    total_verbs ~ newline ~
+    dummy_zero ~ newline ~
+    total_players ~ newline
+}
+total_objects = { num }
+total_verbs = { num }
+dummy_zero = { num }
+total_players = { num }
+
+// Player list (list of object IDs, one per line)
+player_list = { (player_id ~ newline)* }
+player_id = { num }
+
+// Object definitions - optionally preceded by object count
+object_list = { 
+    (object_count ~ newline)? ~
+    object_def* 
+}
+object_count = { num }
+
+object_def = {
+    object_header ~
+    (recycled_marker | object_body)
+}
+
+object_header = { "#" ~ objid ~ !(":" ~ ASCII_DIGIT) ~ newline }
+recycled_marker = { "recycled" ~ newline }
+
+object_body = {
+    (lambdamoo_object_body | toaststunt_object_body)
+}
+
+// Original LambdaMOO object format
+lambdamoo_object_body = {
+    object_name ~ newline ~
+    object_handles ~ newline ~  // old handles string (usually empty)
+    object_flags ~ newline ~
+    object_owner ~ newline ~
+    object_location ~ newline ~
+    object_contents ~ newline ~
+    object_next ~ newline ~
+    object_parent ~ newline ~
+    object_child ~ newline ~
+    object_sibling ~ newline ~
+    verb_definitions ~
+    property_definitions ~
+    property_values
+}
+
+// ToastStunt object format
+toaststunt_object_body = {
+    object_name ~ newline ~
+    object_handles ~ newline ~  // old handles string (read and discarded)
+    object_flags ~ newline ~
+    object_owner ~ newline ~
+    toaststunt_location ~ 
+    toaststunt_last_move ~
+    toaststunt_contents ~
+    toaststunt_parents ~
+    toaststunt_children ~
+    verb_definitions_extended ~
+    property_definitions ~
+    property_values
+}
+
+// ToastStunt variable fields (can be complex multi-line structures)
+toaststunt_location = { value }
+toaststunt_last_move = { value }
+toaststunt_contents = { value }
+toaststunt_parents = { value }
+toaststunt_children = { value }
+
+// Extended verb definitions to handle ToastStunt extensions
+verb_definitions_extended = {
+    verb_count ~ newline ~
+    toaststunt_verb_extensions? ~  // Optional extra fields after verb count
+    verb_def*
+}
+
+// ToastStunt verb extensions - additional fields after verb count
+toaststunt_verb_extensions = {
+    (num ~ newline)+  // One or more additional numeric fields
+}
+
+// Object fields
+object_name = { raw_string }
+object_handles = { raw_string }  // Usually empty in modern databases
+object_flags = { num }
+object_owner = { objid }
+object_location = { objid }
+object_contents = { objid }
+object_next = { objid }
+object_parent = { objid }
+object_child = { objid }
+object_sibling = { objid }
+
+// Verb definitions
+verb_definitions = {
+    verb_count ~ newline ~
+    verb_def*
+}
+verb_count = { num }
+
+verb_def = {
+    verb_name ~ newline ~
+    verb_owner ~ newline ~
+    verb_perms ~ newline ~
+    verb_prep ~ newline?
+}
+verb_name = { raw_string }
+verb_owner = { objid }
+verb_perms = { num }
+verb_prep = { num }
+
+// Property definitions (flexible format)
+property_definitions = {
+    propdef_count ~ newline ~
+    propdef*
+}
+propdef_count = { num }
+
+propdef = {
+    !num ~ !(("#" ~ ASCII_DIGIT)) ~ prop_name ~ newline
+}
+prop_name = { raw_string }
+
+// Property values (flexible format)
+property_values = {
+    propval_count ~ newline? ~
+    propval*
+}
+propval_count = { num }
+
+propval = {
+    value ~
+    prop_owner ~ newline ~
+    prop_perms ~ newline
+}
+prop_owner = { objid }
+prop_perms = { num }
+
+// Values (recursive structure for complex types)
+value = {
+    value_type ~ newline ~
+    value_content
+}
+
+value_type = { num }
+
+value_content = {
+    str_value |
+    obj_value |
+    err_value |
+    int_value |
+    catch_value |
+    finally_value |
+    float_value |
+    list_value |
+    map_value |
+    empty_value
+}
+
+// Value types
+empty_value = { "" }  // For TYPE_CLEAR and TYPE_NONE
+str_value = { raw_string ~ newline }
+obj_value = { objid ~ newline }
+err_value = { num ~ newline }
+int_value = { num ~ newline }
+catch_value = { num ~ newline }
+finally_value = { num ~ newline }
+float_value = { float_num ~ newline }
+
+// List value
+list_value = {
+    list_length ~ newline ~
+    value*
+}
+list_length = { num }
+
+// Map value (for newer database versions)
+map_value = {
+    map_length ~ newline ~
+    map_entry*
+}
+map_length = { num }
+map_entry = {
+    value ~  // key
+    value    // value
+}
+
+// Verb programs section - just the actual verb code
+verb_programs = {
+    verb_code_section?
+}
+
+// Clocks section (for timing information)
+clocks_section = {
+    clocks_header ~ ws+ ~ "clocks" ~ newline ~
+    clock_entry*
+}
+clocks_header = { num }  // Number of clocks
+clock_entry = {
+    clock_id ~ newline ~
+    clock_value ~ newline
+}
+clock_id = { num }
+clock_value = { num }
+
+// Queued tasks
+queued_tasks_section = {
+    queued_count ~ ws+ ~ "queued tasks" ~ newline ~
+    queued_task*
+}
+queued_count = { num }
+
+queued_task = {
+    task_line+
+}
+task_line = {
+    (!suspended_tasks_header ~ raw_string ~ newline)
+}
+suspended_tasks_header = { num ~ ws+ ~ "suspended tasks" }
+
+// Suspended tasks
+suspended_tasks_section = {
+    suspended_count ~ ws+ ~ "suspended tasks" ~ newline ~
+    suspended_task*
+}
+suspended_count = { num }
+
+suspended_task = {
+    task_header ~
+    task_program
+}
+task_header = { raw_string ~ newline }
+task_program = { program_code }
+
+// Verb code section
+verb_code_section = {
+    ((total_verb_count ~ newline)? ~
+    verb_program*)?
+}
+total_verb_count = { num }
+
+verb_program = {
+    verb_header ~
+    program_code
+}
+verb_header = { raw_string ~ newline }
+
+// Program code (multi-line until dot on its own line)
+program_code = {
+    program_line* ~
+    program_terminator
+}
+program_line = { (!program_terminator ~ raw_string ~ newline) }
+program_terminator = { "." ~ newline }
+
+// Finalization section (for newer database versions)
+finalization_section = {
+    finalization_count ~ ws+ ~ "values pending finalization" ~ newline
+}
+finalization_count = { num }
+
+// Final tasks section - comes after verb programs, before objects
+final_tasks_section = {
+    suspended_count ~ ws+ ~ "suspended tasks" ~ newline ~
+    interrupted_count ~ ws+ ~ "interrupted tasks" ~ newline ~
+    connections_count ~ ws+ ~ "active connections with listeners" ~ newline
+}
+interrupted_count = { num }
+connections_count = { num }
+
+// Special handling for newer database versions
+// Anonymous objects, waifs, etc. would be added here
