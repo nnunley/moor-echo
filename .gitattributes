@@ -1,9 +1,37 @@
-* text eol=lf
+# Default text handling
+* text=auto eol=lf
 
+# Binary files (prevent line ending conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.db binary
+
+# Text files with specific line endings
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.pest text eol=lf
+*.moo text eol=lf
+*.echo text eol=lf
+
+# Linguist-generated files
 src/*.json linguist-generated
 src/parser.c linguist-generated
 src/tree_sitter/* linguist-generated
-
 bindings/** linguist-generated
 binding.gyp linguist-generated
 setup.py linguist-generated

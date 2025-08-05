@@ -117,51 +117,39 @@ impl LambdaMooDbParser {
     
     fn parse_database_content(pair: pest::iterators::Pair<Rule>, db: &mut LambdaMooDatabase) -> Result<()> {
         for inner in pair.into_inner() {
-            eprintln!("DEBUG: Processing rule: {:?}", inner.as_rule());
             match inner.as_rule() {
                 Rule::header => {
                     db.version = Self::parse_header(inner)?;
-                    eprintln!("DEBUG: Parsed header, version: {}", db.version);
                 }
                 Rule::intro_block => {
                     Self::parse_intro_block(inner, db)?;
-                    eprintln!("DEBUG: Parsed intro_block");
                 }
                 Rule::player_list => {
                     db.player_list = Self::parse_player_list(inner)?;
-                    eprintln!("DEBUG: Parsed player_list, {} players", db.player_list.len());
                 }
                 Rule::object_list => {
-                    eprintln!("DEBUG: About to parse object_list");
                     Self::parse_object_list(inner, db)?;
-                    eprintln!("DEBUG: Finished parsing object_list");
                 }
                 Rule::verb_programs => {
                     Self::parse_verb_programs(inner, db)?;
-                    eprintln!("DEBUG: Parsed verb_programs");
                 }
                 Rule::final_tasks_section => {
                     Self::parse_final_tasks_section(inner)?;
-                    eprintln!("DEBUG: Parsed final_tasks_section");
                 }
                 Rule::clocks_section => {
                     Self::parse_clocks_section(inner)?;
-                    eprintln!("DEBUG: Parsed clocks_section");
                 }
                 Rule::queued_tasks_section => {
                     Self::parse_queued_tasks_section(inner)?;
-                    eprintln!("DEBUG: Parsed queued_tasks_section");
                 }
                 Rule::suspended_tasks_section => {
                     Self::parse_suspended_tasks_section(inner)?;
-                    eprintln!("DEBUG: Parsed suspended_tasks_section");
                 }
                 Rule::finalization_section => {
                     Self::parse_finalization_section(inner)?;
-                    eprintln!("DEBUG: Parsed finalization_section");
                 }
                 _ => {
-                    eprintln!("DEBUG: Skipping rule: {:?}", inner.as_rule());
+                    // Skip unknown rules
                 }
             }
         }
@@ -208,17 +196,11 @@ impl LambdaMooDbParser {
     
     fn parse_object_list(pair: pest::iterators::Pair<Rule>, db: &mut LambdaMooDatabase) -> Result<()> {
         let mut object_count = 0;
-        let mut inner = pair.into_inner();
+        let inner = pair.into_inner();
         
-        eprintln!("DEBUG: parse_object_list - checking inner items");
         let inner_items: Vec<_> = inner.collect();
-        eprintln!("DEBUG: Found {} items in object_list", inner_items.len());
-        for (i, item) in inner_items.iter().enumerate() {
-            eprintln!("DEBUG: Item {}: {:?} = '{}'", i, item.as_rule(), item.as_str().chars().take(50).collect::<String>());
-        }
         
         if inner_items.is_empty() {
-            eprintln!("DEBUG: No items found in object_list - this is the problem!");
             return Ok(());
         }
         
@@ -228,58 +210,37 @@ impl LambdaMooDbParser {
         if let Some(first_pair) = inner.next() {
             match first_pair.as_rule() {
                 Rule::object_count => {
-                    let expected_count: i64 = first_pair.as_str().parse()?;
-                    eprintln!("DEBUG: Expected object count: {}", expected_count);
+                    let _expected_count: i64 = first_pair.as_str().parse()?;
                     
                     // Parse remaining object definitions
                     for object_def in inner {
-                        eprintln!("DEBUG: Found rule in object_list: {:?}", object_def.as_rule());
                         if let Rule::object_def = object_def.as_rule() {
                             let obj = Self::parse_object(object_def)?;
-                            let obj_id = obj.id;
-                            let obj_name = obj.name.clone();
                             db.objects.insert(obj.id, obj);
                             object_count += 1;
-                            if object_count <= 5 {
-                                eprintln!("DEBUG: Parsed object #{}: {}", obj_id, obj_name);
-                            }
                         }
                     }
                 }
                 Rule::object_def => {
-                    eprintln!("DEBUG: No object count, starting with first object");
                     // Parse first object
                     let obj = Self::parse_object(first_pair)?;
-                    let obj_id = obj.id;
-                    let obj_name = obj.name.clone();
                     db.objects.insert(obj.id, obj);
                     object_count += 1;
-                    if object_count <= 5 {
-                        eprintln!("DEBUG: Parsed object #{}: {}", obj_id, obj_name);
-                    }
                     
                     // Parse remaining objects
                     for object_def in inner {
-                        eprintln!("DEBUG: Found rule in object_list: {:?}", object_def.as_rule());
                         if let Rule::object_def = object_def.as_rule() {
                             let obj = Self::parse_object(object_def)?;
-                            let obj_id = obj.id;
-                            let obj_name = obj.name.clone();
                             db.objects.insert(obj.id, obj);
                             object_count += 1;
-                            if object_count <= 5 {
-                                eprintln!("DEBUG: Parsed object #{}: {}", obj_id, obj_name);
-                            }
                         }
                     }
                 }
                 _ => {
-                    eprintln!("DEBUG: Unexpected rule in object_list: {:?}", first_pair.as_rule());
                 }
             }
         }
         
-        eprintln!("DEBUG: Total objects parsed in object_list: {}", object_count);
         Ok(())
     }
     
@@ -335,15 +296,12 @@ impl LambdaMooDbParser {
         if let Some(body_format) = inner.next() {
             match body_format.as_rule() {
                 Rule::lambdamoo_object_body => {
-                    eprintln!("DEBUG: Parsing LambdaMOO object body");
                     Self::parse_lambdamoo_object_body(body_format, obj)?;
                 }
                 Rule::toaststunt_object_body => {
-                    eprintln!("DEBUG: Parsing ToastStunt object body");
                     Self::parse_toaststunt_object_body(body_format, obj)?;
                 }
                 _ => {
-                    eprintln!("DEBUG: Unexpected object body format: {:?}", body_format.as_rule());
                 }
             }
         }
@@ -499,15 +457,13 @@ impl LambdaMooDbParser {
         
         // Skip verb count
         if let Some(verb_count) = inner.next() {
-            let count: i64 = verb_count.as_str().parse()?;
-            eprintln!("DEBUG: Verb count: {}", count);
+            let _count: i64 = verb_count.as_str().parse()?;
         }
         
         // Check if next item is ToastStunt extensions or verb definition
         if let Some(next_item) = inner.next() {
             match next_item.as_rule() {
                 Rule::toaststunt_verb_extensions => {
-                    eprintln!("DEBUG: Found ToastStunt verb extensions, skipping");
                     // Skip the extensions and parse remaining verb definitions
                     for verb_def in inner {
                         if let Rule::verb_def = verb_def.as_rule() {
@@ -525,7 +481,6 @@ impl LambdaMooDbParser {
                     }
                 }
                 _ => {
-                    eprintln!("DEBUG: Unexpected rule in verb_definitions_extended: {:?}", next_item.as_rule());
                 }
             }
         }
@@ -796,35 +751,27 @@ impl LambdaMooDbParser {
         Ok(())
     }
     
-    fn parse_final_tasks_section(pair: pest::iterators::Pair<Rule>) -> Result<()> {
+    fn parse_final_tasks_section(_pair: pest::iterators::Pair<Rule>) -> Result<()> {
         // Just skip the final tasks counts for now
-        eprintln!("DEBUG: Parsing final tasks section");
-        for inner in pair.into_inner() {
-            eprintln!("DEBUG: Final tasks inner rule: {:?} = {}", inner.as_rule(), inner.as_str());
-        }
         Ok(())
     }
     
-    fn parse_clocks_section(pair: pest::iterators::Pair<Rule>) -> Result<()> {
-        eprintln!("DEBUG: Parsing clocks section");
+    fn parse_clocks_section(_pair: pest::iterators::Pair<Rule>) -> Result<()> {
         // Skip for now
         Ok(())
     }
     
-    fn parse_queued_tasks_section(pair: pest::iterators::Pair<Rule>) -> Result<()> {
-        eprintln!("DEBUG: Parsing queued tasks section");
+    fn parse_queued_tasks_section(_pair: pest::iterators::Pair<Rule>) -> Result<()> {
         // Skip for now
         Ok(())
     }
     
-    fn parse_suspended_tasks_section(pair: pest::iterators::Pair<Rule>) -> Result<()> {
-        eprintln!("DEBUG: Parsing suspended tasks section");
+    fn parse_suspended_tasks_section(_pair: pest::iterators::Pair<Rule>) -> Result<()> {
         // Skip for now
         Ok(())
     }
     
-    fn parse_finalization_section(pair: pest::iterators::Pair<Rule>) -> Result<()> {
-        eprintln!("DEBUG: Parsing finalization section");
+    fn parse_finalization_section(_pair: pest::iterators::Pair<Rule>) -> Result<()> {
         // Skip for now
         Ok(())
     }
