@@ -74,18 +74,18 @@ pub enum LambdaMooValue {
     Map(Vec<(LambdaMooValue, LambdaMooValue)>),
 }
 
-// Value type constants from LambdaMOO
-const TYPE_CLEAR: i64 = -2;
-const TYPE_NONE: i64 = -1;
-const TYPE_STR: i64 = 0;
+// Value type constants from LambdaMOO structures.h
+const TYPE_INT: i64 = 0;
 const TYPE_OBJ: i64 = 1;
-const TYPE_ERR: i64 = 2;
-const TYPE_INT: i64 = 3;
-const TYPE_CATCH: i64 = 4;
-const TYPE_FINALLY: i64 = 5;
-const TYPE_FLOAT: i64 = 9;
-const TYPE_LIST: i64 = 10;
-const TYPE_MAP: i64 = 12;
+const TYPE_STR: i64 = 2;  // _TYPE_STR in C code
+const TYPE_ERR: i64 = 3;
+const TYPE_LIST: i64 = 4;  // _TYPE_LIST in C code
+const TYPE_CLEAR: i64 = 5;
+const TYPE_NONE: i64 = 6;
+const TYPE_CATCH: i64 = 7;
+const TYPE_FINALLY: i64 = 8;
+const TYPE_FLOAT: i64 = 9;  // _TYPE_FLOAT in C code
+const TYPE_MAP: i64 = 12;   // Extension in newer MOO variants (not in original LambdaMOO)
 
 impl LambdaMooDbParser {
     /// Parse a LambdaMOO database file
@@ -540,14 +540,28 @@ impl LambdaMooDbParser {
         let mut values = Vec::new();
         let mut inner = pair.into_inner();
         
-        // Skip property value count
-        let _ = inner.next();
+        // Get property value count to limit parsing
+        let expected_count = if let Some(count_pair) = inner.next() {
+            count_pair.as_str().parse::<usize>()
+                .map_err(|e| anyhow::anyhow!("Failed to parse property value count: {}", e))?
+        } else {
+            return Ok(values); // No count means no property values
+        };
         
-        // Parse each property value
+        // Parse exactly the expected number of property values
+        let mut parsed_count = 0;
         for prop_val in inner {
             if let Rule::propval = prop_val.as_rule() {
+                if parsed_count >= expected_count {
+                    break; // Don't parse more than expected
+                }
                 values.push(Self::parse_propval(prop_val)?);
+                parsed_count += 1;
             }
+        }
+        
+        if parsed_count != expected_count {
+            println!("Warning: Expected {} property values, but parsed {}", expected_count, parsed_count);
         }
         
         Ok(values)
@@ -573,6 +587,55 @@ impl LambdaMooDbParser {
         }
         
         Ok(value)
+    }
+    
+    fn parse_simple_value(value_type: i64, content: &str) -> Result<LambdaMooValue> {
+        match value_type {
+            TYPE_INT => {
+                if content.trim().is_empty() {
+                    Ok(LambdaMooValue::Int(0))
+                } else {
+                    Ok(LambdaMooValue::Int(content.parse()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse integer '{}': {}", content, e))?))
+                }
+            }
+            TYPE_OBJ => {
+                if content.trim().is_empty() {
+                    Ok(LambdaMooValue::Obj(-1))
+                } else {
+                    Ok(LambdaMooValue::Obj(content.parse()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse object ID '{}': {}", content, e))?))
+                }
+            }
+            TYPE_STR => Ok(LambdaMooValue::Str(content.to_string())),
+            TYPE_ERR => {
+                if content.trim().is_empty() {
+                    Ok(LambdaMooValue::Err(0))
+                } else {
+                    Ok(LambdaMooValue::Err(content.parse()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse error code '{}': {}", content, e))?))
+                }
+            }
+            TYPE_CLEAR => Ok(LambdaMooValue::Clear),
+            TYPE_NONE => Ok(LambdaMooValue::None),
+            TYPE_CATCH | TYPE_FINALLY => {
+                if content.trim().is_empty() {
+                    Ok(LambdaMooValue::Int(0))
+                } else {
+                    Ok(LambdaMooValue::Int(content.parse()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse catch/finally value '{}': {}", content, e))?))
+                }
+            }
+            TYPE_FLOAT => {
+                if content.trim().is_empty() {
+                    Ok(LambdaMooValue::Float(0.0))
+                } else {
+                    Ok(LambdaMooValue::Float(content.parse()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse float '{}': {}", content, e))?))
+                }
+            }
+            _ => Err(anyhow!("Unknown or unsupported value type: {}", value_type)),
+        }
     }
     
     fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<LambdaMooValue> {

@@ -191,27 +191,13 @@ value = {
 value_type = { num }
 
 value_content = {
-    str_value |
-    obj_value |
-    err_value |
-    int_value |
-    catch_value |
-    finally_value |
-    float_value |
+    simple_value |
     list_value |
-    map_value |
-    empty_value
+    map_value
 }
 
-// Value types
-empty_value = { "" }  // For TYPE_CLEAR and TYPE_NONE
-str_value = { raw_string ~ newline }
-obj_value = { objid ~ newline }
-err_value = { num ~ newline }
-int_value = { num ~ newline }
-catch_value = { num ~ newline }
-finally_value = { num ~ newline }
-float_value = { float_num ~ newline }
+// Simple values (most common types)
+simple_value = { raw_string ~ newline }
 
 // List value
 list_value = {
