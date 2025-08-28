@@ -59,8 +59,7 @@ moor-echo/
 ├── runtime/                    # Runtime data and databases
 │   └── databases/              # Echo database instances
 ├── dev/                        # Development and testing files
-│   ├── test-files/             # Development test files
-│   └── screenshots/            # Demo screenshots
+│   └── test-files/             # Development test files
 └── tools/                      # Development tools and utilities
     ├── docs/                   # AI-generated and tool documentation
     ├── web-dev/                # Web development tools and E2E tests
