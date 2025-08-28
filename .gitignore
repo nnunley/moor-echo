@@ -66,8 +66,7 @@ benchmark-results.txt
 .pre-commit-config.yaml.backup
 
 # Echo REPL databases
-echo-db/
-echo-web-db/
+runtime/databases/
 **/echo-db/
 **/echo-web-db/
 test-*-db/
@@ -82,11 +81,12 @@ server.pid
 test_parser.rs
 Cargo.toml.test
 
-# Old directory structure
-echo-repl/
-test_suites/
+# Development and testing files
+dev/
+tools/web-dev/node_modules/
+tools/legacy-files/
 
-# Debug and test executables (no extension)
+# Debug and test executables (no extension) - now in dev/
 test_*
 !test_*.rs
 !test_*.echo

@@ -1,6 +1,0 @@
-match 42
-case 10 => "ten"
-case 42 => "forty-two"  
-case _ => "other"
-endmatch
-EOF < /dev/null

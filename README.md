@@ -48,22 +48,24 @@ cargo run --bin moo_db_browser
 
 ```
 moor-echo/
-├── crates/
+├── crates/                     # Rust workspace crates
 │   ├── echo-core/              # Core language implementation
-│   │   ├── src/
-│   │   │   ├── evaluator/      # Echo language evaluator
-│   │   │   ├── parser/         # rust-sitter grammar and parsing
-│   │   │   ├── runtime/        # Task scheduler and runtime
-│   │   │   ├── storage/        # Object persistence
-│   │   │   └── tracer/         # System monitoring
-│   │   ├── examples/           # Development tools and utilities
-│   │   └── tests/              # Integration tests
 │   ├── echo-repl/              # REPL interface
 │   └── echo-web/               # Web server and UI
 ├── docs/                       # Comprehensive documentation
-├── examples/                   # MOO databases and Echo code
-├── static/                     # Web UI assets
-└── scripts/                    # Build and utility scripts
+├── examples/                   # MOO databases and Echo code examples
+│   └── core-objects/           # Standard Echo object library
+├── scripts/                    # Build and utility scripts
+├── runtime/                    # Runtime data and databases
+│   └── databases/              # Echo database instances
+├── dev/                        # Development and testing files
+│   ├── test-files/             # Development test files
+│   └── screenshots/            # Demo screenshots
+└── tools/                      # Development tools and utilities
+    ├── docs/                   # AI-generated and tool documentation
+    ├── web-dev/                # Web development tools and E2E tests
+    ├── python-dev/             # Python tooling configuration
+    └── legacy-files/           # Deprecated configuration files
 ```
 
 ## Key Features
@@ -175,8 +177,8 @@ cargo test
 # Test MOO database compatibility
 cargo test moo_db_browser
 
-# Run end-to-end web tests
-npx playwright test
+# Run end-to-end web tests  
+cd tools/web-dev && npx playwright test
 ```
 
 ### Development Tools
