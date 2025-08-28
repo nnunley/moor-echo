@@ -85,3 +85,24 @@ Cargo.toml.test
 # Old directory structure
 echo-repl/
 test_suites/
+
+# Debug and test executables (no extension)
+test_*
+!test_*.rs
+!test_*.echo
+!test_*.js
+debug_*
+!debug_*.rs
+
+# Log files
+logs.txt
+moo_parser_debug.log
+
+# Test result directories
+test-results/
+
+# Documentation files that should be in docs/ (only in root)
+/*.md
+!README.md
+!CLAUDE.md
+!LICENSE
