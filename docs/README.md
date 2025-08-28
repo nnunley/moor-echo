@@ -1,18 +1,96 @@
-# Echo REPL
+# Echo REPL Documentation
 
-A modern implementation of the Echo programming language with real-time web UI
-capabilities and multi-user collaboration features.
+Comprehensive documentation for the Echo REPL programming environment - a modern implementation of the Echo programming language with real-time web UI capabilities and multi-user collaboration features.
 
-## Overview
+## Documentation Structure
 
-Echo REPL is an interactive programming environment that combines:
+This directory contains consolidated, comprehensive documentation organized for external reviewers and contributors to understand the system architecture, implementation details, and development processes.
 
-- **Echo Language**: A dynamic, object-oriented programming language inspired by
-  MOO
-- **Real-time Web UI**: Browser-based interface with live collaboration
-- **Event-Driven Architecture**: Reactive programming with built-in event system
-- **Persistent Storage**: Database-backed object and player management
-- **Multi-User Support**: Real-time communication between multiple clients
+### Core Documentation
+
+#### [ARCHITECTURE.md](ARCHITECTURE.md) 
+**System Architecture and Design**
+- Core system architecture and component design  
+- Runtime system and concurrency model
+- Storage architecture and persistence strategy
+- Event system and real-time communication
+- Security model and performance characteristics
+- Integration patterns and deployment strategies
+
+#### [MOO_COMPATIBILITY.md](MOO_COMPATIBILITY.md)
+**MOO Database Integration and Compatibility**  
+- Complete MOO compatibility layer documentation
+- Database import system for .db files (LambdaCore, JHCore, etc.)
+- Built-in function mapping and implementation status
+- Migration tools and validation strategies
+- Testing approach for MOO compatibility
+
+#### [PARSER_AND_GRAMMAR.md](PARSER_AND_GRAMMAR.md)
+**Parser Architecture and Grammar Implementation**
+- Comprehensive rust-sitter integration details
+- Dual-grammar system (MOO legacy + modern Echo)
+- AST structure and language implementation
+- Error recovery and IDE support features
+- Performance characteristics and optimization strategies
+
+#### [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)  
+**Development Process and Workflow**
+- Project setup and development environment
+- Testing strategies and code quality standards  
+- Recent improvements and performance enhancements
+- Debugging tools and release processes
+- Comprehensive development workflow guide
+
+### Language Documentation
+
+#### [ECHO_LANGUAGE_DESIGN.md](ECHO_LANGUAGE_DESIGN.md)
+**Core Language Philosophy and Design**
+- Event-Centered Hybrid Objects (ECHO) language design
+- Object-centric programming model
+- Cooperative multithreading and persistence
+- Language philosophy and design principles
+
+#### [LANGUAGE_ROADMAP.md](LANGUAGE_ROADMAP.md)  
+**Implementation Roadmap and Feature Planning**
+- Current implementation status and completed features
+- Phase-by-phase development plan
+- Advanced features and future capabilities
+- MOO compatibility implementation priorities
+
+### Specialized Topics
+
+#### [TESTING.md](TESTING.md)
+Testing framework and validation strategies
+
+#### [ECHO_SYSTEM_TRACER.md](ECHO_SYSTEM_TRACER.md)  
+System tracing and monitoring capabilities
+
+#### [ECHO_REFLECTION_DESIGN.md](ECHO_REFLECTION_DESIGN.md)
+Reflection and metaprogramming features  
+
+#### [CAPABILITY_BOOTSTRAP.md](CAPABILITY_BOOTSTRAP.md)
+Capability-based security system
+
+#### [XMLUI_INTEGRATION.md](XMLUI_INTEGRATION.md)
+XML UI integration and web interface
+
+### Reference Materials
+
+#### [PRODUCTION_REFERENCE.md](PRODUCTION_REFERENCE.md)
+Production deployment reference
+
+#### [error-constants.md](error-constants.md)
+Error code definitions and constants
+
+#### [moo-language-notes.md](moo-language-notes.md) 
+MOO language reference notes
+
+#### [rust-sitter.md](rust-sitter.md)
+rust-sitter implementation details
+
+## Quick Start Guide
+
+For new users and contributors:
 
 ## Key Features
 
