@@ -75,17 +75,21 @@ pub enum LambdaMooValue {
 }
 
 // Value type constants from LambdaMOO structures.h
-const TYPE_INT: i64 = 0;
-const TYPE_OBJ: i64 = 1;
-const TYPE_STR: i64 = 2;  // _TYPE_STR in C code
-const TYPE_ERR: i64 = 3;
-const TYPE_LIST: i64 = 4;  // _TYPE_LIST in C code
-const TYPE_CLEAR: i64 = 5;
-const TYPE_NONE: i64 = 6;
-const TYPE_CATCH: i64 = 7;
-const TYPE_FINALLY: i64 = 8;
-const TYPE_FLOAT: i64 = 9;  // _TYPE_FLOAT in C code
-const TYPE_MAP: i64 = 12;   // Extension in newer MOO variants (not in original LambdaMOO)
+pub const TYPE_INT: i64 = 0;
+pub const TYPE_OBJ: i64 = 1;
+pub const TYPE_STR: i64 = 2;  // _TYPE_STR in C code
+pub const TYPE_ERR: i64 = 3;
+pub const TYPE_LIST: i64 = 4;  // _TYPE_LIST in C code
+pub const TYPE_CLEAR: i64 = 5;
+pub const TYPE_NONE: i64 = 6;
+pub const TYPE_CATCH: i64 = 7;
+pub const TYPE_FINALLY: i64 = 8;
+pub const TYPE_FLOAT: i64 = 9;  // _TYPE_FLOAT in C code
+pub const TYPE_MAP: i64 = 12;   // Extension in newer MOO variants (not in original LambdaMOO)
+
+#[cfg(test)]
+#[path = "lambdamoo_db_parser_tests.rs"]
+mod tests;
 
 impl LambdaMooDbParser {
     /// Parse a LambdaMOO database file
@@ -210,7 +214,7 @@ impl LambdaMooDbParser {
         if let Some(first_pair) = inner.next() {
             match first_pair.as_rule() {
                 Rule::object_count => {
-                    let _expected_count: i64 = first_pair.as_str().parse()?;
+                    let expected_count: i64 = first_pair.as_str().parse()?;
                     
                     // Parse remaining object definitions
                     for object_def in inner {
@@ -219,6 +223,11 @@ impl LambdaMooDbParser {
                             db.objects.insert(obj.id, obj);
                             object_count += 1;
                         }
+                    }
+                    
+                    // Verify we parsed the expected number of objects
+                    if object_count != expected_count {
+                        println!("Warning: Expected {} objects, but parsed {}", expected_count, object_count);
                     }
                 }
                 Rule::object_def => {
@@ -589,56 +598,11 @@ impl LambdaMooDbParser {
         Ok(value)
     }
     
-    fn parse_simple_value(value_type: i64, content: &str) -> Result<LambdaMooValue> {
-        match value_type {
-            TYPE_INT => {
-                if content.trim().is_empty() {
-                    Ok(LambdaMooValue::Int(0))
-                } else {
-                    Ok(LambdaMooValue::Int(content.parse()
-                        .map_err(|e| anyhow::anyhow!("Failed to parse integer '{}': {}", content, e))?))
-                }
-            }
-            TYPE_OBJ => {
-                if content.trim().is_empty() {
-                    Ok(LambdaMooValue::Obj(-1))
-                } else {
-                    Ok(LambdaMooValue::Obj(content.parse()
-                        .map_err(|e| anyhow::anyhow!("Failed to parse object ID '{}': {}", content, e))?))
-                }
-            }
-            TYPE_STR => Ok(LambdaMooValue::Str(content.to_string())),
-            TYPE_ERR => {
-                if content.trim().is_empty() {
-                    Ok(LambdaMooValue::Err(0))
-                } else {
-                    Ok(LambdaMooValue::Err(content.parse()
-                        .map_err(|e| anyhow::anyhow!("Failed to parse error code '{}': {}", content, e))?))
-                }
-            }
-            TYPE_CLEAR => Ok(LambdaMooValue::Clear),
-            TYPE_NONE => Ok(LambdaMooValue::None),
-            TYPE_CATCH | TYPE_FINALLY => {
-                if content.trim().is_empty() {
-                    Ok(LambdaMooValue::Int(0))
-                } else {
-                    Ok(LambdaMooValue::Int(content.parse()
-                        .map_err(|e| anyhow::anyhow!("Failed to parse catch/finally value '{}': {}", content, e))?))
-                }
-            }
-            TYPE_FLOAT => {
-                if content.trim().is_empty() {
-                    Ok(LambdaMooValue::Float(0.0))
-                } else {
-                    Ok(LambdaMooValue::Float(content.parse()
-                        .map_err(|e| anyhow::anyhow!("Failed to parse float '{}': {}", content, e))?))
-                }
-            }
-            _ => Err(anyhow!("Unknown or unsupported value type: {}", value_type)),
-        }
-    }
     
     fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<LambdaMooValue> {
+        let rule = pair.as_rule();
+        eprintln!("parse_value called with rule: {:?}", rule);
+        
         let mut inner = pair.into_inner();
         
         // Get value type
@@ -649,105 +613,76 @@ impl LambdaMooDbParser {
             return Err(anyhow!("Missing value type"));
         };
         
+        eprintln!("Value type: {}", value_type);
+        
         // Parse value content based on type
         match value_type {
             TYPE_CLEAR => Ok(LambdaMooValue::Clear),
             TYPE_NONE => Ok(LambdaMooValue::None),
             _ => if let Some(content) = inner.next() {
+                eprintln!("Content rule: {:?}, content: {:?}", content.as_rule(), content.as_str());
                 match value_type {
                 TYPE_STR => {
-                    let mut content_inner = content.into_inner();
-                    if let Some(str_val) = content_inner.next() {
-                        Ok(LambdaMooValue::Str(str_val.as_str().to_string()))
-                    } else {
-                        Ok(LambdaMooValue::Str(String::new()))
-                    }
+                    // For simple_value, the content is raw_string which doesn't include newline
+                    Ok(LambdaMooValue::Str(content.as_str().to_string()))
                 }
                 TYPE_OBJ => {
-                    let mut content_inner = content.into_inner();
-                    if let Some(obj_val) = content_inner.next() {
-                        // obj_val is the obj_value rule, we need to extract the objid part
-                        let mut obj_inner = obj_val.into_inner();
-                        if let Some(objid_val) = obj_inner.next() {
-                            let obj_str = objid_val.as_str();
-                            if obj_str.trim().is_empty() {
-                                Ok(LambdaMooValue::Obj(-1)) // Default object ID for empty values (invalid object)
-                            } else {
-                                Ok(LambdaMooValue::Obj(obj_str.parse()
-                                    .map_err(|e| anyhow::anyhow!("Failed to parse object ID '{}': {}", obj_str, e))?))
-                            }
-                        } else {
-                            Ok(LambdaMooValue::Obj(-1)) // Default when no object ID present
-                        }
+                    // For simple_value, the content is raw_string which should be a number
+                    let obj_str = content.as_str().trim();
+                    if obj_str.is_empty() {
+                        Ok(LambdaMooValue::Obj(-1)) // Default object ID for empty values
                     } else {
-                        Err(anyhow!("Missing object ID"))
+                        Ok(LambdaMooValue::Obj(obj_str.parse()
+                            .map_err(|e| anyhow::anyhow!("Failed to parse object ID '{}': {}", obj_str, e))?))
                     }
                 }
                 TYPE_ERR => {
-                    let mut content_inner = content.into_inner();
-                    if let Some(err_val) = content_inner.next() {
-                        // err_val is the err_value rule, we need to extract the num part
-                        let mut err_inner = err_val.into_inner();
-                        if let Some(num_val) = err_inner.next() {
-                            let num_str = num_val.as_str();
-                            if num_str.trim().is_empty() {
-                                Ok(LambdaMooValue::Err(0)) // Default error code for empty values
-                            } else {
-                                Ok(LambdaMooValue::Err(num_str.parse()
-                                    .map_err(|e| anyhow::anyhow!("Failed to parse error code '{}': {}", num_str, e))?))
-                            }
-                        } else {
-                            Ok(LambdaMooValue::Err(0)) // Default when no error code present
-                        }
+                    // For simple_value, the content is raw_string which should be a number
+                    let err_str = content.as_str().trim();
+                    if err_str.is_empty() {
+                        Ok(LambdaMooValue::Err(0)) // Default error code for empty values
                     } else {
-                        Err(anyhow!("Missing error code"))
+                        Ok(LambdaMooValue::Err(err_str.parse()
+                            .map_err(|e| anyhow::anyhow!("Failed to parse error code '{}': {}", err_str, e))?))
                     }
                 }
                 TYPE_INT | TYPE_CATCH | TYPE_FINALLY => {
-                    let mut content_inner = content.into_inner();
-                    if let Some(int_val) = content_inner.next() {
-                        // int_val is the int_value rule, we need to extract the num part
-                        let mut int_inner = int_val.into_inner();
-                        if let Some(num_val) = int_inner.next() {
-                            let num_str = num_val.as_str();
-                            if num_str.trim().is_empty() {
-                                Ok(LambdaMooValue::Int(0)) // Default integer for empty values
-                            } else {
-                                Ok(LambdaMooValue::Int(num_str.parse()
-                                    .map_err(|e| anyhow::anyhow!("Failed to parse integer value '{}': {}", num_str, e))?))
-                            }
-                        } else {
-                            Ok(LambdaMooValue::Int(0)) // Default when no integer present
-                        }
+                    // For simple_value, the content is raw_string which should be a number
+                    let int_str = content.as_str().trim();
+                    if int_str.is_empty() {
+                        Ok(LambdaMooValue::Int(0)) // Default integer for empty values
                     } else {
-                        Err(anyhow!("Missing integer value"))
+                        Ok(LambdaMooValue::Int(int_str.parse()
+                            .map_err(|e| anyhow::anyhow!("Failed to parse integer value '{}': {}", int_str, e))?))
                     }
                 }
                 TYPE_FLOAT => {
-                    let mut content_inner = content.into_inner();
-                    if let Some(float_val) = content_inner.next() {
-                        // float_val is the float_value rule, we need to extract the float_num part
-                        let mut float_inner = float_val.into_inner();
-                        if let Some(num_val) = float_inner.next() {
-                            let num_str = num_val.as_str();
-                            if num_str.trim().is_empty() {
-                                Ok(LambdaMooValue::Float(0.0)) // Default float for empty values
-                            } else {
-                                Ok(LambdaMooValue::Float(num_str.parse()
-                                    .map_err(|e| anyhow::anyhow!("Failed to parse float value '{}': {}", num_str, e))?))
-                            }
-                        } else {
-                            Ok(LambdaMooValue::Float(0.0)) // Default when no float present
-                        }
+                    // For simple_value, the content is raw_string which should be a float
+                    let float_str = content.as_str().trim();
+                    if float_str.is_empty() {
+                        Ok(LambdaMooValue::Float(0.0)) // Default float for empty values
                     } else {
-                        Err(anyhow!("Missing float value"))
+                        Ok(LambdaMooValue::Float(float_str.parse()
+                            .map_err(|e| anyhow::anyhow!("Failed to parse float value '{}': {}", float_str, e))?))
                     }
                 }
                 TYPE_LIST => {
-                    Self::parse_list_value(content)
+                    // content is value_content which contains list_value
+                    eprintln!("Parsing list, content spans: {:?}", content.as_span().as_str());
+                    if let Some(list_value) = content.into_inner().next() {
+                        eprintln!("list_value rule: {:?}, span: {:?}", list_value.as_rule(), list_value.as_span().as_str());
+                        Self::parse_list_value(list_value)
+                    } else {
+                        Err(anyhow!("Missing list_value content"))
+                    }
                 }
                 TYPE_MAP => {
-                    Self::parse_map_value(content)
+                    // content is value_content which contains map_value
+                    if let Some(map_value) = content.into_inner().next() {
+                        Self::parse_map_value(map_value)
+                    } else {
+                        Err(anyhow!("Missing map_value content"))
+                    }
                 }
                 _ => Err(anyhow!("Unknown value type: {}", value_type)),
                 }
@@ -761,20 +696,33 @@ impl LambdaMooDbParser {
         let mut list = Vec::new();
         let mut inner = pair.into_inner();
         
-        // Skip list length  
-        if let Some(len_pair) = inner.next() {
-            let list_len_str = len_pair.as_str();
-            let _list_len = list_len_str.parse::<i64>()
-                .map_err(|e| anyhow::anyhow!("Failed to parse list length '{}': {}", list_len_str, e))?;
+        // Parse list length  
+        let list_len = if let Some(len_pair) = inner.next() {
+            let list_len_str = len_pair.as_str().trim();
+            list_len_str.parse::<i64>()
+                .map_err(|e| anyhow::anyhow!("Failed to parse list length '{}': {}", list_len_str, e))?
+        } else {
+            return Err(anyhow!("Missing list length"));
+        };
+        
+        // Debug: print what we have
+        let remaining: Vec<_> = inner.collect();
+        eprintln!("List length: {}, remaining pairs: {}", list_len, remaining.len());
+        for (idx, p) in remaining.iter().enumerate() {
+            eprintln!("  [{}] Rule: {:?}, Content: {:?}", idx, p.as_rule(), p.as_str());
         }
         
-        // Parse each list element
-        let mut elem_count = 0;
-        for elem in inner {
-            if let Rule::value = elem.as_rule() {
-                elem_count += 1;
-                list.push(Self::parse_value(elem)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse list element {}: {}", elem_count, e))?);
+        // Parse each list element (exactly list_len elements)
+        for i in 0..list_len {
+            if let Some(elem) = remaining.get(i as usize) {
+                if let Rule::value = elem.as_rule() {
+                    list.push(Self::parse_value(elem.clone())
+                        .map_err(|e| anyhow::anyhow!("Failed to parse list element {}: {}", i + 1, e))?);
+                } else {
+                    return Err(anyhow!("Expected value rule for list element {}, got {:?}", i + 1, elem.as_rule()));
+                }
+            } else {
+                return Err(anyhow!("Missing list element {} (expected {} elements)", i + 1, list_len));
             }
         }
         

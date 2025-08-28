@@ -11,6 +11,9 @@ pub mod moo_preprocessor;
 pub mod moo_object_parser;
 pub mod verb_parser;
 pub mod lambdamoo_db_parser;
+pub mod lambdamoo_db_nom;
+pub mod lambdamoo_db_nom_debug;
+pub mod moo_common;
 
 #[cfg(test)]
 mod tests;

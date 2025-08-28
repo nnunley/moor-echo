@@ -32,6 +32,7 @@ tree-sitter.workspace = true
 tree-sitter-moo.workspace = true
 pest = "2.7"
 pest_derive = "2.7"
+nom = "7.1"
 
 # Additional dependencies that were in original echo-repl
 bincode.workspace = true
