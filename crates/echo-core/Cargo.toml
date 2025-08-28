@@ -43,7 +43,7 @@ rust-sitter.workspace = true
 uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 indexmap = { version = "2.0", features = ["serde"] }
-regex = "1.10"
+regex = "1.11"
 
 # TUI dependencies
 ratatui = "0.28"
