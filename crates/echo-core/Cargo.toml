@@ -30,8 +30,8 @@ parking_lot.workspace = true
 # Parser
 tree-sitter.workspace = true
 tree-sitter-moo.workspace = true
-pest = "2.7"
-pest_derive = "2.7"
+pest = "2.8"
+pest_derive = "2.8"
 nom = "7.1"
 
 # Additional dependencies that were in original echo-repl
